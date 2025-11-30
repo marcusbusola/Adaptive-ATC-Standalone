@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl, buildWebSocketUrl } from '../utils/apiConfig';
 import { isAuthenticated, clearToken, getAuthHeaders } from '../services/tokenService';
 import useWebSocket from '../hooks/useWebSocket';
-import useBlueskyLive from '../hooks/useBlueskyLive';
+import useSimulation from '../hooks/useSimulation';
 import ResearcherLogin from './ResearcherLogin';
 import './ResearcherSessionView.css';
 
@@ -20,7 +20,7 @@ function ResearcherSessionView() {
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
     const [liveScenarioState, setLiveScenarioState] = useState(null);
     const [wsUrl, setWsUrl] = useState(null);
-    const { connected: bsConnected, lastMessage: bsMessage } = useBlueskyLive();
+    const { connected: simConnected, state: simState } = useSimulation();
 
     useEffect(() => {
         setAuthenticated(isAuthenticated());
@@ -152,12 +152,12 @@ function ResearcherSessionView() {
                 </div>
             </div>
 
-            <div className="bluesky-embed">
+            <div className="simulation-embed">
                 <div className="researcher-live-panel">
-                    <h3>BlueSky Live Feed</h3>
-                    <p>Status: {bsConnected ? 'Connected' : 'Disconnected'}</p>
+                    <h3>Simulation Live Feed</h3>
+                    <p>Status: {simConnected ? 'Connected' : 'Disconnected'}</p>
                     <pre className="telemetry-log">
-                        {bsMessage ? JSON.stringify(bsMessage, null, 2) : 'Awaiting telemetry...'}
+                        {simState ? JSON.stringify(simState, null, 2) : 'Awaiting telemetry...'}
                     </pre>
                 </div>
             </div>

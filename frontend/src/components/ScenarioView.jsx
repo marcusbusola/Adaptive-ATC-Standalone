@@ -1,6 +1,6 @@
 import React from 'react';
 import './ScenarioView.css';
-import useBlueskyLive from '../hooks/useBlueskyLive';
+import useSimulation from '../hooks/useSimulation';
 
 const ScenarioView = ({
   sessionId,
@@ -10,13 +10,13 @@ const ScenarioView = ({
   onAlertAcknowledge,
   onEndScenario
 }) => {
-  const { connected, lastMessage } = useBlueskyLive();
+  const { connected, state: simState } = useSimulation();
 
   return (
     <div className="scenario-view">
       <div className="scenario-status">
         <div className="status-row">
-          <span className="label">BlueSky Link:</span>
+          <span className="label">Simulation:</span>
           <span className={`value ${connected ? 'ok' : 'warn'}`}>{connected ? 'Connected' : 'Disconnected'}</span>
         </div>
         <div className="status-row">
@@ -42,7 +42,7 @@ const ScenarioView = ({
       <div className="telemetry-panel">
         <h3>Live Telemetry</h3>
         <pre className="telemetry-log">
-          {lastMessage ? JSON.stringify(lastMessage, null, 2) : 'Waiting for telemetry...'}
+          {simState ? JSON.stringify(simState, null, 2) : 'Waiting for telemetry...'}
         </pre>
       </div>
     </div>

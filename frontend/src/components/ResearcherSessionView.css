@@ -36,9 +36,9 @@
     background-color: #c82333;
 }
 
-.bluesky-embed {
+.simulation-embed {
     width: 100%;
-    max-width: 1200px; /* Adjust as needed */
+    max-width: 1200px;
     margin-bottom: 20px;
 }
 
