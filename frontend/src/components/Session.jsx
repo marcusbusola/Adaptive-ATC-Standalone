@@ -42,6 +42,7 @@ function Session() {
 
     const timerRef = useRef(null);
     const pollingRef = useRef(null);
+    const scenarioStartedRef = useRef(false); // Ref to avoid stale closure in polling
     const startTimeRef = useRef(null);
 
     const fetchSessionDetails = useCallback(async () => {
@@ -139,7 +140,8 @@ function Session() {
 
     // CRITICAL: Polling loop to get triggered events from backend
     const pollScenarioUpdate = useCallback(async () => {
-        if (!scenarioStarted || scenarioComplete) return;
+        // Use ref instead of state to avoid stale closure issue
+        if (!scenarioStartedRef.current || scenarioComplete) return;
 
         const currentElapsedTime = startTimeRef.current
             ? (Date.now() - startTimeRef.current) / 1000
@@ -193,7 +195,7 @@ function Session() {
         } catch (err) {
             console.error('[Polling] Error:', err);
         }
-    }, [sessionId, scenarioStarted, scenarioComplete, elapsedTime, handleEndSession]);
+    }, [sessionId, scenarioComplete, elapsedTime, handleEndSession]); // Removed scenarioStarted, using ref instead
 
     // Convert scenario events to alerts based on condition
     const processTriggeredEvents = async (events) => {
@@ -291,6 +293,7 @@ function Session() {
             console.log('Scenario started:', data);
 
             setScenarioStarted(true);
+            scenarioStartedRef.current = true; // Set ref immediately for polling
             startTimeRef.current = Date.now();
 
             // Start the local timer for display
