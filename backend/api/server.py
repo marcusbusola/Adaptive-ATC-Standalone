@@ -960,6 +960,22 @@ async def submit_survey(session_id: str, request: SurveyRequest):
 
         survey_id = f"survey_{session_id}_{request.survey_type}_{uuid.uuid4().hex[:8]}"
 
+        # Normalize survey_phase to match database CHECK constraint
+        # Frontend sends: 'pre-session', 'post-session', 'post-phase-1'
+        # Database accepts: 'pre', 'post', 'mid', 'followup'
+        phase_mapping = {
+            'pre-session': 'pre',
+            'post-session': 'post',
+            'post-phase-1': 'mid',
+            'mid-session': 'mid',
+        }
+        normalized_phase = phase_mapping.get(request.survey_phase, request.survey_phase)
+
+        # Validate normalized phase, default to 'post' if invalid
+        valid_phases = ('pre', 'post', 'mid', 'followup')
+        if normalized_phase not in valid_phases:
+            normalized_phase = 'post'
+
         async with db_manager.get_connection() as conn:
             await conn.execute(
                 """INSERT INTO surveys
@@ -969,7 +985,7 @@ async def submit_survey(session_id: str, request: SurveyRequest):
                     "session_id": session_id,
                     "survey_id": survey_id,
                     "survey_type": request.survey_type,
-                    "survey_phase": request.survey_phase,
+                    "survey_phase": normalized_phase,
                     "responses": json.dumps(request.responses),
                     "duration": request.duration_seconds
                 }
