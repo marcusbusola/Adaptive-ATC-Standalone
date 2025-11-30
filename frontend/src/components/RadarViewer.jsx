@@ -27,6 +27,7 @@ function RadarViewer({
   // Canvas refs
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
+  const sweepAngleRef = useRef(0);
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +40,8 @@ function RadarViewer({
   // Radar settings
   const CANVAS_SIZE = 800;
   const RADAR_RANGE_NM = 50;
+  const SWEEP_SPEED = 0.02; // Radians per frame (~4 second rotation)
+  const SWEEP_TRAIL_LENGTH = 0.5; // Radians of trail
 
   // Scenario center coordinates
   const scenarioCenter = scenario ? getScenarioCenter(scenario) : getScenarioCenter('L1');
@@ -106,6 +109,8 @@ function RadarViewer({
    */
   const startRenderLoop = () => {
     const render = () => {
+      // Update sweep angle
+      sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (2 * Math.PI);
       drawRadar();
       animationRef.current = requestAnimationFrame(render);
     };
@@ -130,6 +135,9 @@ function RadarViewer({
 
     // Draw base layer (range rings, labels)
     drawBaseLayer(ctx);
+
+    // Draw radar sweep
+    drawRadarSweep(ctx);
 
     // Draw aircraft from simulation state
     if (aircraft && aircraft.length > 0) {
@@ -199,6 +207,54 @@ function RadarViewer({
     if (state) {
       ctx.fillText(`Sim Time: ${Math.floor(state.sim_time)}s`, 10, 65);
     }
+  };
+
+  /**
+   * Draw radar sweep with fading trail
+   */
+  const drawRadarSweep = (ctx) => {
+    const center = { x: CANVAS_SIZE / 2, y: CANVAS_SIZE / 2 };
+    const radius = CANVAS_SIZE / 2 - 10;
+    const angle = sweepAngleRef.current;
+
+    // Draw fading trail (multiple lines with decreasing opacity)
+    const trailSteps = 30;
+    for (let i = 0; i < trailSteps; i++) {
+      const trailAngle = angle - (i / trailSteps) * SWEEP_TRAIL_LENGTH;
+      const opacity = 0.4 * (1 - i / trailSteps);
+
+      ctx.strokeStyle = `rgba(0, 255, 0, ${opacity})`;
+      ctx.lineWidth = 2 - (i / trailSteps);
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y);
+      ctx.lineTo(
+        center.x + radius * Math.cos(trailAngle - Math.PI / 2),
+        center.y + radius * Math.sin(trailAngle - Math.PI / 2)
+      );
+      ctx.stroke();
+    }
+
+    // Draw main sweep line
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(
+      center.x + radius * Math.cos(angle - Math.PI / 2),
+      center.y + radius * Math.sin(angle - Math.PI / 2)
+    );
+    ctx.stroke();
+
+    // Draw glow at sweep tip
+    const tipX = center.x + radius * Math.cos(angle - Math.PI / 2);
+    const tipY = center.y + radius * Math.sin(angle - Math.PI / 2);
+    const gradient = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, 8);
+    gradient.addColorStop(0, 'rgba(0, 255, 0, 0.6)');
+    gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 8, 0, 2 * Math.PI);
+    ctx.fill();
   };
 
   /**
