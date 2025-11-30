@@ -57,11 +57,35 @@ class Aircraft:
 
     @classmethod
     def from_config(cls, config: dict) -> "Aircraft":
-        """Create aircraft from scenario configuration."""
+        """Create aircraft from scenario configuration.
+
+        Handles both coordinate formats:
+        - Simulation format: {lat, lon}
+        - Scenario format: {position: {x, y}} or {position: (x, y)}
+        """
+        # Handle both coordinate formats
+        if "lat" in config and "lon" in config:
+            lat = config["lat"]
+            lon = config["lon"]
+        elif "position" in config:
+            # Scenario format: position is {x, y} or (x, y)
+            pos = config["position"]
+            if isinstance(pos, dict):
+                # {position: {x: ..., y: ...}} - x is lon, y is lat
+                lat = pos.get("y", pos.get("lat", 0))
+                lon = pos.get("x", pos.get("lon", 0))
+            elif isinstance(pos, (list, tuple)):
+                # (x, y) tuple - x is lon, y is lat
+                lon, lat = pos[0], pos[1]
+            else:
+                lat, lon = 0, 0
+        else:
+            raise ValueError("Aircraft config must have 'lat'/'lon' or 'position'")
+
         return cls(
             callsign=config["callsign"],
-            lat=config["lat"],
-            lon=config["lon"],
+            lat=lat,
+            lon=lon,
             altitude=config.get("altitude", 35000),
             heading=config.get("heading", 0),
             speed=config.get("speed", 250),

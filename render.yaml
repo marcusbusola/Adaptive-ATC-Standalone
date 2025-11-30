@@ -37,6 +37,17 @@ services:
       - key: ENABLE_BEHAVIORAL_TRACKING
         value: "true"
 
+# Optional: Separate static site for frontend (alternative deployment)
+# Uncomment below if deploying frontend separately from backend
+#  - type: static
+#    name: atc-frontend
+#    buildCommand: cd frontend && npm ci --legacy-peer-deps && npm run build
+#    staticPublishPath: frontend/build
+#    routes:
+#      - type: rewrite
+#        source: /*
+#        destination: /index.html
+
 databases:
   - name: atc-research-db
     region: oregon

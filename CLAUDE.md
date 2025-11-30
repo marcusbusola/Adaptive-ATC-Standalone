@@ -27,6 +27,10 @@ python data/setup_database.py --verify
 # Run tests
 pytest tests/ -v --cov=api --cov=ml_models
 
+# Run a single test file or test
+pytest tests/test_api.py -v
+pytest tests/test_api.py::test_function_name -v
+
 # Train ML model
 python ml_models/train_complacency_model.py
 
@@ -51,11 +55,13 @@ npm run lint       # ESLint
 ### Three-Tier Structure
 ```
 frontend/           # React 18 SPA with styled-components
+  ├── components/   # React components (alerts, surveys, radar display)
+  └── components/Queue/  # Session queue management (QueueBuilder, QueueRunner, ResultsDashboard)
 backend/            # Python FastAPI with async SQLite/PostgreSQL
-  ├── api/          # REST & WebSocket endpoints (server.py is main entry)
+  ├── api/          # REST & WebSocket endpoints (server.py is main entry, queue_manager.py for session queues)
   ├── scenarios/    # Scenario controllers (L1, L2, L3, H4, H5, H6)
   ├── ml_models/    # Complacency detection ML (RandomForest)
-  ├── simulation/   # Built-in aircraft simulation engine
+  ├── simulation/   # Aircraft simulation (sim_engine.py, aircraft.py, physics.py)
   └── data/         # Database utilities and schema
 ```
 
@@ -82,7 +88,8 @@ All scenarios inherit from `BaseScenario` in `backend/scenarios/base_scenario.py
 - **SessionRunner.jsx**: Manages active session lifecycle
 - **RadarViewer.jsx**: ATC radar display visualization
 - **Alert Components**: `TraditionalModalAlert.jsx`, `AdaptiveBannerAlert.jsx`, `MLPredictiveAlert.jsx`
-- **Survey Components**: NASA-TLX, Trust, Demographics surveys in `components/Surveys/`
+- **Survey Components**: NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck surveys in `components/Surveys/`
+- **Queue Components**: `QueueBuilder.jsx`, `QueueRunner.jsx`, `ResultsDashboard.jsx` in `components/Queue/`
 
 ### Real-Time Communication
 - WebSocket endpoint: `/ws/session/{session_id}` for behavioral events and scenario updates
