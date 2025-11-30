@@ -28,6 +28,7 @@ function RadarViewer({
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const sweepAngleRef = useRef(0);
+  const audioContextRef = useRef(null);
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +48,44 @@ function RadarViewer({
   const scenarioCenter = scenario ? getScenarioCenter(scenario) : getScenarioCenter('L1');
 
   /**
+   * Play radar beep sound using Web Audio API
+   */
+  const playRadarBeep = useCallback(() => {
+    try {
+      // Create AudioContext on first use (browsers require user interaction)
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      // Create oscillator for beep
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      // Radar beep: short, high-pitched tone
+      oscillator.frequency.setValueAtTime(1200, ctx.currentTime); // 1200 Hz
+      oscillator.type = 'sine';
+
+      // Quick fade in and out for softer sound
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01); // Fade in
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.08); // Fade out
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.1); // 100ms beep
+    } catch (e) {
+      // Silently fail if audio isn't available
+    }
+  }, []);
+
+  /**
    * Initialize and start render loop
    */
   useEffect(() => {
@@ -56,6 +95,10 @@ function RadarViewer({
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
+      }
+      // Clean up audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
   }, []);
@@ -109,8 +152,17 @@ function RadarViewer({
    */
   const startRenderLoop = () => {
     const render = () => {
+      // Track previous angle to detect north crossing
+      const prevAngle = sweepAngleRef.current;
+
       // Update sweep angle
       sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (2 * Math.PI);
+
+      // Play beep when sweep crosses north (angle wraps from ~2π back to ~0)
+      if (prevAngle > sweepAngleRef.current) {
+        playRadarBeep();
+      }
+
       drawRadar();
       animationRef.current = requestAnimationFrame(render);
     };
