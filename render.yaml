@@ -1,0 +1,46 @@
+# Render Blueprint - ATC Adaptive Alert Research System
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Combined Backend + Frontend Web Service
+  - type: web
+    name: atc-adaptive-alerts
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: ./build.sh
+    startCommand: cd backend && uvicorn api.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: NODE_VERSION
+        value: "18"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: atc-research-db
+          property: connectionString
+      - key: RESEARCHER_TOKEN
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: ALLOW_UNPROTECTED_RESEARCHER
+        value: "false"
+      - key: ML_TRAINING_ENABLED
+        value: "false"
+      - key: ENABLE_BEHAVIORAL_TRACKING
+        value: "true"
+
+databases:
+  - name: atc-research-db
+    region: oregon
+    plan: starter
+    databaseName: atc_research
+    user: atc_admin
+    ipAllowList: []  # Only allow internal connections

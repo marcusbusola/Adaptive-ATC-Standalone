@@ -7,10 +7,6 @@
  */
 
 const buildTimeApiUrl = process.env.REACT_APP_API_URL;
-const renderDefaults = {
-  frontend: 'https://adaptive-atc-dashboard-2.onrender.com',
-  api: 'https://adaptive-atc-dashboard.onrender.com'
-};
 
 function getOverride(key) {
   // Allow runtime override via global object if the page sets window.__RUNTIME_CONFIG__
@@ -34,9 +30,9 @@ export function getApiUrl() {
     return override;
   }
 
-  // Production: Render deployment
+  // Production: Render deployment (same-origin since frontend is served by backend)
   if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-    return renderDefaults.api;
+    return `${window.location.protocol}//${window.location.host}`;
   }
 
   // Local development
