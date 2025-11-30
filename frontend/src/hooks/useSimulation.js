@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getApiUrl } from '../utils/apiConfig';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
 /**
  * Hook to connect to the simulation SSE stream
@@ -28,7 +28,7 @@ export default function useSimulation() {
       eventSourceRef.current.close();
     }
 
-    const apiUrl = getApiUrl();
+    const apiUrl = getApiBaseUrl();
     const sseUrl = `${apiUrl}/api/simulation/stream`;
 
     console.log('[useSimulation] Connecting to SSE:', sseUrl);
