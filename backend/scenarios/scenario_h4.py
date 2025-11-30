@@ -38,6 +38,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
+from datetime import datetime
 from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
 
 
@@ -449,9 +450,27 @@ class ScenarioH4(BaseScenario):
 
     def _spawn_vfr_aircraft(self, event: ScenarioEvent) -> None:
         """Handle VFR aircraft spawn event"""
-        # Aircraft already created by internal event
-        # This just logs the spawn event for alerts
-        pass
+        # Aircraft already created by internal event, ensure metrics and alert are recorded
+        measurement_key = f"{event.target}_vfr_intrusion_detection"
+        if measurement_key not in self.measurements:
+            self.measurements[measurement_key] = {
+                'intrusion_time': self.elapsed_time,
+                'detected_time': None,
+                'contacted_time': None,
+                'detection_delay': None,
+                'contact_delay': None
+            }
+
+        # Generate a condition-specific alert so the intrusion surfaces to the UI/logs
+        alert_payload = self.generate_condition_specific_alert(alert_type='vfr_intrusion')
+        self.interactions.append({
+            'time': self.elapsed_time,
+            'type': 'system_alert',
+            'target': event.target,
+            'data': alert_payload,
+            'timestamp': datetime.now().isoformat()
+        })
+        print(f"  VFR intrusion event logged for {event.target}")
 
     def check_peripheral_neglect_vfr(self) -> bool:
         """

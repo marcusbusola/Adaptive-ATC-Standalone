@@ -52,7 +52,9 @@ class SimulationEngine:
     def remove_event_handler(self, event_type: str, handler: Callable):
         """Remove an event handler."""
         if event_type in self._event_handlers:
-            self._event_handlers[event_type].discard(handler)
+            handlers = self._event_handlers[event_type]
+            if handler in handlers:
+                handlers.remove(handler)
 
     async def _emit_event(self, event_type: str, data: Any = None):
         """Emit an event to all registered handlers."""

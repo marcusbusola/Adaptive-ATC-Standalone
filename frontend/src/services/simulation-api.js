@@ -5,9 +5,9 @@
  * Replaces bluesky-adapter.js for standalone simulation.
  */
 
-import { getApiUrl } from '../utils/apiConfig';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
-const API_URL = getApiUrl();
+const API_URL = getApiBaseUrl();
 
 /**
  * API client for simulation control
@@ -152,7 +152,7 @@ class SimulationAPI {
    * @param {string} callsign - Aircraft callsign
    * @param {number} speed - Target speed in knots
    */
-  async setSpeed(callsign, speed) {
+  async setAircraftSpeed(callsign, speed) {
     return this.commandAircraft(callsign, { speed });
   }
 
