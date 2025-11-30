@@ -7,6 +7,8 @@
  */
 
 const buildTimeApiUrl = process.env.REACT_APP_API_URL;
+const PRODUCTION_API_URL = 'https://adaptive-atc-standalone.onrender.com';
+const PRODUCTION_FRONTEND_URL = 'https://adaptive-atc-frontend.onrender.com';
 
 function getOverride(key) {
   // Allow runtime override via global object if the page sets window.__RUNTIME_CONFIG__
@@ -30,9 +32,9 @@ export function getApiUrl() {
     return override;
   }
 
-  // Production: Render deployment (same-origin since frontend is served by backend)
+  // Production: Render deployment
   if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-    return `${window.location.protocol}//${window.location.host}`;
+    return PRODUCTION_API_URL;
   }
 
   // Local development
