@@ -39,7 +39,7 @@ function RadarViewer({
 
   // Radar settings
   const CANVAS_SIZE = 800;
-  const RADAR_RANGE_NM = 50;
+  const RADAR_RANGE_NM = 250; // Extended range to show all scenario aircraft
   const SWEEP_SPEED = 0.02; // Radians per frame (~4 second rotation)
   const SWEEP_TRAIL_LENGTH = 0.5; // Radians of trail
 
@@ -161,8 +161,8 @@ function RadarViewer({
     const center = { x: CANVAS_SIZE / 2, y: CANVAS_SIZE / 2 };
     const scale = CANVAS_SIZE / (2 * RADAR_RANGE_NM);
 
-    // Range rings
-    const rings = [5, 10, 20, 50];
+    // Range rings (adjusted for 250 NM range)
+    const rings = [50, 100, 150, 200, 250];
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
     ctx.lineWidth = 1;
 
