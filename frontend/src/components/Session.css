@@ -1,0 +1,132 @@
+.session-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    position: relative;
+}
+
+/* Session Header */
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #16213e;
+    border-bottom: 1px solid #0f3460;
+    z-index: 100;
+}
+
+.session-header h1 {
+    font-size: 1.2rem;
+    margin: 0;
+    color: #e0e0e0;
+}
+
+.session-info {
+    display: flex;
+    gap: 20px;
+    font-size: 0.9rem;
+}
+
+.session-info span {
+    padding: 5px 12px;
+    background-color: #0f3460;
+    border-radius: 4px;
+}
+
+.session-info .time-warning {
+    background-color: #ff6b6b;
+    color: #fff;
+    font-weight: bold;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Alert Layer */
+.alert-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.alert-layer > * {
+    pointer-events: auto;
+}
+
+/* BlueSky Container - wrapper in Session.jsx */
+.session-bluesky-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Important for flex child to shrink */
+    height: calc(100vh - 60px); /* Full viewport minus header */
+}
+
+/* Debug Panel */
+.debug-panel {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.85);
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    z-index: 500;
+    max-width: 250px;
+}
+
+.debug-panel h4 {
+    margin: 0 0 10px 0;
+    color: #ff9800;
+    font-size: 0.9rem;
+}
+
+.debug-panel p {
+    margin: 5px 0;
+    color: #ccc;
+}
+
+.debug-panel button {
+    margin-top: 10px;
+    padding: 8px 15px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    width: 100%;
+}
+
+.debug-panel button:hover {
+    background-color: #c82333;
+}
+
+/* Loading and Error States */
+.session-loading, .session-error {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-size: 1.2rem;
+    background-color: #1a1a2e;
+}
+
+.session-loading {
+    color: #4fc3f7;
+}
+
+.session-error {
+    color: #ff6b6b;
+}

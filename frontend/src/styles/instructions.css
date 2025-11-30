@@ -1,0 +1,238 @@
+/* Instructions Screen Styles */
+
+.instructions-screen {
+  min-height: 100vh;
+  background:
+    radial-gradient(110% 110% at 18% 18%, rgba(156, 91, 255, 0.28), rgba(18, 13, 43, 0.92)),
+    linear-gradient(135deg, #120d2b 0%, #1c0f4f 45%, #2d0c61 100%);
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e8e4ff;
+}
+
+.instructions-container {
+  max-width: 900px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.instructions-header {
+  background: linear-gradient(135deg, #9c5bff 0%, #6e48ff 100%);
+  color: white;
+  padding: 2rem;
+  text-align: center;
+}
+
+.instructions-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.instructions-header .subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 1rem;
+}
+
+.instructions-content {
+  padding: 2rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.instruction-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.instruction-section:last-child {
+  border-bottom: none;
+}
+
+.instruction-section h2 {
+  margin: 0 0 1rem 0;
+  color: #f2edff;
+  font-size: 1.4rem;
+}
+
+.section-description {
+  color: #c8c3dd;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.scenario-info-box {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 8px;
+  border-left: 4px solid #9c5bff;
+}
+
+.info-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #d2c9ff;
+}
+
+.info-value {
+  color: #9c5bff;
+  font-weight: 600;
+}
+
+.scenario-description {
+  margin: 0.75rem 0 0 0;
+  color: #c8c3dd;
+  line-height: 1.5;
+}
+
+.features-list h3 {
+  font-size: 1.1rem;
+  color: #d2c9ff;
+  margin: 0 0 0.75rem 0;
+}
+
+.features-list ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.features-list li {
+  margin-bottom: 0.75rem;
+  color: #c8c3dd;
+  line-height: 1.5;
+}
+
+.task-instructions ol {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.task-instructions li {
+  margin-bottom: 1rem;
+  color: #c8c3dd;
+  line-height: 1.5;
+}
+
+.important-notes {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notes-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.note-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.note-icon {
+  font-size: 1.5rem;
+}
+
+.note-text {
+  color: #c8c3dd;
+  line-height: 1.4;
+}
+
+.confirmation-section {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.confirmation-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+}
+
+.confirmation-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.checkbox-label {
+  font-weight: 600;
+  color: #e8e4ff;
+  font-size: 1.05rem;
+}
+
+.instructions-footer {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem 2rem;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.timer-info {
+  margin-bottom: 1rem;
+}
+
+.read-timer {
+  color: #ffb4f1;
+  font-weight: 600;
+  margin: 0;
+}
+
+.help-text {
+  color: #c2b8e8;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #9c5bff 0%, #6e48ff 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(110, 72, 255, 0.45);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(110, 72, 255, 0.6);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-large {
+  padding: 1rem 3rem;
+  font-size: 1.1rem;
+}

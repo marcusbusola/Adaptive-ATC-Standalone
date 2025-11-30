@@ -1,0 +1,298 @@
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Alert */
+.modal-alert {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  min-width: 400px;
+  max-width: 600px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.alert-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.alert-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.alert-body {
+  padding: 1.5rem;
+}
+
+.alert-message {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.alert-details {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.detail-row {
+  margin: 0.5rem 0;
+}
+
+.alert-actions {
+  padding: 1.5rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Priority Colors */
+.alert-critical .alert-header {
+  background-color: #d32f2f;
+  color: white;
+  border: none;
+}
+
+.alert-warning .alert-header {
+  background-color: #f57c00;
+  color: white;
+  border: none;
+}
+
+.alert-info .alert-header {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+}
+
+/* Badges */
+.critical-badge,
+.adaptive-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.critical-badge {
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.adaptive-badge {
+  background-color: #4caf50;
+  color: white;
+  margin-left: 0.5rem;
+}
+
+/* Banner Alert */
+.banner-alert {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  min-width: 500px;
+  max-width: 800px;
+  z-index: 900;
+  animation: slideDown 0.3s ease-out;
+}
+
+.banner-alert.alert-critical {
+  border-left: 4px solid #d32f2f;
+}
+
+.banner-alert.alert-warning {
+  border-left: 4px solid #f57c00;
+}
+
+.banner-alert.alert-info {
+  border-left: 4px solid #1976d2;
+}
+
+.banner-content {
+  flex: 1;
+  font-size: 1rem;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+/* Peripheral Alert */
+.peripheral-alert {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: flex-start;
+  padding: 1rem;
+  min-width: 300px;
+  max-width: 400px;
+  z-index: 800;
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.peripheral-alert.alert-critical {
+  border-left: 4px solid #d32f2f;
+}
+
+.peripheral-alert.alert-warning {
+  border-left: 4px solid #f57c00;
+}
+
+.peripheral-alert.alert-info {
+  border-left: 4px solid #1976d2;
+}
+
+.peripheral-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.peripheral-alert.alert-critical .peripheral-icon {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.peripheral-alert.alert-warning .peripheral-icon {
+  background-color: #f57c00;
+  color: white;
+}
+
+.peripheral-alert.alert-info .peripheral-icon {
+  background-color: #1976d2;
+  color: white;
+}
+
+.peripheral-content {
+  flex: 1;
+}
+
+.peripheral-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.peripheral-message {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.peripheral-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  margin-left: 0.5rem;
+  line-height: 1;
+}
+
+.peripheral-close:hover {
+  color: #333;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #1976d2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #1565c0;
+}
+
+.btn-secondary {
+  background-color: #757575;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #616161;
+}
+
+.btn-small {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}

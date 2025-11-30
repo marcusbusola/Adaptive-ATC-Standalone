@@ -1,0 +1,47 @@
+# Core Web Framework (aligned to Pydantic v2)
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+pydantic==2.9.2
+pydantic-settings==2.4.0
+websockets==13.1
+
+# Database & Storage (SQLAlchemy 2.x for compatibility with databases 0.9.0)
+sqlalchemy==2.0.23
+databases==0.9.0
+aiosqlite==0.20.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+alembic==1.13.3
+
+# Machine Learning & Data Science
+# Using scikit-learn for ML models (RandomForestClassifier, etc.)
+# TensorFlow and Keras removed - not used in this implementation
+scikit-learn==1.5.2
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.11.4
+
+# Data Validation & Processing
+python-dotenv==1.0.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# HTTP & API
+httpx==0.27.2
+aiofiles==23.2.1
+python-dateutil==2.9.0.post0
+sse-starlette==2.1.3  # Server-Sent Events for real-time simulation updates
+
+# Logging & Monitoring
+loguru==0.7.2
+
+# Testing (versions compatible with Python 3.9)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Development Tools
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1

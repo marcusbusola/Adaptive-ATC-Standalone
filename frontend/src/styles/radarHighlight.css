@@ -1,0 +1,439 @@
+/**
+ * Radar Highlight Styles
+ *
+ * Visual overlay styles for ML-based predictive alerts
+ * Creates pulsing, semi-transparent boxes that highlight regions of concern
+ * on the radar display
+ */
+
+/* ============================================================================
+   BASE HIGHLIGHT CONTAINER
+   ============================================================================ */
+
+.radar-highlight {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none; /* Don't interfere with radar interactions */
+  transition: opacity 0.3s ease-in;
+  z-index: 900;
+}
+
+/* ============================================================================
+   HIGHLIGHT BORDER - Main visual element
+   ============================================================================ */
+
+.highlight-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid;
+  border-radius: 4px;
+  background-color: rgba(255, 193, 7, 0.15);
+  box-shadow:
+    0 0 20px rgba(255, 193, 7, 0.4),
+    inset 0 0 20px rgba(255, 193, 7, 0.2);
+}
+
+/* ============================================================================
+   SEVERITY VARIANTS
+   ============================================================================ */
+
+/* High Severity - Bright amber/red, more opaque */
+.radar-highlight.highlight-high .highlight-border {
+  border-color: #ff5722;
+  background-color: rgba(255, 87, 34, 0.25);
+  box-shadow:
+    0 0 25px rgba(255, 87, 34, 0.6),
+    inset 0 0 25px rgba(255, 87, 34, 0.3);
+}
+
+/* Medium Severity - Amber/yellow */
+.radar-highlight.highlight-medium .highlight-border {
+  border-color: #ffc107;
+  background-color: rgba(255, 193, 7, 0.2);
+  box-shadow:
+    0 0 20px rgba(255, 193, 7, 0.5),
+    inset 0 0 20px rgba(255, 193, 7, 0.25);
+}
+
+/* Low Severity - Soft yellow, subtle */
+.radar-highlight.highlight-low .highlight-border {
+  border-color: #ffeb3b;
+  background-color: rgba(255, 235, 59, 0.15);
+  box-shadow:
+    0 0 15px rgba(255, 235, 59, 0.4),
+    inset 0 0 15px rgba(255, 235, 59, 0.2);
+}
+
+/* ============================================================================
+   PULSING ANIMATION
+   ============================================================================ */
+
+.radar-highlight.pulsing .highlight-border {
+  animation: highlightPulse 1.5s ease-in-out infinite;
+}
+
+.radar-highlight.highlight-high.pulsing .highlight-border {
+  animation: highlightPulse 1s ease-in-out infinite;
+}
+
+.radar-highlight.highlight-low.pulsing .highlight-border {
+  animation: highlightPulse 2s ease-in-out infinite;
+}
+
+@keyframes highlightPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+/* Static state - no animation */
+.radar-highlight.static .highlight-border {
+  animation: none;
+  opacity: 0.6;
+}
+
+/* ============================================================================
+   CORNER MARKERS - Enhanced visibility
+   ============================================================================ */
+
+.highlight-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 3px solid #ffc107;
+  background-color: rgba(255, 193, 7, 0.6);
+  box-shadow: 0 0 8px rgba(255, 193, 7, 0.8);
+}
+
+/* Top-left */
+.highlight-corner.corner-tl {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 4px;
+}
+
+/* Top-right */
+.highlight-corner.corner-tr {
+  top: -2px;
+  right: -2px;
+  border-left: none;
+  border-bottom: none;
+  border-top-right-radius: 4px;
+}
+
+/* Bottom-left */
+.highlight-corner.corner-bl {
+  bottom: -2px;
+  left: -2px;
+  border-right: none;
+  border-top: none;
+  border-bottom-left-radius: 4px;
+}
+
+/* Bottom-right */
+.highlight-corner.corner-br {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+  border-bottom-right-radius: 4px;
+}
+
+/* Severity-based corner colors */
+.radar-highlight.highlight-high .highlight-corner {
+  border-color: #ff5722;
+  background-color: rgba(255, 87, 34, 0.7);
+  box-shadow: 0 0 10px rgba(255, 87, 34, 0.9);
+}
+
+.radar-highlight.highlight-low .highlight-corner {
+  border-color: #ffeb3b;
+  background-color: rgba(255, 235, 59, 0.6);
+  box-shadow: 0 0 6px rgba(255, 235, 59, 0.7);
+}
+
+/* ============================================================================
+   LABEL - Shows aircraft callsign or region name
+   ============================================================================ */
+
+.highlight-label {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #000000;
+  padding: 0.35rem 0.7rem;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: auto; /* Allow interaction with label if needed */
+}
+
+.label-icon {
+  font-size: 14px;
+}
+
+.label-text {
+  letter-spacing: 0.5px;
+}
+
+/* High severity label */
+.radar-highlight.highlight-high .highlight-label {
+  background: linear-gradient(135deg, #ff5722 0%, #f44336 100%);
+  color: #ffffff;
+}
+
+/* Low severity label */
+.radar-highlight.highlight-low .highlight-label {
+  background: linear-gradient(135deg, #ffeb3b 0%, #ffc107 100%);
+  color: #000000;
+}
+
+/* ============================================================================
+   CONFIDENCE INDICATOR - Shows for high confidence predictions
+   ============================================================================ */
+
+.highlight-confidence-indicator {
+  position: absolute;
+  bottom: -28px;
+  right: 4px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #00e676;
+  padding: 0.3rem 0.6rem;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  border: 1px solid #00e676;
+}
+
+.confidence-icon {
+  font-size: 12px;
+}
+
+.confidence-text {
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================================================
+   ANIMATED SCAN LINE - For high severity highlights
+   ============================================================================ */
+
+.highlight-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 87, 34, 0.8) 50%,
+    transparent 100%
+  );
+  animation: scanlineMove 2s linear infinite;
+  box-shadow: 0 0 8px rgba(255, 87, 34, 0.8);
+}
+
+@keyframes scanlineMove {
+  0% {
+    top: 0;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+/* ============================================================================
+   HIGHLIGHT GROUP - Multiple highlights together
+   ============================================================================ */
+
+.radar-highlight-group {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ============================================================================
+   CONNECTING LINE - Between two highlights
+   ============================================================================ */
+
+.highlight-connector {
+  position: absolute;
+  pointer-events: none;
+  z-index: 899; /* Below highlights */
+}
+
+/* ============================================================================
+   RADAR OVERLAY CONTAINER - Wrapper for radar + highlights
+   ============================================================================ */
+
+.radar-overlay-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.radar-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.radar-overlay-highlights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 900;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .highlight-label {
+    font-size: 11px;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .highlight-confidence-indicator {
+    font-size: 10px;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .highlight-corner {
+    width: 10px;
+    height: 10px;
+    border-width: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .highlight-border {
+    border-width: 2px;
+  }
+
+  .highlight-label {
+    font-size: 10px;
+    padding: 0.2rem 0.4rem;
+    top: -24px;
+  }
+
+  .highlight-confidence-indicator {
+    display: none; /* Hide on very small screens to reduce clutter */
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-highlight.pulsing .highlight-border {
+    animation: none;
+  }
+
+  .highlight-scanline {
+    animation: none;
+    display: none;
+  }
+}
+
+/* ============================================================================
+   HIGH CONTRAST MODE
+   ============================================================================ */
+
+@media (prefers-contrast: high) {
+  .highlight-border {
+    border-width: 4px;
+    background-color: rgba(255, 193, 7, 0.3);
+  }
+
+  .highlight-label {
+    border: 2px solid #000000;
+  }
+
+  .highlight-corner {
+    border-width: 4px;
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  .radar-highlight,
+  .radar-overlay-highlights {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   FADE IN/OUT TRANSITIONS
+   ============================================================================ */
+
+.radar-highlight.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.radar-highlight.fade-out {
+  animation: fadeOut 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   DARK MODE SUPPORT
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .highlight-label {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+  }
+
+  .highlight-confidence-indicator {
+    background-color: rgba(0, 0, 0, 0.9);
+  }
+}

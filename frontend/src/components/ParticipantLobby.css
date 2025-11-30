@@ -1,0 +1,172 @@
+.lobby-shell {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(120% 120% at 20% 20%, rgba(148, 87, 235, 0.32), rgba(22, 16, 51, 0.9)),
+                linear-gradient(135deg, #120d2b 0%, #1c0f4f 45%, #2d0c61 100%);
+    color: #f4f2ff;
+    padding: 32px 16px;
+    overflow: hidden;
+}
+
+.lobby-gradient {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(50% 40% at 80% 10%, rgba(255, 255, 255, 0.08), transparent),
+                radial-gradient(40% 30% at 10% 80%, rgba(142, 90, 255, 0.18), transparent);
+    filter: blur(20px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.lobby-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 520px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+    padding: 32px;
+    backdrop-filter: blur(10px);
+}
+
+.lobby-header h1 {
+    margin: 4px 0 8px;
+    font-size: 28px;
+    color: #ffffff;
+}
+
+.lobby-header .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-size: 12px;
+    color: #c7b6ff;
+    margin: 0;
+}
+
+.lobby-header .lede {
+    color: #dcd6ff;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.input-stack {
+    margin: 24px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.input-stack label {
+    font-weight: 600;
+    color: #e9e5ff;
+}
+
+.input-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+}
+
+.input-row input {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    transition: border 0.2s, box-shadow 0.2s;
+}
+
+.input-row input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.input-row input:focus {
+    border-color: #bba0ff;
+    box-shadow: 0 0 0 3px rgba(152, 122, 255, 0.25);
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, #9c5bff 0%, #6e48ff 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s;
+    box-shadow: 0 12px 24px rgba(110, 72, 255, 0.35);
+}
+
+.primary-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 28px rgba(110, 72, 255, 0.4);
+}
+
+.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.primary-btn.accent {
+    background: linear-gradient(135deg, #5be1ff 0%, #5c7bff 100%);
+    box-shadow: 0 12px 24px rgba(92, 123, 255, 0.35);
+}
+
+.banner {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.banner-info {
+    background: rgba(91, 225, 255, 0.12);
+    color: #e7f9ff;
+    border: 1px solid rgba(91, 225, 255, 0.25);
+}
+
+.banner-error {
+    background: rgba(255, 99, 132, 0.12);
+    color: #ffd4dd;
+    border: 1px solid rgba(255, 99, 132, 0.3);
+}
+
+.session-panel {
+    margin-top: 16px;
+    padding: 18px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.session-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f7f4ff;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.session-desc {
+    margin: 0;
+    color: #d7d0ff;
+}

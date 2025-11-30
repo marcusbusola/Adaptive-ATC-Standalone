@@ -1,0 +1,341 @@
+/**
+ * Traditional Modal Alert Styles (Condition 1)
+ *
+ * Full-screen, anxiety-inducing alert modal design
+ * Completely blocks interaction with radar and underlying interface
+ */
+
+/* ============================================================================
+   OVERLAY - Full-screen blocking layer
+   ============================================================================ */
+
+.traditional-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+  backdrop-filter: blur(8px);
+}
+
+.traditional-modal-overlay.visible {
+  opacity: 1;
+}
+
+/* ============================================================================
+   MODAL CONTAINER - Main alert box
+   ============================================================================ */
+
+.traditional-modal-container {
+  min-width: 600px;
+  max-width: 800px;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-50px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   SEVERITY VARIANTS - Critical vs Warning
+   ============================================================================ */
+
+/* CRITICAL - Dark red with pulsing yellow border */
+.traditional-modal-critical {
+  background-color: #b71c1c;
+  border: 10px solid #ffc107;
+  animation: modalSlideIn 0.3s ease-out, pulseBorder 1s ease-in-out infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% {
+    border-color: #ffc107;
+    box-shadow: 0 0 40px rgba(255, 193, 7, 0.8),
+                inset 0 0 40px rgba(255, 193, 7, 0.3);
+  }
+  50% {
+    border-color: #ffeb3b;
+    box-shadow: 0 0 60px rgba(255, 235, 59, 1),
+                inset 0 0 60px rgba(255, 235, 59, 0.5);
+  }
+}
+
+/* WARNING - Orange with steady yellow border */
+.traditional-modal-warning {
+  background-color: #ff6f00;
+  border: 8px solid #ffc107;
+  box-shadow: 0 0 40px rgba(255, 193, 7, 0.6),
+              inset 0 0 30px rgba(255, 193, 7, 0.2);
+}
+
+/* ============================================================================
+   HEADER - Title and critical indicator
+   ============================================================================ */
+
+.traditional-modal-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 1.5rem;
+}
+
+.critical-indicator {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffeb3b;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 1rem;
+  animation: flashText 0.5s ease-in-out infinite;
+}
+
+@keyframes flashText {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.traditional-modal-title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ffffff;
+  text-transform: uppercase;
+  margin: 0;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+  line-height: 1.2;
+}
+
+/* ============================================================================
+   BODY - Message and details
+   ============================================================================ */
+
+.traditional-modal-body {
+  margin-bottom: 2.5rem;
+}
+
+.traditional-modal-message {
+  font-size: 20px;
+  color: #ffffff;
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+  text-align: center;
+  font-weight: 500;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* Alert Details Section */
+.traditional-modal-details {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.details-label {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffc107;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 193, 7, 0.5);
+  padding-bottom: 0.5rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.75rem 0;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.detail-key {
+  font-weight: 600;
+  color: #ffeb3b;
+}
+
+.detail-value {
+  font-weight: 500;
+  color: #ffffff;
+  text-align: right;
+}
+
+/* ============================================================================
+   ACTIONS - Acknowledge and Dismiss buttons
+   ============================================================================ */
+
+.traditional-modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn-acknowledge,
+.btn-dismiss {
+  padding: 1.25rem 3rem;
+  font-size: 20px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Acknowledge Button - Primary action */
+.btn-acknowledge {
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+  color: #ffffff;
+  border: 3px solid #81c784;
+  min-width: 280px;
+}
+
+.btn-acknowledge:hover {
+  background: linear-gradient(135deg, #66bb6a 0%, #388e3c 100%);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-acknowledge:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
+}
+
+.btn-acknowledge:focus {
+  outline: 3px solid #ffeb3b;
+  outline-offset: 3px;
+}
+
+/* Dismiss Button - Secondary action */
+.btn-dismiss {
+  background: linear-gradient(135deg, #757575 0%, #424242 100%);
+  color: #ffffff;
+  border: 3px solid #9e9e9e;
+  min-width: 160px;
+}
+
+.btn-dismiss:hover {
+  background: linear-gradient(135deg, #9e9e9e 0%, #616161 100%);
+  box-shadow: 0 6px 20px rgba(158, 158, 158, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-dismiss:active {
+  transform: translateY(0);
+}
+
+/* ============================================================================
+   METADATA - Development info
+   ============================================================================ */
+
+.traditional-modal-metadata {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+}
+
+.traditional-modal-metadata small {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================================================
+   STACKING - Multiple simultaneous alerts
+   ============================================================================ */
+
+/* Each stacked alert slightly offset */
+.traditional-modal-overlay + .traditional-modal-overlay {
+  top: 20px;
+}
+
+.traditional-modal-overlay + .traditional-modal-overlay .traditional-modal-container {
+  transform: scale(0.98);
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .traditional-modal-container {
+    min-width: 90vw;
+    padding: 2rem;
+  }
+
+  .traditional-modal-title {
+    font-size: 24px;
+  }
+
+  .traditional-modal-message {
+    font-size: 16px;
+  }
+
+  .btn-acknowledge,
+  .btn-dismiss {
+    padding: 1rem 2rem;
+    font-size: 16px;
+    min-width: auto;
+  }
+
+  .traditional-modal-actions {
+    flex-direction: column;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY - Reduced Motion
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .traditional-modal-overlay,
+  .traditional-modal-container,
+  .critical-indicator {
+    animation: none;
+  }
+
+  .traditional-modal-critical {
+    animation: none;
+    border-color: #ffc107;
+  }
+
+  .btn-acknowledge:hover,
+  .btn-dismiss:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES - Hide alerts when printing
+   ============================================================================ */
+
+@media print {
+  .traditional-modal-overlay {
+    display: none;
+  }
+}
