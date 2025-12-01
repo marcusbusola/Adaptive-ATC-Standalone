@@ -162,8 +162,11 @@ const ResearcherPanel = ({
   };
 
   const formatTime = (seconds) => {
+    if (seconds === undefined || seconds === null || isNaN(seconds)) {
+      return 'T+0:00';
+    }
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `T+${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

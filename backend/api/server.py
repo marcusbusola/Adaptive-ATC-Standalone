@@ -547,6 +547,32 @@ async def update_scenario(session_id: str, request: ScenarioUpdateRequest):
             except Exception as e:
                 logger.warning(f"Failed to store scenario event: {e}")
 
+        # Crash-safety: periodic checkpoints every 30 seconds
+        CHECKPOINT_INTERVAL = 30  # seconds
+        last_checkpoint = getattr(scenario, '_last_checkpoint_time', 0)
+        should_checkpoint = (
+            scenario.elapsed_time - last_checkpoint >= CHECKPOINT_INTERVAL
+            or getattr(scenario, '_checkpoint_needed', False)
+        )
+
+        if should_checkpoint:
+            checkpoint_data = {
+                'measurements': getattr(scenario, 'measurements', {}),
+                'interactions': getattr(scenario, 'interactions', []),
+                'alert_history': getattr(scenario, 'alert_history', []),
+                'active_alerts': {k: v for k, v in getattr(scenario, 'active_alerts', {}).items()},
+                'elapsed_time': scenario.elapsed_time,
+                'current_phase': update_result.get('current_phase', 0),
+                'checkpoint_reason': 'phase_transition' if getattr(scenario, '_checkpoint_needed', False) else 'periodic'
+            }
+            try:
+                await db_manager.save_session_checkpoint(session_id, checkpoint_data)
+                scenario._last_checkpoint_time = scenario.elapsed_time
+                scenario._checkpoint_needed = False
+                logger.debug(f"Checkpoint saved for session {session_id} at T+{scenario.elapsed_time:.1f}s")
+            except Exception as e:
+                logger.warning(f"Checkpoint failed for {session_id}: {e}")
+
         return ScenarioUpdateResponse(
             elapsed_time=scenario.elapsed_time,
             current_phase=update_result.get('current_phase', 0),
@@ -679,6 +705,15 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
                 final_state = scenario.get_results()
             # Remove from active scenarios
             del active_scenarios[session_id]
+        else:
+            # Scenario not in memory (possibly crashed) - try to recover from checkpoint
+            if final_state is None:
+                checkpoint = await db_manager.get_session_checkpoint(session_id)
+                if checkpoint:
+                    final_state = checkpoint['data']
+                    final_state['recovered_from_checkpoint'] = True
+                    final_state['checkpoint_at'] = checkpoint['checkpoint_at']
+                    logger.info(f"Recovered session {session_id} from checkpoint at {checkpoint['checkpoint_at']}")
 
         # Close WebSocket if connected
         if session_id in websocket_connections:

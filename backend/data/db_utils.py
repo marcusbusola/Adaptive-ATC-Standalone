@@ -188,6 +188,78 @@ class DatabaseManager:
             rows = await conn.fetch_all(query)
         return [dict(row) for row in rows]
 
+    # ========== METRICS OPERATIONS ==========
+
+    async def add_metric(
+        self,
+        session_id: str,
+        metric_name: str,
+        metric_category: str,
+        metric_value: float,
+        metric_unit: Optional[str] = None,
+        phase: Optional[str] = None,
+        scenario_time: Optional[float] = None,
+        alert_id: Optional[str] = None,
+        metric_data: Optional[Dict] = None
+    ) -> int:
+        """Add a metric measurement to the database."""
+        query = """
+            INSERT INTO metrics
+            (session_id, metric_name, metric_category, metric_value, metric_unit,
+             phase, scenario_time, alert_id, metric_data)
+            VALUES
+            (:session_id, :metric_name, :metric_category, :metric_value, :metric_unit,
+             :phase, :scenario_time, :alert_id, :metric_data)
+        """
+        values = {
+            "session_id": session_id,
+            "metric_name": metric_name,
+            "metric_category": metric_category,
+            "metric_value": metric_value,
+            "metric_unit": metric_unit,
+            "phase": phase,
+            "scenario_time": scenario_time,
+            "alert_id": alert_id,
+            "metric_data": json.dumps(metric_data) if metric_data else None
+        }
+        return await self._execute_insert(query, values)
+
+    # ========== CHECKPOINT OPERATIONS (Crash Safety) ==========
+
+    async def save_session_checkpoint(
+        self,
+        session_id: str,
+        checkpoint_data: Dict[str, Any]
+    ) -> bool:
+        """Save periodic checkpoint of in-memory scenario state for crash recovery."""
+        query = """
+            UPDATE sessions
+            SET checkpoint_data = :checkpoint_data,
+                checkpoint_at = :checkpoint_at
+            WHERE session_id = :session_id
+        """
+        async with self.get_connection() as conn:
+            await conn.execute(query=query, values={
+                "session_id": session_id,
+                "checkpoint_data": json.dumps(checkpoint_data),
+                "checkpoint_at": datetime.utcnow().isoformat()
+            })
+        return True
+
+    async def get_session_checkpoint(self, session_id: str) -> Optional[Dict]:
+        """Retrieve the last checkpoint for a session (used for crash recovery)."""
+        async with self.get_connection() as conn:
+            row = await conn.fetch_one(
+                "SELECT checkpoint_data, checkpoint_at FROM sessions WHERE session_id = :session_id",
+                {"session_id": session_id}
+            )
+        if row and row['checkpoint_data']:
+            return {
+                'data': json.loads(row['checkpoint_data']),
+                'checkpoint_at': row['checkpoint_at']
+            }
+        return None
+
 # Singleton instance
 _db_manager = None
 

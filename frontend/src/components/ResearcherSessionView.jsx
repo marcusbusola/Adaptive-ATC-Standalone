@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl, buildWebSocketUrl } from '../utils/apiConfig';
 import { isAuthenticated, clearToken, getAuthHeaders } from '../services/tokenService';
 import useWebSocket from '../hooks/useWebSocket';
-import useSimulation from '../hooks/useSimulation';
 import ResearcherLogin from './ResearcherLogin';
 import './ResearcherSessionView.css';
 
@@ -20,7 +19,6 @@ function ResearcherSessionView() {
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
     const [liveScenarioState, setLiveScenarioState] = useState(null);
     const [wsUrl, setWsUrl] = useState(null);
-    const { connected: simConnected, state: simState } = useSimulation();
 
     useEffect(() => {
         setAuthenticated(isAuthenticated());
@@ -65,7 +63,7 @@ function ResearcherSessionView() {
 
     useEffect(() => {
         fetchSessionDetails();
-        const interval = setInterval(fetchSessionDetails, 5000); // Refresh every 5 seconds
+        const interval = setInterval(fetchSessionDetails, 30000); // Fallback heartbeat every 30 seconds
         return () => clearInterval(interval);
     }, [sessionId, fetchSessionDetails]);
 
@@ -92,7 +90,10 @@ function ResearcherSessionView() {
             try {
                 const response = await fetch(`${API_URL}/api/sessions/${sessionId}/end`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
                     body: JSON.stringify({ reason: 'ended_by_researcher' }),
                 });
                 if (!response.ok) {
@@ -154,10 +155,10 @@ function ResearcherSessionView() {
 
             <div className="simulation-embed">
                 <div className="researcher-live-panel">
-                    <h3>Simulation Live Feed</h3>
-                    <p>Status: {simConnected ? 'Connected' : 'Disconnected'}</p>
+                    <h3>Session Live Feed (via WebSocket)</h3>
+                    <p>WebSocket: {connected ? 'Connected' : 'Disconnected'}</p>
                     <pre className="telemetry-log">
-                        {simState ? JSON.stringify(simState, null, 2) : 'Awaiting telemetry...'}
+                        {liveScenarioState ? JSON.stringify(liveScenarioState, null, 2) : 'Awaiting session data...'}
                     </pre>
                 </div>
             </div>
@@ -168,6 +169,86 @@ function ResearcherSessionView() {
                 <p>Elapsed Time: {liveElapsed !== undefined ? liveElapsed.toFixed(1) : (sessionDetails.scenario_state?.elapsed_time || 0)}s</p>
                 <p>Aircraft Count: {liveAircraftCount ?? (sessionDetails.scenario_state?.aircraft_count || 0)}</p>
                 <p>Phase: {livePhase !== undefined ? livePhase + 1 : (sessionDetails.scenario_state?.current_phase || 0) + 1} - {livePhaseDesc || sessionDetails.scenario_state?.phase_description || 'N/A'}</p>
+            </div>
+
+            {/* Aircraft status panel */}
+            <div className="aircraft-panel">
+                <h3>Aircraft ({Object.keys(aircraft).length})</h3>
+                {Object.keys(aircraft).length > 0 ? (
+                    <table className="aircraft-table">
+                        <thead>
+                            <tr>
+                                <th>Callsign</th>
+                                <th>Altitude</th>
+                                <th>Speed</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(aircraft).map(([callsign, ac]) => (
+                                <tr
+                                    key={callsign}
+                                    className={`${ac.emergency ? 'emergency' : ''} ${ac.comm_status === 'lost' ? 'comm-lost' : ''} ${selectedAircraftCallsign === callsign ? 'selected' : ''}`}
+                                    onClick={() => handleAircraftSelect(callsign)}
+                                >
+                                    <td>{callsign}</td>
+                                    <td>FL{ac.altitude || ac.flight_level || 'N/A'}</td>
+                                    <td>{ac.speed || ac.ground_speed || 'N/A'} kts</td>
+                                    <td>
+                                        {ac.emergency ? (
+                                            <span className="status-emergency">{ac.emergency_type || 'EMERGENCY'}</span>
+                                        ) : ac.comm_status === 'lost' ? (
+                                            <span className="status-nordo">NORDO</span>
+                                        ) : (
+                                            <span className="status-normal">Normal</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <p className="no-data">No aircraft data available</p>
+                )}
+            </div>
+
+            {/* Active alerts panel */}
+            <div className="alerts-panel">
+                <h3>Active Alerts ({(liveScenarioState?.active_alerts || []).length})</h3>
+                {(liveScenarioState?.active_alerts || []).length > 0 ? (
+                    <table className="alerts-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Target</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(liveScenarioState?.active_alerts || []).map((alert, index) => (
+                                <tr key={alert.alert_id || index} className={`priority-${alert.priority || 'medium'}`}>
+                                    <td>T+{(alert.generated_at || alert.elapsed_time || 0).toFixed(0)}s</td>
+                                    <td>{alert.type || alert.alert_type || 'Unknown'}</td>
+                                    <td>{alert.target || alert.aircraft_id || 'N/A'}</td>
+                                    <td className={`priority-badge priority-${alert.priority || 'medium'}`}>
+                                        {(alert.priority || 'medium').toUpperCase()}
+                                    </td>
+                                    <td>
+                                        {alert.acknowledged_at ? (
+                                            <span className="status-acknowledged">ACK</span>
+                                        ) : (
+                                            <span className="status-pending">PENDING</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <p className="no-data">No active alerts</p>
+                )}
             </div>
         </div>
     );

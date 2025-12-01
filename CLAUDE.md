@@ -10,8 +10,7 @@ This is the **ATC Adaptive Alert Research System** - a research platform for eva
 
 ### Backend (Python/FastAPI)
 ```bash
-# Setup
-cd backend
+# Setup (from backend/ directory)
 python -m venv venv
 source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
@@ -28,8 +27,8 @@ python data/setup_database.py --verify
 pytest tests/ -v --cov=api --cov=ml_models
 
 # Run a single test file or test
-pytest tests/test_api.py -v
-pytest tests/test_api.py::test_function_name -v
+pytest tests/test_scenario_validation.py -v
+pytest tests/test_scenario_validation.py::test_function_name -v
 
 # Train ML model
 python ml_models/train_complacency_model.py
@@ -42,12 +41,13 @@ mypy .
 
 ### Frontend (React)
 ```bash
-cd frontend
+# From frontend/ directory
 npm install
-npm start          # Development server (port 3000)
+npm start          # Development server (port 3000) - auto-generates scenario config
 npm run build      # Production build
 npm test           # Run tests
 npm run lint       # ESLint
+npm run generate-config  # Manually regenerate scenario config from backend manifest
 ```
 
 ## Architecture
@@ -71,22 +71,28 @@ backend/            # Python FastAPI with async SQLite/PostgreSQL
 - **Condition 3**: ML-based adaptive alerts (predicts complacency, proactive alerting)
 
 ### Scenarios
-Six scenarios with varying complexity:
-- **L1/L2/L3**: Low complexity scenarios (routine operations, automation)
-- **H4/H5/H6**: High complexity scenarios (emergencies, multiple crises)
+Six scenarios with varying complexity (defined in `backend/scenarios/scenario_manifest.json`):
+- **L1**: Baseline Emergency - dual emergency with peripheral comm loss (5 aircraft)
+- **L2**: System Failure Overload - silent automation failure + VFR intrusion (5 aircraft)
+- **L3**: Automation Complacency - silent system crash + unalerted conflict (5 aircraft)
+- **H4**: Conflict-Driven Tunneling - critical conflict + peripheral VFR intrusion (9 aircraft)
+- **H5**: Compounded Stress - weather rerouting + fuel emergency + altitude deviation (9 aircraft)
+- **H6**: Cry Wolf Effect - false alarm followed by real conflict with delayed alert (9 aircraft)
 
-All scenarios inherit from `BaseScenario` in `backend/scenarios/base_scenario.py`.
+All scenarios inherit from `BaseScenario` in `backend/scenarios/base_scenario.py`. The manifest JSON is the single source of truth for scenario configurations, phases, and timing.
 
 ### Key Backend Components
 - **server.py** (`backend/api/server.py`): Main FastAPI app, WebSocket handling, all REST endpoints
 - **BaseScenario** (`backend/scenarios/base_scenario.py`): Abstract base for all scenarios, handles aircraft state, event scheduling, SAGAT probes
-- **ComplacencyDetector** (`backend/ml_models/complacency_detector.py`): ML model for predicting controller attention failures
+- **SimulationEngine** (`backend/simulation/sim_engine.py`): Standalone aircraft physics simulation (no external dependencies)
+- **ComplacencyDetector** (`backend/ml_models/complacency_detector.py`): ML model (RandomForest) for predicting controller attention failures
 - **DatabaseManager** (`backend/data/db_utils.py`): Async database operations (SQLite or PostgreSQL)
 
 ### Key Frontend Components
 - **App.jsx**: Main router with participant/researcher views
 - **SessionRunner.jsx**: Manages active session lifecycle
 - **RadarViewer.jsx**: ATC radar display visualization
+- **useBehavioralTracking.js** (`hooks/`): Tracks mouse, clicks, hovers, dwell times - batches events for ML feature extraction
 - **Alert Components**: `TraditionalModalAlert.jsx`, `AdaptiveBannerAlert.jsx`, `MLPredictiveAlert.jsx`
 - **Survey Components**: NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck surveys in `components/Surveys/`
 - **Queue Components**: `QueueBuilder.jsx`, `QueueRunner.jsx`, `ResultsDashboard.jsx` in `components/Queue/`

@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     final_state TEXT,   -- JSON
     notes TEXT,
 
+    -- Crash-safety checkpoints
+    checkpoint_data TEXT,   -- JSON: periodic snapshot of in-memory scenario state
+    checkpoint_at TEXT,     -- ISO timestamp of last checkpoint
+
     -- Audit fields
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

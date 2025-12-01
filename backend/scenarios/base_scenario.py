@@ -436,6 +436,10 @@ class BaseScenario(ABC):
         # Update current phase
         self._update_current_phase()
 
+        # Alert lifecycle management
+        resolved_alerts = self._check_alert_resolution()
+        reemit_alerts = self._check_alert_reemission()
+
         return {
             'elapsed_time': self.elapsed_time,
             'current_phase': self.current_phase,
@@ -443,7 +447,10 @@ class BaseScenario(ABC):
             'aircraft': {callsign: ac.to_dict() for callsign, ac in self.aircraft.items()},
             'triggered_events': triggered_events,
             'triggered_probes': triggered_probes,
-            'measurements': self.measurements
+            'measurements': self.measurements,
+            'active_alerts': list(self.active_alerts.values()),
+            'reemit_alerts': reemit_alerts,
+            'resolved_alerts': resolved_alerts
         }
 
     def _check_and_trigger_events(self) -> List[Dict[str, Any]]:
@@ -1233,6 +1240,80 @@ class BaseScenario(ABC):
             return True
         return False
 
+    def _check_alert_reemission(self) -> List[Dict[str, Any]]:
+        """
+        Re-emit unresolved alerts for Condition 1 (Traditional Modal) every 15 seconds.
+        This ensures alerts stay visible until acknowledged or resolved.
+        Returns list of alerts to re-emit (for inclusion in update response).
+        """
+        if self.condition != 1:
+            return []
+
+        REEMIT_INTERVAL = 15.0  # seconds
+        alerts_to_reemit = []
+
+        for alert_id, alert in self.active_alerts.items():
+            # Skip already acknowledged alerts
+            if alert.get('acknowledged_at') is not None:
+                continue
+
+            last_emitted = alert.get('last_emitted_at', alert.get('generated_at', 0))
+            if self.elapsed_time - last_emitted >= REEMIT_INTERVAL:
+                alert['last_emitted_at'] = self.elapsed_time
+                alert['reemit_count'] = alert.get('reemit_count', 0) + 1
+
+                # Create a copy for the response (don't play audio on re-emit)
+                reemit_alert = alert.copy()
+                reemit_alert['is_reemit'] = True
+                reemit_alert['suppress_audio'] = True
+                alerts_to_reemit.append(reemit_alert)
+
+                print(f"  Re-emitting alert {alert_id} (reemit #{alert['reemit_count']})")
+
+        return alerts_to_reemit
+
+    def _check_alert_resolution(self) -> List[str]:
+        """
+        Auto-resolve alerts when underlying issue is fixed.
+        Checks aircraft state to determine if the condition that triggered
+        the alert has been resolved.
+        Returns list of resolved alert IDs.
+        """
+        resolved_ids = []
+
+        for alert_id, alert in list(self.active_alerts.items()):
+            target = alert.get('target')
+            alert_type = alert.get('type')
+            should_resolve = False
+
+            aircraft = self.aircraft.get(target) if target else None
+
+            if alert_type == 'comm_loss':
+                # Resolve when comm status is restored to normal
+                if aircraft and aircraft.comm_status == 'normal':
+                    should_resolve = True
+            elif alert_type == 'emergency':
+                # Resolve when emergency is cleared
+                if aircraft and not aircraft.emergency:
+                    should_resolve = True
+            elif alert_type == 'altitude_deviation':
+                # Resolve when aircraft returns to assigned altitude
+                if aircraft and hasattr(aircraft, 'altitude_deviation_resolved'):
+                    should_resolve = aircraft.altitude_deviation_resolved
+            elif alert_type == 'conflict':
+                # Resolve when separation is restored (would need conflict tracking)
+                pass  # Conflicts typically resolved by ATC action, not auto-resolved
+            elif alert_type == 'vfr_intrusion':
+                # Resolve when VFR aircraft exits or is identified
+                if aircraft and hasattr(aircraft, 'vfr_resolved'):
+                    should_resolve = aircraft.vfr_resolved
+
+            if should_resolve:
+                self.resolve_alert(alert_id)
+                resolved_ids.append(alert_id)
+
+        return resolved_ids
+
     def get_alert_metrics(self) -> Dict[str, Any]:
         """Get alert metrics for analysis"""
         total_generated = len(self.alert_history)
@@ -1369,5 +1450,9 @@ class BaseScenario(ABC):
             'measurements': self.measurements,
             'interactions': self.interactions,
             'sagat_responses': [probe.response for probe in self.sagat_probes if probe.response],
-            'final_state': self.get_state()
+            'final_state': self.get_state(),
+            # Alert data for research analysis
+            'alert_history': self.alert_history,
+            'alert_metrics': self.get_alert_metrics(),
+            'suppressed_alerts': self.suppressed_alerts
         }
