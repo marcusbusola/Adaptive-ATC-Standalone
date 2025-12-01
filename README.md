@@ -1,132 +1,75 @@
 # ATC Adaptive Alert Research System
 
-A comprehensive research platform for evaluating adaptive alert systems in Air Traffic Control (ATC) environments. This system compares three alert design approaches across multiple ATC scenario complexities to optimize controller performance and reduce alert fatigue.
+A research platform for evaluating adaptive alert systems in Air Traffic Control (ATC) environments. This system compares three alert design approaches across multiple ATC scenario complexities to study controller performance and alert fatigue.
 
-## Project Overview
+## Research Objectives
 
-### Research Objectives
-
-This system investigates how different alert presentation strategies affect ATC controller performance under varying workload conditions. The goal is to identify optimal alerting strategies that:
+This system investigates how different alert presentation strategies affect ATC controller performance under varying workload conditions:
 
 - Minimize alert fatigue and interruption
 - Maintain safety-critical awareness
 - Adapt to controller workload and context
 - Improve overall operational efficiency
 
-### Alert Conditions (Independent Variable)
+## Alert Conditions (Independent Variable)
 
-The system tests three distinct alert designs:
+### Condition 1: Traditional Modal Alerts
+Standard pop-up modal dialogs that interrupt workflow. Always displayed prominently, requires explicit acknowledgment. Baseline condition for comparison.
 
-#### Condition 1: Traditional Modal Alerts
-- **Description**: Standard pop-up modal dialogs that interrupt workflow
-- **Characteristics**:
-  - Always displayed prominently in center of screen
-  - Requires explicit acknowledgment to dismiss
-  - Consistent presentation regardless of context
-  - Baseline condition for comparison
+### Condition 2: Rule-Based Adaptive Alerts
+Alerts adapt based on predefined heuristic rules:
+- Traffic density, alert priority level, time since last alert
+- High priority + high traffic = modal; Low priority + low traffic = peripheral notification
 
-#### Condition 2: Rule-Based Adaptive Alerts
-- **Description**: Alerts that adapt based on predefined heuristic rules
-- **Adaptation Logic**:
-  - Traffic density (aircraft count in sector)
-  - Alert priority level (critical, warning, informational)
-  - Time since last alert
-  - Controller interaction patterns
-- **Behavior**:
-  - High priority + high traffic = modal alert
-  - Low priority + low traffic = peripheral notification
-  - Medium conditions = semi-intrusive banner
+### Condition 3: ML-Based Adaptive Alerts
+Machine learning model (RandomForest) predicts optimal alert presentation using:
+- Real-time workload estimation from behavioral features
+- Mouse velocity variance, interaction entropy, peripheral neglect duration
+- Click patterns, dwell time variance, hover stability
 
-#### Condition 3: ML-Based Adaptive Alerts
-- **Description**: Machine learning model that learns optimal alert presentation
-- **Model Features**:
-  - Real-time workload estimation
-  - Historical performance patterns
-  - Controller behavioral signatures
-  - Scenario complexity metrics
-  - Alert acknowledgment timing
-- **Behavior**:
-  - Continuously learns from controller interactions
-  - Personalizes alert presentation per controller
-  - Predicts optimal interruption moments
+## Scenarios
 
-### ATC Scenarios (Workload Conditions)
+Six scenarios with varying complexity (defined in `backend/scenarios/scenario_manifest.json`):
 
-Four scenarios representing different complexity and traffic density combinations:
-
-#### L1: Low Complexity, Low Traffic
-- **Aircraft Count**: 3-5 aircraft
-- **Conflict Probability**: Low (5-10%)
-- **Weather**: Clear conditions
-- **Special Procedures**: None
-- **Alert Frequency**: 2-3 per 10 minutes
-
-#### L2: Low Complexity, High Traffic
-- **Aircraft Count**: 12-15 aircraft
-- **Conflict Probability**: Medium (15-20%)
-- **Weather**: Clear conditions
-- **Special Procedures**: Standard arrivals/departures
-- **Alert Frequency**: 6-8 per 10 minutes
-
-#### H4: High Complexity, Low Traffic
-- **Aircraft Count**: 4-6 aircraft
-- **Conflict Probability**: Medium (20-25%)
-- **Weather**: Adverse (storms, wind shear)
-- **Special Procedures**: Emergency handling, diversions
-- **Alert Frequency**: 5-7 per 10 minutes
-
-#### H5: High Complexity, High Traffic
-- **Aircraft Count**: 15-20 aircraft
-- **Conflict Probability**: High (25-30%)
-- **Weather**: Adverse conditions
-- **Special Procedures**: Multiple simultaneous emergencies
-- **Alert Frequency**: 10-12 per 10 minutes
+| ID | Name | Workload | Aircraft | Duration | Description |
+|----|------|----------|----------|----------|-------------|
+| L1 | Baseline Emergency | Low | 5 | 6 min | Dual emergency with peripheral comm loss |
+| L2 | System Failure Overload | Low | 5 | 6 min | Silent automation failure + VFR intrusion |
+| L3 | Automation Complacency | Low | 5 | 6 min | Silent system crash + unalerted conflict |
+| H4 | Conflict-Driven Tunneling | High | 9 | 6 min | Critical conflict + peripheral VFR intrusion |
+| H5 | Compounded Stress | High | 9 | 6 min | Weather rerouting + fuel emergency + altitude deviation |
+| H6 | Cry Wolf Effect | High | 9 | 6 min | False alarm followed by real conflict with delayed alert |
 
 ## System Architecture
 
 ```
-atc-adaptive-alerts/
-│
-├── frontend/                 # React-based user interface
-│   ├── public/              # Static assets and HTML
-│   └── src/
-│       ├── components/      # React components
-│       │   ├── alerts/      # Alert UI components (Modal, Adaptive, etc.)
-│       │   ├── scenarios/   # Scenario visualization components
-│       │   └── dashboard/   # Performance dashboard components
-│       ├── scenarios/       # Scenario configurations and data
-│       ├── services/        # API clients and business logic
-│       │   ├── api.js       # Backend API communication
-│       │   ├── tracking.js  # Behavioral data collection
-│       │   └── analytics.js # Performance calculations
-│       └── styles/          # CSS and styling
-│
-├── backend/                 # Python FastAPI server
-│   ├── api/                 # REST API endpoints
-│   │   ├── main.py          # FastAPI application entry
-│   │   ├── routes/          # API route handlers
-│   │   └── models/          # Pydantic data models
-│   ├── scenarios/           # Scenario logic controllers
-│   │   ├── generator.py     # Scenario event generation
-│   │   ├── L1.py            # Low complexity, low traffic
-│   │   ├── L2.py            # Low complexity, high traffic
-│   │   ├── H4.py            # High complexity, low traffic
-│   │   └── H5.py            # High complexity, high traffic
-│   ├── ml_models/           # Machine learning components
-│   │   ├── trainer.py       # Model training pipeline
-│   │   ├── predictor.py     # Real-time prediction service
-│   │   ├── features.py      # Feature extraction
-│   │   └── saved_models/    # Serialized trained models
-│   └── data/                # Data storage
-│       ├── sessions/        # Session recordings
-│       ├── behavioral/      # Behavioral metrics
-│       ├── logs/            # System logs
-│       └── exports/         # Research data exports
-│
-├── .env.example             # Environment configuration template
-├── package.json             # Frontend dependencies
-├── requirements.txt         # Backend dependencies
-└── README.md                # This file
+frontend/                  # React 18 SPA with styled-components
+  src/
+    components/            # React components (alerts, surveys, radar display)
+    components/Queue/      # Session queue management
+    components/Surveys/    # NASA-TLX, Trust, Demographics, Effectiveness
+    hooks/                 # useBehavioralTracking, useSimulation, useWebSocket
+    services/              # API clients (api.js, tracking.js)
+    scenarios/             # Generated config from backend manifest
+
+backend/                   # Python FastAPI with async SQLite/PostgreSQL
+  api/
+    server.py              # Main FastAPI app, WebSocket, SSE, REST endpoints
+    queue_manager.py       # Session queue management
+  scenarios/
+    scenario_manifest.json # Single source of truth for all scenario configs
+    base_scenario.py       # Abstract base class for scenarios
+    scenario_l1.py - scenario_h6.py  # Individual scenario implementations
+  ml_models/
+    complacency_detector.py  # RandomForest ML model
+    predictor.py             # Real-time prediction service
+    train_complacency_model.py
+  simulation/
+    sim_engine.py          # Standalone aircraft physics (no external deps)
+    physics.py
+  data/
+    db_utils.py            # Async database operations
+    setup_database.py      # Schema creation and verification
 ```
 
 ## Getting Started
@@ -135,261 +78,139 @@ atc-adaptive-alerts/
 
 - **Node.js**: v18.x or higher
 - **Python**: 3.10 or higher
-- **npm** or **yarn**: Latest version
-- **pip**: Latest version
-- **Git**: For version control
 
-### Installation
-
-#### 1. Clone the Repository
+### Backend Setup
 
 ```bash
-git clone <repository-url>
-cd atc-adaptive-alerts
-```
-
-#### 2. Environment Configuration
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with your configuration
-nano .env  # or your preferred editor
-```
-
-#### 3. Backend Setup
-
-```bash
-# Navigate to backend directory
 cd backend
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source venv/bin/activate
-# On Windows:
-venv\Scripts\activate
+source venv/bin/activate  # macOS/Linux
+# venv\Scripts\activate   # Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Initialize database
-python -m api.main --init-db
+python data/setup_database.py --create
+python data/setup_database.py --verify
 
-# Run backend server
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+# Run server
+python api/server.py
+# Or: uvicorn api.server:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Backend will be available at: `http://localhost:8000`
-API documentation: `http://localhost:8000/docs`
+Backend available at: `http://localhost:8000`
+API docs: `http://localhost:8000/docs`
 
-#### 4. Frontend Setup
+### Frontend Setup
 
 ```bash
-# Navigate to frontend directory
 cd frontend
 
-# Install dependencies
 npm install
-
-# Start development server
-npm start
+npm start  # Auto-generates scenario config from backend manifest
 ```
 
-Frontend will be available at: `http://localhost:3000`
+Frontend available at: `http://localhost:3000`
 
-## Usage
+## API Endpoints
 
-### Running Experiments
-
-1. **Start Both Servers**
-   - Backend: `uvicorn api.main:app --reload` (from backend/)
-   - Frontend: `npm start` (from frontend/)
-
-2. **Access Research Interface**
-   - Navigate to `http://localhost:3000`
-   - Enter participant ID
-   - System will assign condition (or use manual override)
-
-3. **Execute Scenarios**
-   - Scenarios presented in randomized or sequential order
-   - Each scenario runs for configured duration (default: 10 minutes)
-   - System automatically logs all interactions
-
-4. **Data Collection**
-   - Behavioral metrics tracked in real-time
-   - Session data saved automatically
-   - Export available through admin dashboard
-
-### Measured Metrics
-
-#### Performance Metrics
-- **Response Time**: Time from alert display to acknowledgment
-- **Accuracy**: Correct vs incorrect alert responses
-- **Missed Alerts**: Alerts not acknowledged within timeout
-- **Task Completion**: Scenario objectives achieved
-- **Conflict Resolution**: Time to resolve traffic conflicts
-
-#### Workload Metrics
-- **NASA-TLX**: Subjective workload assessment
-- **Interaction Frequency**: Mouse/keyboard activity rate
-- **Dwell Time**: Time spent on different interface areas
-- **Alert Interruption Cost**: Performance degradation after alerts
-
-#### Alert-Specific Metrics
-- **Alert Fatigue Score**: Declining response quality over time
-- **False Positive Rate**: Unnecessary alert presentations
-- **Appropriate Adaptation**: ML model decision quality (Condition 3)
-
-## Development
-
-### Adding New Scenarios
-
-1. Create scenario configuration in `backend/scenarios/`
-2. Define aircraft patterns, conflict situations, and alert triggers
-3. Register scenario in scenario manager
-4. Add corresponding frontend visualization
-
-### Modifying Alert Conditions
-
-1. **Traditional Modal**: Edit `frontend/src/components/alerts/ModalAlert.jsx`
-2. **Rule-Based**: Modify rules in `backend/api/routes/adaptive.py`
-3. **ML-Based**: Adjust model in `backend/ml_models/trainer.py`
-
-### Training ML Models
-
-```bash
-cd backend
-python -m ml_models.trainer --scenario all --epochs 100
+### Session Lifecycle
+```
+POST /api/sessions/start           # Create session
+POST /api/sessions/{id}/start      # Start scenario
+POST /api/sessions/{id}/update     # Poll for scenario updates
+POST /api/sessions/{id}/end        # End session
 ```
 
-Models saved to `backend/ml_models/saved_models/`
+### Data Collection
+```
+POST /api/sessions/{id}/behavioral-events  # Log behavioral data
+POST /api/sessions/{id}/alerts             # Log alert display
+POST /api/sessions/{id}/alerts/{id}/acknowledge
+POST /api/sessions/{id}/surveys            # Submit survey responses
+```
+
+### Real-Time Communication
+- WebSocket: `/ws/session/{session_id}` - behavioral events and scenario updates
+- SSE: `/api/simulation/stream` - simulation state updates
 
 ## Testing
 
-### Backend Tests
-
 ```bash
-cd backend
+# Backend tests (from backend/)
 pytest tests/ -v --cov=api --cov=ml_models
-```
 
-### Frontend Tests
-
-```bash
-cd frontend
+# Frontend tests (from frontend/)
 npm test
 ```
 
-## Data Export
-
-Collected data can be exported for analysis:
+## ML Model Training
 
 ```bash
-# Export all session data
-curl http://localhost:8000/api/export/sessions
-
-# Export specific participant
-curl http://localhost:8000/api/export/sessions?participant_id=PART001
-
-# Export aggregated metrics
-curl http://localhost:8000/api/export/metrics
+cd backend
+python ml_models/train_complacency_model.py
 ```
 
-Data formats: JSON, CSV, or Excel
+Models saved to `backend/ml_models/trained_models/`. When ML dependencies are unavailable, the system falls back to heuristic prediction.
 
-## Research Protocol
+## Deployment (Render)
 
-### Participant Flow
+Configured for Render deployment via `render.yaml`:
 
-1. **Consent & Briefing**: Participants review study information
-2. **Training**: 5-minute practice session with assigned condition
-3. **Baseline**: L1 scenario to establish baseline performance
-4. **Main Scenarios**: L2, H4, H5 in randomized order
-5. **Questionnaire**: NASA-TLX and qualitative feedback
-6. **Debrief**: Explanation of research goals
+```bash
+git push origin main  # Auto-deploys from main branch
+```
 
-### Condition Assignment
+Key files:
+- `render.yaml`: Render Blueprint (web service + PostgreSQL)
+- `build.sh`: Installs deps, builds frontend, initializes DB, trains ML model
 
-- **Between-subjects**: Each participant experiences one condition
-- **Randomization**: Automatic assignment to balance groups
-- **Counterbalancing**: Scenario order randomized
+Production endpoints:
+- Health: `/health`
+- API Docs: `/docs`
+- Frontend: Served from backend (SPA catch-all)
 
-## Configuration
+## Environment Variables
 
-Key configuration options in `.env`:
+```env
+# Backend
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+DATABASE_URL=sqlite:///./data/research_data.db
+CORS_ORIGINS=http://localhost:3000
+RESEARCHER_TOKEN=your-secret-token
 
-- `DEFAULT_ALERT_CONDITION`: Set default condition (1, 2, or 3)
-- `AVAILABLE_SCENARIOS`: Enable/disable specific scenarios
-- `ENABLE_BEHAVIORAL_TRACKING`: Toggle detailed logging
-- `ML_TRAINING_ENABLED`: Allow real-time model updates
-- `RANDOMIZE_CONDITIONS`: Auto-assign conditions
+# Frontend
+REACT_APP_API_URL=http://localhost:8000
+```
 
-## Troubleshooting
+## Measured Metrics
 
-### Common Issues
+### Performance Metrics
+- Response time (alert display to acknowledgment)
+- Missed alerts (not acknowledged within timeout)
+- Conflict resolution time
 
-**Backend won't start**
-- Check Python version: `python --version`
-- Verify dependencies: `pip list`
-- Check port availability: `lsof -i :8000`
+### Workload Metrics
+- NASA-TLX subjective workload assessment
+- Interaction frequency (mouse/keyboard activity)
+- Dwell time on interface areas
 
-**Frontend build errors**
-- Clear cache: `npm cache clean --force`
-- Delete node_modules: `rm -rf node_modules && npm install`
-- Check Node version: `node --version`
+### Behavioral Features (ML Input)
+- Mouse velocity variance, interaction entropy
+- Click rate/pattern entropy, hover stability
+- Peripheral neglect duration, response time trend
 
-**ML model errors**
-- Ensure TensorFlow installed: `pip show tensorflow`
-- Check model files exist: `ls backend/ml_models/saved_models/`
-- Review training logs: `cat backend/data/logs/training.log`
+## Database
 
-**Database issues**
-- Reset database: `rm backend/data/atc_research.db`
-- Reinitialize: `python -m api.main --init-db`
-
-## Contributing
-
-Research contributions welcome:
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/new-scenario`
-3. Commit changes: `git commit -am 'Add new scenario'`
-4. Push to branch: `git push origin feature/new-scenario`
-5. Submit pull request
+- Development: SQLite (`backend/data/research_data.db`)
+- Production: PostgreSQL (via DATABASE_URL)
+- Key tables: `sessions`, `behavioral_events`, `alerts`, `metrics`, `surveys`
+- Views: `v_alert_performance`, `v_scenario_difficulty`, `v_session_summary`
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Citation
-
-If you use this system in your research, please cite:
-
-```
-[Your Research Paper Citation]
-ATC Adaptive Alert Research System
-[Year]
-```
-
-## Contact
-
-For questions or collaboration:
-- Research Team: [contact email]
-- Project Repository: [repository URL]
-- Documentation: [docs URL]
-
-## Acknowledgments
-
-- Air Traffic Control Subject Matter Experts
-- Human Factors Research Community
-- Open Source Contributors
-
----
-
-**Version**: 1.0.0
-**Last Updated**: 2025-11-19
-**Status**: Active Development
+MIT License

@@ -15,9 +15,9 @@ python -m venv venv
 source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 
-# Run server
+# Run server (two options)
 python api/server.py
-# Or: uvicorn api.server:app --reload --host 0.0.0.0 --port 8000
+uvicorn api.server:app --reload --host 0.0.0.0 --port 8000
 
 # Database setup
 python data/setup_database.py --create
@@ -26,7 +26,7 @@ python data/setup_database.py --verify
 # Run tests
 pytest tests/ -v --cov=api --cov=ml_models
 
-# Run a single test file or test
+# Run a single test
 pytest tests/test_scenario_validation.py -v
 pytest tests/test_scenario_validation.py::test_function_name -v
 
@@ -43,7 +43,7 @@ mypy .
 ```bash
 # From frontend/ directory
 npm install
-npm start          # Development server (port 3000) - auto-generates scenario config
+npm start          # Dev server (port 3000) - auto-generates scenario config via prestart hook
 npm run build      # Production build
 npm test           # Run tests
 npm run lint       # ESLint
@@ -52,17 +52,22 @@ npm run generate-config  # Manually regenerate scenario config from backend mani
 
 ## Architecture
 
-### Three-Tier Structure
+### Project Structure
 ```
-frontend/           # React 18 SPA with styled-components
-  ├── components/   # React components (alerts, surveys, radar display)
-  └── components/Queue/  # Session queue management (QueueBuilder, QueueRunner, ResultsDashboard)
-backend/            # Python FastAPI with async SQLite/PostgreSQL
-  ├── api/          # REST & WebSocket endpoints (server.py is main entry, queue_manager.py for session queues)
-  ├── scenarios/    # Scenario controllers (L1, L2, L3, H4, H5, H6)
-  ├── ml_models/    # Complacency detection ML (RandomForest)
-  ├── simulation/   # Aircraft simulation (sim_engine.py, aircraft.py, physics.py)
-  └── data/         # Database utilities and schema
+frontend/                  # React 18 SPA with styled-components
+  src/
+    components/            # React components (alerts, surveys, radar display)
+    components/Queue/      # Session queue management (QueueBuilder, QueueRunner, ResultsDashboard)
+    components/Surveys/    # NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck
+    hooks/                 # Custom hooks (useBehavioralTracking, useSimulation, useWebSocket)
+    services/              # API clients (api.js, tracking.js, behavioralTracker.js)
+    scenarios/             # Generated scenario config (from backend manifest)
+backend/                   # Python FastAPI with async SQLite/PostgreSQL
+  api/                     # REST & WebSocket endpoints (server.py main entry, queue_manager.py)
+  scenarios/               # Scenario controllers (L1, L2, L3, H4, H5, H6) + scenario_manifest.json
+  ml_models/               # Complacency detection ML (RandomForest)
+  simulation/              # Aircraft simulation (sim_engine.py, physics.py)
+  data/                    # Database utilities, schema, migrations
 ```
 
 ### Alert Conditions (Experimental)
@@ -82,19 +87,20 @@ Six scenarios with varying complexity (defined in `backend/scenarios/scenario_ma
 All scenarios inherit from `BaseScenario` in `backend/scenarios/base_scenario.py`. The manifest JSON is the single source of truth for scenario configurations, phases, and timing.
 
 ### Key Backend Components
-- **server.py** (`backend/api/server.py`): Main FastAPI app, WebSocket handling, all REST endpoints
-- **BaseScenario** (`backend/scenarios/base_scenario.py`): Abstract base for all scenarios, handles aircraft state, event scheduling, SAGAT probes
-- **SimulationEngine** (`backend/simulation/sim_engine.py`): Standalone aircraft physics simulation (no external dependencies)
-- **ComplacencyDetector** (`backend/ml_models/complacency_detector.py`): ML model (RandomForest) for predicting controller attention failures
-- **DatabaseManager** (`backend/data/db_utils.py`): Async database operations (SQLite or PostgreSQL)
+- **server.py** (`backend/api/server.py`): Main FastAPI app with WebSocket, SSE, all REST endpoints. Includes SCENARIO_CLASSES dict mapping scenario IDs to classes
+- **BaseScenario** (`backend/scenarios/base_scenario.py`): Abstract base for all scenarios. Loads config from `scenario_manifest.json`, handles event scheduling, SAGAT probes
+- **scenario_manifest.json** (`backend/scenarios/`): Single source of truth for all scenario configs (phases, timing, aircraft counts, expected detection times)
+- **SimulationEngine** (`backend/simulation/sim_engine.py`): Standalone aircraft physics simulation (no external BlueSky dependency)
+- **ComplacencyDetector** (`backend/ml_models/complacency_detector.py`): RandomForest ML model for predicting attention failures
+- **DatabaseManager** (`backend/data/db_utils.py`): Async database operations (SQLite dev, PostgreSQL production)
 
 ### Key Frontend Components
 - **App.jsx**: Main router with participant/researcher views
-- **SessionRunner.jsx**: Manages active session lifecycle
+- **SessionRunner.jsx**: Manages active session lifecycle, polls `/api/sessions/{id}/update` for triggered events
 - **RadarViewer.jsx**: ATC radar display visualization
-- **useBehavioralTracking.js** (`hooks/`): Tracks mouse, clicks, hovers, dwell times - batches events for ML feature extraction
+- **useBehavioralTracking.js** (`hooks/`): Tracks mouse, clicks, hovers, dwell times - batches events every 5s or 50 events for ML feature extraction
 - **Alert Components**: `TraditionalModalAlert.jsx`, `AdaptiveBannerAlert.jsx`, `MLPredictiveAlert.jsx`
-- **Survey Components**: NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck surveys in `components/Surveys/`
+- **Survey Components**: NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck in `components/Surveys/`
 - **Queue Components**: `QueueBuilder.jsx`, `QueueRunner.jsx`, `ResultsDashboard.jsx` in `components/Queue/`
 
 ### Real-Time Communication
@@ -153,6 +159,8 @@ The complacency detector extracts 10 behavioral features:
 
 Model files stored in `backend/ml_models/trained_models/`.
 
+When ML dependencies are unavailable, `server.py` falls back to a heuristic predictor that estimates workload based on event count.
+
 ## Deployment (Render)
 
 The project is configured for Render deployment with `render.yaml`:
@@ -163,11 +171,17 @@ git push origin main  # Render auto-deploys from main branch
 ```
 
 Key files:
-- `render.yaml`: Render Blueprint (web service + PostgreSQL)
-- `build.sh`: Build script (installs deps, builds frontend, initializes DB)
-- `DEPLOYMENT.md`: Full deployment guide
+- `render.yaml`: Render Blueprint (web service + PostgreSQL database)
+- `build.sh`: Build script (installs deps, builds frontend, initializes DB, trains ML model if needed)
 
 Production endpoints:
 - Health: `/health`
 - API Docs: `/docs`
-- Frontend: Served from same origin (SPA catch-all)
+- Frontend: Served from same origin (backend serves `frontend/build/` static files)
+
+## Scenario Config Sync
+
+Frontend scenario config is generated from the backend manifest:
+1. `frontend/scripts/generate-scenario-config.js` reads `backend/scenarios/scenario_manifest.json`
+2. Outputs to `frontend/src/scenarios/scenarioConfig.generated.js`
+3. Runs automatically via `npm run prestart` and `npm run prebuild`
