@@ -33,7 +33,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
-from .base_scenario import BaseScenario, Aircraft
+from .base_scenario import BaseScenario, Aircraft, ScenarioEvent
 
 
 class ScenarioL2(BaseScenario):
