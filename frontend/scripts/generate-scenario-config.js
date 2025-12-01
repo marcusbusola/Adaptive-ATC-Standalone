@@ -24,9 +24,28 @@ function generateConfig() {
     const manifestContent = fs.readFileSync(MANIFEST_PATH, 'utf8');
     manifest = JSON.parse(manifestContent);
   } catch (error) {
-    console.error(`Error reading manifest: ${error.message}`);
-    console.error(`Expected manifest at: ${MANIFEST_PATH}`);
-    process.exit(1);
+    // If manifest doesn't exist (e.g., separate deployment), check if generated file exists
+    console.warn(`Warning: Could not read manifest: ${error.message}`);
+    console.warn(`Expected manifest at: ${MANIFEST_PATH}`);
+
+    // Check if the generated file already exists (e.g., checked into repo or from previous build)
+    if (fs.existsSync(OUTPUT_PATH)) {
+      console.log(`Using existing generated config at: ${OUTPUT_PATH}`);
+      console.log('Skipping generation - manifest not available but config exists.');
+      process.exit(0); // Success - config already exists
+    }
+
+    // Also check for a fallback manifest in the frontend directory
+    const FALLBACK_MANIFEST_PATH = path.join(__dirname, '../src/scenarios/scenario_manifest.json');
+    if (fs.existsSync(FALLBACK_MANIFEST_PATH)) {
+      console.log(`Using fallback manifest at: ${FALLBACK_MANIFEST_PATH}`);
+      const fallbackContent = fs.readFileSync(FALLBACK_MANIFEST_PATH, 'utf8');
+      manifest = JSON.parse(fallbackContent);
+    } else {
+      console.error('No manifest available and no existing generated config found.');
+      console.error('Please ensure scenario_manifest.json exists in backend/scenarios/ or frontend/src/scenarios/');
+      process.exit(1);
+    }
   }
 
   // Transform manifest to frontend format
