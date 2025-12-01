@@ -1357,6 +1357,43 @@ class BaseScenario(ABC):
             return True
         return False
 
+    def resolve_emergency_by_action(self, callsign: str, action_id: str) -> bool:
+        """
+        Clear emergency status if the action resolves it.
+
+        This is called when a controller takes an expected action (like granting
+        priority landing clearance) to update the aircraft's emergency state.
+
+        Args:
+            callsign: Aircraft callsign (e.g., 'UAL238')
+            action_id: The action ID that was taken
+
+        Returns:
+            True if emergency was cleared, False otherwise
+        """
+        aircraft = self.aircraft.get(callsign)
+        if not aircraft or not aircraft.emergency:
+            return False
+
+        # Actions that resolve emergencies
+        resolving_actions = {
+            'priority_landing', 'emergency_landing', 'clear_to_land',
+            'grant_priority', 'emergency_clearance', 'priority_clearance',
+            'grant_priority_landing_clearance'
+        }
+
+        # Normalize action_id for comparison
+        action_lower = action_id.lower().replace(' ', '_').replace('-', '_')
+
+        # Check if action resolves emergency
+        if action_lower in resolving_actions or 'priority' in action_lower or 'emergency' in action_lower:
+            aircraft.emergency = False
+            aircraft.emergency_type = None
+            print(f"  Emergency resolved for {callsign} via action '{action_id}'")
+            return True
+
+        return False
+
     def _check_alert_reemission(self) -> List[Dict[str, Any]]:
         """
         Re-emit unresolved alerts for Condition 1 (Traditional Modal) every 15 seconds.

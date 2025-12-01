@@ -809,6 +809,7 @@ async def log_behavioral_events(session_id: str, request: BehavioralEventRequest
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
         logged_count = 0
+        emergencies_resolved = 0
         for event in request.events:
             try:
                 await db_manager.add_behavioral_event(
@@ -820,13 +821,26 @@ async def log_behavioral_events(session_id: str, request: BehavioralEventRequest
                     screen_height=event.get('screen_height')
                 )
                 logged_count += 1
+
+                # Check if this is an expected ATC command that should resolve an emergency
+                if event.get('event_type') == 'atc_command' and event.get('is_expected'):
+                    if session_id in active_scenarios:
+                        scenario = active_scenarios[session_id]
+                        target = event.get('target_aircraft')
+                        action_id = event.get('action_id') or event.get('action_label', '')
+                        if target and action_id:
+                            if scenario.resolve_emergency_by_action(target, action_id):
+                                emergencies_resolved += 1
+                                logger.info(f"Emergency resolved for {target} via action '{action_id}' in session {session_id}")
+
             except Exception as e:
                 logger.warning(f"Failed to log behavioral event: {e}")
 
         return {
             "status": "success",
             "logged_count": logged_count,
-            "total_received": len(request.events)
+            "total_received": len(request.events),
+            "emergencies_resolved": emergencies_resolved
         }
 
     except HTTPException:

@@ -347,7 +347,7 @@
   border-radius: 5px;
   overflow-y: auto;  /* Allow scrolling when content overflows */
   overflow-x: hidden;
-  max-height: calc(100vh - 120px); /* Constrain height to viewport minus header */
+  height: calc(100vh - 120px); /* Fixed height to enable scrolling */
 }
 
 /* Custom scrollbar for action panel */
