@@ -84,6 +84,63 @@
               inset 0 0 30px rgba(255, 193, 7, 0.2);
 }
 
+/* ESCALATED - More intense red with rapid pulsing, louder visual cues */
+.traditional-modal-escalated {
+  background-color: #7f0000 !important;
+  border-width: 12px !important;
+  animation: modalSlideIn 0.3s ease-out, pulseBorderEscalated 0.5s ease-in-out infinite !important;
+}
+
+@keyframes pulseBorderEscalated {
+  0%, 100% {
+    border-color: #ff1744;
+    box-shadow: 0 0 60px rgba(255, 23, 68, 0.9),
+                0 0 100px rgba(255, 23, 68, 0.6),
+                inset 0 0 50px rgba(255, 23, 68, 0.4);
+  }
+  50% {
+    border-color: #ffeb3b;
+    box-shadow: 0 0 80px rgba(255, 235, 59, 1),
+                0 0 120px rgba(255, 235, 59, 0.7),
+                inset 0 0 70px rgba(255, 235, 59, 0.5);
+  }
+}
+
+/* Escalated indicator styling */
+.escalated-indicator {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffeb3b;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+  padding: 12px 20px;
+  background: rgba(255, 23, 68, 0.4);
+  border: 2px solid #ff1744;
+  border-radius: 6px;
+  animation: flashEscalated 0.3s ease-in-out infinite;
+  text-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
+}
+
+@keyframes flashEscalated {
+  0%, 100% {
+    opacity: 1;
+    background: rgba(255, 23, 68, 0.4);
+  }
+  50% {
+    opacity: 0.9;
+    background: rgba(255, 23, 68, 0.7);
+  }
+}
+
+.reappear-count {
+  display: block;
+  font-size: 14px;
+  color: #ff8a80;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
 /* ============================================================================
    HEADER - Title and critical indicator
    ============================================================================ */

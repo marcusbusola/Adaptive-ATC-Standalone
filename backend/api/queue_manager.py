@@ -207,7 +207,8 @@ class QueueManager:
         self,
         participant_id: str,
         scenario_ids: List[str],
-        conditions: List[int],
+        condition: int,
+        randomize_order: bool = False,
         metadata: Optional[Dict[str, Any]] = None
     ) -> SessionQueue:
         """
@@ -216,27 +217,39 @@ class QueueManager:
         Args:
             participant_id: Unique participant identifier
             scenario_ids: List of scenario IDs to queue
-            conditions: List of conditions to test
+            condition: Single condition to use for all scenarios
+            randomize_order: Whether to randomize scenario order
             metadata: Optional metadata to attach to queue
 
         Returns:
             Created SessionQueue
         """
+        import random
+
         # Generate queue ID
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         queue_id = f"queue_{participant_id}_{timestamp}"
 
-        # Create queue items (all combinations)
+        # Optionally randomize scenario order
+        scenarios_to_use = list(scenario_ids)  # Make a copy
+        if randomize_order:
+            random.shuffle(scenarios_to_use)
+
+        # Create queue items (one per scenario, all with same condition)
         items = []
-        for scenario_id in scenario_ids:
-            for condition in conditions:
-                item = QueueItem(
-                    queue_id=queue_id,
-                    scenario_id=scenario_id,
-                    condition=condition,
-                    participant_id=participant_id
-                )
-                items.append(item)
+        for scenario_id in scenarios_to_use:
+            item = QueueItem(
+                queue_id=queue_id,
+                scenario_id=scenario_id,
+                condition=condition,  # Same condition for all
+                participant_id=participant_id
+            )
+            items.append(item)
+
+        # Add randomization info to metadata
+        queue_metadata = metadata or {}
+        queue_metadata['randomized'] = randomize_order
+        queue_metadata['condition_name'] = {1: 'Traditional Modal', 2: 'Rule-Based Adaptive', 3: 'ML-Based Adaptive'}.get(condition, f'Condition {condition}')
 
         # Create queue
         queue = SessionQueue(
@@ -244,7 +257,7 @@ class QueueManager:
             participant_id=participant_id,
             created_at=datetime.now().isoformat(),
             items=items,
-            metadata=metadata or {}
+            metadata=queue_metadata
         )
 
         # Store queue

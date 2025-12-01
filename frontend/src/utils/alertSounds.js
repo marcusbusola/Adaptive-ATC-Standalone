@@ -30,7 +30,7 @@ function getAudioContext() {
 /**
  * Play alert sound based on severity
  *
- * @param {string} severity - 'critical' or 'warning'
+ * @param {string} severity - 'escalated', 'critical', or 'warning'
  * @param {object} options - Sound configuration options
  * @returns {Promise<void>}
  */
@@ -49,7 +49,9 @@ export async function playAlertSound(severity = 'warning', options = {}) {
     }
 
     // Otherwise generate tone based on severity
-    if (severity === 'critical') {
+    if (severity === 'escalated') {
+      return playEscalatedAlert(volume, duration);
+    } else if (severity === 'critical') {
       return playCriticalAlert(volume, duration);
     } else {
       return playWarningAlert(volume, duration);
@@ -84,6 +86,41 @@ async function playCriticalAlert(volume, duration) {
         playTone(ctx, beep.frequency, duration, volume);
         resolve();
       }, beep.delay);
+    });
+  }
+}
+
+/**
+ * Play escalated alert sound
+ * Most urgent - alternating high/low siren pattern
+ *
+ * @private
+ * @param {number} volume - Volume level (0.0 to 1.0)
+ * @param {number} duration - Duration of each tone in ms
+ */
+async function playEscalatedAlert(volume, duration) {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  // Siren-like alternating pattern: high and low frequencies
+  const sirenPattern = [
+    { frequency: 1000, delay: 0 },      // High tone
+    { frequency: 700, delay: 120 },     // Low tone
+    { frequency: 1000, delay: 240 },    // High tone
+    { frequency: 700, delay: 360 },     // Low tone
+    { frequency: 1000, delay: 480 },    // High tone
+    { frequency: 700, delay: 600 }      // Low tone
+  ];
+
+  // Play at higher volume for escalated alerts
+  const escalatedVolume = Math.min(volume * 1.5, 1.0);
+
+  for (const tone of sirenPattern) {
+    await new Promise(resolve => {
+      setTimeout(() => {
+        playTone(ctx, tone.frequency, duration * 0.8, escalatedVolume);
+        resolve();
+      }, tone.delay);
     });
   }
 }

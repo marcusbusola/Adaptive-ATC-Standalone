@@ -17,6 +17,7 @@ const ActionPanel = ({
   phaseDescription,
   aircraft = {},
   elapsedTime = 0,
+  pendingAlerts = [], // Alerts that are acknowledged but not yet resolved
   onActionLogged
 }) => {
   const [selectedAircraft, setSelectedAircraft] = useState(null);
@@ -115,6 +116,11 @@ const ActionPanel = ({
     return Object.values(aircraft);
   }, [aircraft]);
 
+  // Get set of aircraft callsigns that have pending (unresolved) alerts
+  const aircraftWithPendingAlerts = useMemo(() => {
+    return new Set(pendingAlerts.map(alert => alert.target));
+  }, [pendingAlerts]);
+
   // Check if an expected action has been completed
   const isActionCompleted = useCallback((actionId) => {
     return actionHistory.some(h => h.action_id === actionId);
@@ -166,20 +172,25 @@ const ActionPanel = ({
       <section className="panel-section aircraft-selector">
         <h3>Select Aircraft ({aircraftList.length})</h3>
         <div className="aircraft-buttons">
-          {aircraftList.map(ac => (
-            <button
-              key={ac.callsign}
-              className={`aircraft-btn ${selectedAircraft === ac.callsign ? 'selected' : ''}
-                         ${ac.emergency ? 'emergency' : ''}
-                         ${ac.comm_loss ? 'nordo' : ''}`}
-              onClick={() => setSelectedAircraft(ac.callsign === selectedAircraft ? null : ac.callsign)}
-              title={`${ac.callsign} - FL${Math.floor((ac.altitude || 0) / 100)}`}
-            >
-              {ac.callsign}
-              {ac.emergency && <span className="status-indicator emergency">!</span>}
-              {ac.comm_loss && <span className="status-indicator nordo">X</span>}
-            </button>
-          ))}
+          {aircraftList.map(ac => {
+            const hasPendingAlert = aircraftWithPendingAlerts.has(ac.callsign);
+            return (
+              <button
+                key={ac.callsign}
+                className={`aircraft-btn ${selectedAircraft === ac.callsign ? 'selected' : ''}
+                           ${ac.emergency ? 'emergency' : ''}
+                           ${ac.comm_loss ? 'nordo' : ''}
+                           ${hasPendingAlert ? 'pending-alert' : ''}`}
+                onClick={() => setSelectedAircraft(ac.callsign === selectedAircraft ? null : ac.callsign)}
+                title={`${ac.callsign} - FL${Math.floor((ac.altitude || 0) / 100)}${hasPendingAlert ? ' - ACTION REQUIRED' : ''}`}
+              >
+                {ac.callsign}
+                {ac.emergency && <span className="status-indicator emergency">!</span>}
+                {ac.comm_loss && <span className="status-indicator nordo">X</span>}
+                {hasPendingAlert && <span className="status-indicator pending">⚠</span>}
+              </button>
+            );
+          })}
           {aircraftList.length === 0 && (
             <p className="no-aircraft">No aircraft in sector</p>
           )}

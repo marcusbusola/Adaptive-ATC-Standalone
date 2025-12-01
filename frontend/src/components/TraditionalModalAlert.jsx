@@ -30,7 +30,9 @@ function TraditionalModalAlert({
   timestamp = Date.now(),
   details = null,
   enableAudio = true,
-  zIndex = 0 // For stacking multiple alerts
+  zIndex = 0, // For stacking multiple alerts
+  isEscalated = false, // Alert has reappeared after being acknowledged but not resolved
+  reappearCount = 0 // Number of times alert has reappeared
 }) {
   const [responseTime, setResponseTime] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -43,7 +45,9 @@ function TraditionalModalAlert({
 
     // Play audio alert if enabled
     if (enableAudio) {
-      playAlertSound(severity);
+      // Play escalated sound for reappearing alerts, otherwise normal severity sound
+      const soundSeverity = isEscalated ? 'escalated' : severity;
+      playAlertSound(soundSeverity);
     }
 
     // Auto-focus acknowledge button for keyboard accessibility
@@ -53,7 +57,7 @@ function TraditionalModalAlert({
 
     // Track time from prop timestamp (actual alert time) not mount time
     mountTimeRef.current = Date.now();
-  }, [severity, enableAudio]);
+  }, [severity, enableAudio, isEscalated]);
 
   /**
    * Handle acknowledgment
@@ -101,8 +105,12 @@ function TraditionalModalAlert({
 
   /**
    * Get severity-specific class names
+   * Escalated alerts always show as critical with additional escalated styling
    */
   const getSeverityClass = () => {
+    if (isEscalated) {
+      return 'traditional-modal-critical traditional-modal-escalated';
+    }
     return severity === 'critical'
       ? 'traditional-modal-critical'
       : 'traditional-modal-warning';
@@ -121,7 +129,13 @@ function TraditionalModalAlert({
       <div className={`traditional-modal-container ${getSeverityClass()}`}>
         {/* Alert Header */}
         <div className="traditional-modal-header">
-          {severity === 'critical' && (
+          {isEscalated && (
+            <div className="escalated-indicator">
+              ⚠️ UNRESOLVED - REQUIRES IMMEDIATE ACTION ⚠️
+              {reappearCount > 1 && <span className="reappear-count">(Reappeared {reappearCount}x)</span>}
+            </div>
+          )}
+          {severity === 'critical' && !isEscalated && (
             <div className="critical-indicator">
               CRITICAL ALERT
             </div>

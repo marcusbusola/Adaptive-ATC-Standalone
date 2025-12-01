@@ -24,7 +24,8 @@ const CONDITIONS = [
 const QueueBuilder = ({ onQueueCreated }) => {
   const [participantId, setParticipantId] = useState('');
   const [selectedScenarios, setSelectedScenarios] = useState([]);
-  const [selectedConditions, setSelectedConditions] = useState([]);
+  const [selectedCondition, setSelectedCondition] = useState(null); // Single condition (radio)
+  const [randomizeOrder, setRandomizeOrder] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -37,14 +38,6 @@ const QueueBuilder = ({ onQueueCreated }) => {
     );
   };
 
-  const toggleCondition = (conditionId) => {
-    setSelectedConditions(prev =>
-      prev.includes(conditionId)
-        ? prev.filter(id => id !== conditionId)
-        : [...prev, conditionId]
-    );
-  };
-
   const selectAllScenarios = () => {
     setSelectedScenarios(SCENARIOS.map(s => s.id));
   };
@@ -53,16 +46,9 @@ const QueueBuilder = ({ onQueueCreated }) => {
     setSelectedScenarios([]);
   };
 
-  const selectAllConditions = () => {
-    setSelectedConditions(CONDITIONS.map(c => c.id));
-  };
-
-  const clearAllConditions = () => {
-    setSelectedConditions([]);
-  };
-
   const getTotalSessions = () => {
-    return selectedScenarios.length * selectedConditions.length;
+    // One session per scenario (all use the same condition)
+    return selectedCondition ? selectedScenarios.length : 0;
   };
 
   const getTotalDuration = () => {
@@ -73,16 +59,15 @@ const QueueBuilder = ({ onQueueCreated }) => {
   };
 
   const getQueuePreview = () => {
+    if (!selectedCondition) return [];
+    const condition = CONDITIONS.find(c => c.id === selectedCondition);
     const items = [];
     selectedScenarios.forEach(scenarioId => {
-      selectedConditions.forEach(conditionId => {
-        const scenario = SCENARIOS.find(s => s.id === scenarioId);
-        const condition = CONDITIONS.find(c => c.id === conditionId);
-        items.push({
-          scenario: scenario.name,
-          condition: condition.name,
-          duration: scenario.duration
-        });
+      const scenario = SCENARIOS.find(s => s.id === scenarioId);
+      items.push({
+        scenario: scenario.name,
+        condition: condition.name,
+        duration: scenario.duration
       });
     });
     return items;
@@ -99,8 +84,8 @@ const QueueBuilder = ({ onQueueCreated }) => {
       return;
     }
 
-    if (selectedConditions.length === 0) {
-      setError('Please select at least one condition');
+    if (!selectedCondition) {
+      setError('Please select an alert condition');
       return;
     }
 
@@ -111,7 +96,8 @@ const QueueBuilder = ({ onQueueCreated }) => {
       const response = await axios.post(`${API_URL}/api/queues/create`, {
         participant_id: participantId,
         scenario_ids: selectedScenarios,
-        conditions: selectedConditions,
+        condition: selectedCondition,        // Single condition
+        randomize_order: randomizeOrder,     // Randomization option
         metadata: {
           created_via: 'QueueBuilder',
           total_sessions: getTotalSessions(),
@@ -130,7 +116,8 @@ const QueueBuilder = ({ onQueueCreated }) => {
         // Reset form
         setParticipantId('');
         setSelectedScenarios([]);
-        setSelectedConditions([]);
+        setSelectedCondition(null);
+        setRandomizeOrder(false);
         setShowPreview(false);
       }
     } catch (err) {
@@ -214,32 +201,29 @@ const QueueBuilder = ({ onQueueCreated }) => {
         </div>
       </div>
 
-      {/* Condition Selection */}
+      {/* Condition Selection - Radio Buttons (single select) */}
       <div className="form-section">
         <div className="section-header">
-          <label>Select Alert Conditions <span className="required">*</span></label>
-          <div className="quick-actions">
-            <button onClick={selectAllConditions} className="btn-link">
-              Select All
-            </button>
-            <button onClick={clearAllConditions} className="btn-link">
-              Clear All
-            </button>
-          </div>
+          <label>Select Alert Condition <span className="required">*</span></label>
+          <span className="section-hint">(Choose one)</span>
         </div>
 
         <div className="condition-grid">
           {CONDITIONS.map(condition => (
             <div
               key={condition.id}
-              className={`condition-card ${selectedConditions.includes(condition.id) ? 'selected' : ''}`}
-              onClick={() => toggleCondition(condition.id)}
+              className={`condition-card ${selectedCondition === condition.id ? 'selected' : ''}`}
+              onClick={() => setSelectedCondition(condition.id)}
             >
               <div className="condition-header">
+                <input
+                  type="radio"
+                  name="alertCondition"
+                  checked={selectedCondition === condition.id}
+                  onChange={() => setSelectedCondition(condition.id)}
+                  className="condition-radio"
+                />
                 <span className="condition-number">Condition {condition.id}</span>
-                {selectedConditions.includes(condition.id) && (
-                  <span className="checkmark">Selected</span>
-                )}
               </div>
               <div className="condition-name">{condition.name}</div>
               <div className="condition-description">{condition.description}</div>
@@ -247,8 +231,17 @@ const QueueBuilder = ({ onQueueCreated }) => {
           ))}
         </div>
 
-        <div className="selection-summary">
-          {selectedConditions.length} condition{selectedConditions.length !== 1 ? 's' : ''} selected
+        {/* Randomize Order Option */}
+        <div className="randomize-option">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={randomizeOrder}
+              onChange={(e) => setRandomizeOrder(e.target.checked)}
+            />
+            <span>Randomize scenario order</span>
+            <span className="option-hint">(for counterbalancing)</span>
+          </label>
         </div>
       </div>
 
@@ -270,10 +263,15 @@ const QueueBuilder = ({ onQueueCreated }) => {
               <div className="stat-label">Scenarios</div>
             </div>
             <div className="stat">
-              <div className="stat-value">{selectedConditions.length}</div>
-              <div className="stat-label">Conditions</div>
+              <div className="stat-value">{CONDITIONS.find(c => c.id === selectedCondition)?.name.split(' ')[0] || '-'}</div>
+              <div className="stat-label">Alert Type</div>
             </div>
           </div>
+          {randomizeOrder && (
+            <div className="randomize-notice">
+              Scenario order will be randomized
+            </div>
+          )}
 
           <button
             className="btn-preview"

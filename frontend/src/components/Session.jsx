@@ -8,14 +8,19 @@ import AdaptiveBannerAlert from './AdaptiveBannerAlert';
 import MLPredictiveAlert from './MLPredictiveAlert';
 import SurveyManager from './Surveys/SurveyManager';
 import CommandPalette from './CommandPalette';
+import { SuccessToastContainer } from './SuccessToast';
 import { logBehavioralEvent, logAlertDisplay, logAlertAcknowledgment } from '../services/api';
 import { getApiBaseUrl } from '../utils/apiConfig';
+import { SCENARIO_ACTIONS } from '../config/scenarioActions';
 import '../styles/session.css';
 
 const API_URL = getApiBaseUrl();
 
 // Polling interval in milliseconds
 const POLLING_INTERVAL = 2000;
+
+// Time in milliseconds before acknowledged alert reappears if not resolved
+const ALERT_HIDE_DURATION = 15000;
 
 function Session() {
     const { sessionId } = useParams();
@@ -35,6 +40,8 @@ function Session() {
     const [phaseDescription, setPhaseDescription] = useState('');
     const [aircraft, setAircraft] = useState({});
     const [activeAlerts, setActiveAlerts] = useState([]);
+    const [pendingAlerts, setPendingAlerts] = useState([]); // Acknowledged but not resolved
+    const [successToasts, setSuccessToasts] = useState([]); // Success notifications
     const [alertHistory, setAlertHistory] = useState([]);
     const [sagatProbes, setSagatProbes] = useState([]);
     const [scenarioComplete, setScenarioComplete] = useState(false);
@@ -45,6 +52,7 @@ function Session() {
     const pollingRef = useRef(null);
     const scenarioStartedRef = useRef(false); // Ref to avoid stale closure in polling
     const startTimeRef = useRef(null);
+    const pendingAlertTimers = useRef({}); // Timers for pending alerts
 
     const fetchSessionDetails = useCallback(async () => {
         setIsLoading(true);
@@ -234,9 +242,118 @@ function Session() {
         }
     };
 
-    // Handle alert acknowledgment
+    /**
+     * Get expected resolution actions for an alert based on scenario and phase
+     * Returns array of action IDs that would resolve this alert
+     */
+    const getExpectedActionsForAlert = useCallback((alert) => {
+        const scenario = sessionDetails?.scenario;
+        const phaseNum = currentPhase + 1; // Phases are 1-indexed in config
+
+        if (!scenario || !SCENARIO_ACTIONS[scenario]) return [];
+
+        const phaseConfig = SCENARIO_ACTIONS[scenario].phases[phaseNum];
+        if (!phaseConfig) return [];
+
+        // Find actions that target this alert's aircraft
+        const targetAircraft = alert.target;
+        const matchingActions = phaseConfig.availableActions?.filter(action =>
+            action.target === targetAircraft ||
+            action.target === 'all' ||
+            action.target === 'both' ||
+            action.target === 'multiple' ||
+            action.target === 'system' ||
+            (action.target && action.target.includes(targetAircraft))
+        ) || [];
+
+        // Return the IDs of expected actions that match this alert's target
+        const expectedIds = phaseConfig.expectedActions || [];
+        return matchingActions
+            .filter(action => expectedIds.includes(action.id))
+            .map(action => action.id);
+    }, [sessionDetails?.scenario, currentPhase]);
+
+    /**
+     * Check if an action resolves any pending alerts
+     */
+    const checkActionResolvesAlert = useCallback((actionData) => {
+        const actionId = actionData.action_id;
+        const targetAircraft = actionData.target_aircraft;
+
+        // Find pending alerts that could be resolved by this action
+        const resolvedAlerts = pendingAlerts.filter(alert => {
+            const expectedActions = getExpectedActionsForAlert(alert);
+
+            // Check if this action is expected for this alert
+            if (expectedActions.includes(actionId)) {
+                return true;
+            }
+
+            // Also check if any action on the target aircraft could resolve it
+            if (targetAircraft && alert.target === targetAircraft) {
+                return expectedActions.length > 0 && expectedActions.includes(actionId);
+            }
+
+            return false;
+        });
+
+        return resolvedAlerts;
+    }, [pendingAlerts, getExpectedActionsForAlert]);
+
+    /**
+     * Show success toast when alert is resolved
+     */
+    const showSuccessToast = useCallback((alert, actionLabel) => {
+        const toastId = `toast_${alert.id}_${Date.now()}`;
+        const newToast = {
+            id: toastId,
+            message: `${alert.target} situation handled correctly`,
+            aircraft: alert.target,
+            actionTaken: actionLabel,
+            duration: 3000
+        };
+
+        setSuccessToasts(prev => [...prev, newToast]);
+    }, []);
+
+    /**
+     * Dismiss success toast
+     */
+    const dismissSuccessToast = useCallback((toastId) => {
+        setSuccessToasts(prev => prev.filter(t => t.id !== toastId));
+    }, []);
+
+    /**
+     * Handle alert reappearance after hide duration
+     */
+    const handleAlertReappear = useCallback((alert) => {
+        // Remove from pending
+        setPendingAlerts(prev => prev.filter(a => a.id !== alert.id));
+
+        // Clear the timer
+        if (pendingAlertTimers.current[alert.id]) {
+            clearTimeout(pendingAlertTimers.current[alert.id]);
+            delete pendingAlertTimers.current[alert.id];
+        }
+
+        // Add back to active alerts with escalated state
+        const escalatedAlert = {
+            ...alert,
+            isEscalated: true,
+            reappearCount: (alert.reappearCount || 0) + 1,
+            timestamp: Date.now() // Reset timestamp for new response time tracking
+        };
+
+        setActiveAlerts(prev => [...prev, escalatedAlert]);
+
+        // Log the reappearance
+        console.log(`[Alert] Alert reappeared (escalated): ${alert.id}, reappear count: ${escalatedAlert.reappearCount}`);
+    }, []);
+
+    // Handle alert acknowledgment - for traditional alerts, this hides them for 15 seconds
     const handleAlertAcknowledge = async (alert, actionTaken = null) => {
         const responseTime = Date.now() - alert.timestamp;
+        const condition = sessionDetails?.condition || 1;
 
         // Log acknowledgment
         try {
@@ -251,6 +368,24 @@ function Session() {
 
         // Remove from active alerts
         setActiveAlerts(prev => prev.filter(a => a.id !== alert.id));
+
+        // For traditional alerts (condition 1), move to pending instead of dismissing
+        if (condition === 1) {
+            // Add to pending alerts
+            const pendingAlert = {
+                ...alert,
+                acknowledgedAt: Date.now(),
+                responseTime
+            };
+            setPendingAlerts(prev => [...prev, pendingAlert]);
+
+            // Set timer for reappearance if not resolved
+            pendingAlertTimers.current[alert.id] = setTimeout(() => {
+                handleAlertReappear(pendingAlert);
+            }, ALERT_HIDE_DURATION);
+
+            console.log(`[Alert] Alert acknowledged and hidden: ${alert.id}, will reappear in ${ALERT_HIDE_DURATION / 1000}s if not resolved`);
+        }
 
         // Update history
         setAlertHistory(prev => prev.map(a =>
@@ -327,6 +462,40 @@ function Session() {
         }
     };
 
+    /**
+     * Handle action logged from ActionPanel - check if it resolves any pending alerts
+     */
+    const handleActionLogged = useCallback((actionData) => {
+        console.log('[Session] Action logged:', actionData);
+
+        // Check if this action resolves any pending alerts
+        const resolvedAlerts = checkActionResolvesAlert(actionData);
+
+        if (resolvedAlerts.length > 0) {
+            console.log('[Session] Action resolves pending alerts:', resolvedAlerts.map(a => a.id));
+
+            resolvedAlerts.forEach(alert => {
+                // Clear the reappear timer
+                if (pendingAlertTimers.current[alert.id]) {
+                    clearTimeout(pendingAlertTimers.current[alert.id]);
+                    delete pendingAlertTimers.current[alert.id];
+                }
+
+                // Show success toast
+                showSuccessToast(alert, actionData.action_label);
+
+                // Update alert history to mark as resolved
+                setAlertHistory(prev => prev.map(a =>
+                    a.id === alert.id ? { ...a, resolved: true, resolvedBy: actionData.action_id } : a
+                ));
+            });
+
+            // Remove resolved alerts from pending
+            const resolvedIds = resolvedAlerts.map(a => a.id);
+            setPendingAlerts(prev => prev.filter(a => !resolvedIds.includes(a.id)));
+        }
+    }, [checkActionResolvesAlert, showSuccessToast]);
+
     useEffect(() => {
         fetchSessionDetails();
     }, [sessionId, fetchSessionDetails]);
@@ -357,6 +526,11 @@ function Session() {
             if (pollingRef.current) {
                 clearInterval(pollingRef.current);
             }
+            // Clear all pending alert timers
+            Object.values(pendingAlertTimers.current).forEach(timer => {
+                clearTimeout(timer);
+            });
+            pendingAlertTimers.current = {};
         };
     }, []);
 
@@ -384,10 +558,12 @@ function Session() {
                             alertId={alert.id}
                             title={`${alert.type.toUpperCase()}: ${alert.target}`}
                             message={alert.message}
-                            severity={severity}
+                            severity={alert.isEscalated ? 'critical' : severity}
                             timestamp={alert.timestamp}
                             details={alert.details}
                             requiresAcknowledgment={true}
+                            isEscalated={alert.isEscalated || false}
+                            reappearCount={alert.reappearCount || 0}
                             onAcknowledge={(data) => handleAlertAcknowledge(alert, data?.action_taken)}
                         />
                     );
@@ -491,6 +667,12 @@ function Session() {
                 {renderAlerts()}
             </div>
 
+            {/* Success Toast Container */}
+            <SuccessToastContainer
+                toasts={successToasts}
+                onDismiss={dismissSuccessToast}
+            />
+
             <div className="session-body">
                 {/* Radar Viewer */}
                 <div className="session-radar-wrapper">
@@ -510,9 +692,8 @@ function Session() {
                     phaseDescription={phaseDescription}
                     aircraft={aircraft}
                     elapsedTime={elapsedTime}
-                    onActionLogged={(action) => {
-                        console.log('[Session] Action logged:', action);
-                    }}
+                    pendingAlerts={pendingAlerts}
+                    onActionLogged={handleActionLogged}
                 />
             </div>
 
@@ -521,9 +702,14 @@ function Session() {
                 <div className="debug-panel">
                     <h4>Debug Info</h4>
                     <p>Elapsed: {elapsedTime}s | Phase: {currentPhase}</p>
-                    <p>Active Alerts: {activeAlerts.length}</p>
+                    <p>Active Alerts: {activeAlerts.length} | Pending: {pendingAlerts.length}</p>
                     <p>Aircraft: {Object.keys(aircraft).length}</p>
                     <p>Selected AC: {selectedAircraftCallsign || 'None'}</p>
+                    {pendingAlerts.length > 0 && (
+                        <p style={{color: '#ff9800'}}>
+                            Pending: {pendingAlerts.map(a => a.target).join(', ')}
+                        </p>
+                    )}
                     <button onClick={() => handleEndSession('manual_end')}>
                         End Session (Debug)
                     </button>

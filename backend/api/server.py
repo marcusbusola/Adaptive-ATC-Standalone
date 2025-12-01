@@ -320,7 +320,8 @@ class SurveyRequest(BaseModel):
 class CreateQueueRequest(BaseModel):
     participant_id: str
     scenario_ids: List[str]
-    conditions: List[int]
+    condition: int  # Single condition (radio button selection)
+    randomize_order: bool = False  # Optional: randomize scenario order
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -756,8 +757,10 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
         logger.error(f"Unexpected error ending session {session_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error ending session: {str(e)}")
 
 
 @app.get("/api/sessions/{session_id}/export", dependencies=[Depends(require_researcher_token)])
@@ -1234,16 +1237,17 @@ async def get_conditions():
 
 @app.post("/api/queues/create", dependencies=[Depends(require_researcher_token)])
 async def create_queue(request: CreateQueueRequest):
-    """Creates a new session queue."""
+    """Creates a new session queue with multiple scenarios and a single condition."""
     try:
         qm = get_queue_manager()
         queue = qm.create_queue(
             participant_id=request.participant_id,
             scenario_ids=request.scenario_ids,
-            conditions=request.conditions,
+            condition=request.condition,
+            randomize_order=request.randomize_order,
             metadata=request.metadata
         )
-        logger.info(f"Created queue {queue.queue_id} for participant {request.participant_id}")
+        logger.info(f"Created queue {queue.queue_id} for participant {request.participant_id} with {len(queue.items)} sessions")
         return {"status": "success", "queue_id": queue.queue_id, "queue": queue.to_dict()}
     except Exception as e:
         logger.error(f"Error creating queue: {e}")

@@ -98,10 +98,23 @@ class DatabaseManager:
     async def end_session(self, session_id: str, end_reason: str = "completed", final_state: Optional[Dict] = None, performance_score: Optional[float] = None) -> bool:
         async with self.get_connection() as conn:
             row = await conn.fetch_one("SELECT started_at FROM sessions WHERE session_id = :session_id", {"session_id": session_id})
-            if not row: return False
+            if not row:
+                return False
             started_at = row['started_at']
             ended_at = datetime.utcnow()
-            duration = (ended_at - started_at).total_seconds()
+
+            # Handle case where started_at might be None or need parsing
+            duration = 0
+            if started_at:
+                try:
+                    # If started_at is a string, parse it
+                    if isinstance(started_at, str):
+                        started_at = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+                    duration = (ended_at - started_at).total_seconds()
+                except Exception as e:
+                    print(f"Warning: Could not calculate duration for session {session_id}: {e}")
+                    duration = 0
+
             query = "UPDATE sessions SET ended_at = :ended_at, status = 'completed', end_reason = :end_reason, duration_seconds = :duration, final_state = :final_state, performance_score = :performance_score WHERE session_id = :session_id"
             await conn.execute(query=query, values={"ended_at": ended_at, "end_reason": end_reason, "duration": duration, "final_state": json.dumps(final_state) if final_state else None, "performance_score": performance_score, "session_id": session_id})
         return True
