@@ -11,6 +11,7 @@ import simulationApi from '../services/simulation-api';
 import ErrorNotification from './ErrorNotification';
 import {
   latLonToScreen,
+  gridToScreen,
   getScenarioCenter,
 } from '../utils/radarCoordinates';
 import '../styles/radar.css';
@@ -310,21 +311,45 @@ function RadarViewer({
   };
 
   /**
+   * Get screen position from aircraft data
+   * Supports both grid (x,y) and lat/lon formats
+   */
+  const getAircraftScreenPos = (ac) => {
+    // Check if aircraft has grid position (from scenario state)
+    if (ac.position && typeof ac.position.x === 'number' && typeof ac.position.y === 'number') {
+      return gridToScreen(
+        ac.position.x,
+        ac.position.y,
+        CANVAS_SIZE,
+        CANVAS_SIZE,
+        RADAR_RANGE_NM
+      );
+    }
+    // Fallback to lat/lon format (from simulation SSE)
+    if (typeof ac.lat === 'number' && typeof ac.lon === 'number') {
+      return latLonToScreen(
+        ac.lat,
+        ac.lon,
+        scenarioCenter.lat,
+        scenarioCenter.lon,
+        CANVAS_SIZE,
+        CANVAS_SIZE,
+        RADAR_RANGE_NM
+      );
+    }
+    // No valid position data
+    console.warn(`Aircraft ${ac.callsign} missing position data:`, ac);
+    return null;
+  };
+
+  /**
    * Draw aircraft symbol
    */
   const drawAircraft = (ctx, ac, isSelected) => {
-    const pos = latLonToScreen(
-      ac.lat,
-      ac.lon,
-      scenarioCenter.lat,
-      scenarioCenter.lon,
-      CANVAS_SIZE,
-      CANVAS_SIZE,
-      RADAR_RANGE_NM
-    );
+    const pos = getAircraftScreenPos(ac);
 
-    // Skip if out of bounds
-    if (pos.x < 0 || pos.x > CANVAS_SIZE || pos.y < 0 || pos.y > CANVAS_SIZE) {
+    // Skip if no valid position or out of bounds
+    if (!pos || pos.x < 0 || pos.x > CANVAS_SIZE || pos.y < 0 || pos.y > CANVAS_SIZE) {
       return;
     }
 
@@ -426,15 +451,8 @@ function RadarViewer({
       const ac = aircraft.find(a => a.callsign === callsign);
       if (!ac) return;
 
-      const pos = latLonToScreen(
-        ac.lat,
-        ac.lon,
-        scenarioCenter.lat,
-        scenarioCenter.lon,
-        CANVAS_SIZE,
-        CANVAS_SIZE,
-        RADAR_RANGE_NM
-      );
+      const pos = getAircraftScreenPos(ac);
+      if (!pos) return;
 
       // Draw red circle around conflicting aircraft
       ctx.strokeStyle = '#ff0000';
@@ -460,15 +478,8 @@ function RadarViewer({
     let closestDistance = Infinity;
 
     aircraft.forEach(ac => {
-      const pos = latLonToScreen(
-        ac.lat,
-        ac.lon,
-        scenarioCenter.lat,
-        scenarioCenter.lon,
-        CANVAS_SIZE,
-        CANVAS_SIZE,
-        RADAR_RANGE_NM
-      );
+      const pos = getAircraftScreenPos(ac);
+      if (!pos) return;
 
       const distance = Math.sqrt((pos.x - x) ** 2 + (pos.y - y) ** 2);
       if (distance < 20 && distance < closestDistance) {

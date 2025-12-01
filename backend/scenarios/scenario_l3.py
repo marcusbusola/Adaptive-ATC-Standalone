@@ -34,10 +34,9 @@ KEY MEASUREMENTS:
   * ML: 98% detection rate
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 import math
-from datetime import datetime
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario
 
 
 class ScenarioL3(BaseScenario):
@@ -145,230 +144,153 @@ class ScenarioL3(BaseScenario):
 
     def _initialize_aircraft(self) -> None:
         """Initialize all aircraft for L3"""
-
         # UAL123: Eastern sector
-        self.aircraft['UAL123'] = Aircraft(
-            callsign='UAL123',
-            position=(100.0, 100.0),
-            altitude=280,  # FL280
-            heading=90,    # East
-            speed=450,
-            route='ORD-BOS',
-            destination='BOS',
-            fuel_remaining=120
-        )
+        self.add_aircraft('UAL123', position=(100.0, 100.0), altitude=280, heading=90,
+                          speed=450, route='ORD-BOS', destination='BOS', fuel_remaining=120)
 
         # SWA234: Southeast sector
-        self.aircraft['SWA234'] = Aircraft(
-            callsign='SWA234',
-            position=(150.0, 125.0),
-            altitude=290,  # FL290
-            heading=180,   # South
-            speed=445,
-            route='DEN-DAL',
-            destination='DAL',
-            fuel_remaining=110
-        )
+        self.add_aircraft('SWA234', position=(150.0, 125.0), altitude=290, heading=180,
+                          speed=445, route='DEN-DAL', destination='DAL', fuel_remaining=110)
 
         # AAL345: North sector
-        self.aircraft['AAL345'] = Aircraft(
-            callsign='AAL345',
-            position=(125.0, 150.0),
-            altitude=320,  # FL320
-            heading=270,   # West
-            speed=440,
-            route='JFK-SFO',
-            destination='SFO',
-            fuel_remaining=180
-        )
+        self.add_aircraft('AAL345', position=(125.0, 150.0), altitude=320, heading=270,
+                          speed=440, route='JFK-SFO', destination='SFO', fuel_remaining=180)
 
         # DAL456: Northwest sector - WILL CONFLICT
-        self.aircraft['DAL456'] = Aircraft(
-            callsign='DAL456',
-            position=(75.0, 175.0),
-            altitude=300,  # FL300
-            heading=135,   # Southeast
-            speed=455,
-            route='SEA-ATL',
-            destination='ATL',
-            fuel_remaining=160
-        )
+        self.add_aircraft('DAL456', position=(75.0, 175.0), altitude=300, heading=135,
+                          speed=455, route='SEA-ATL', destination='ATL', fuel_remaining=160)
 
         # JBU567: Southeast sector - WILL CONFLICT
-        self.aircraft['JBU567'] = Aircraft(
-            callsign='JBU567',
-            position=(175.0, 75.0),
-            altitude=300,  # FL300
-            heading=315,   # Northwest
-            speed=455,
-            route='MCO-PDX',
-            destination='PDX',
-            fuel_remaining=170
-        )
+        self.add_aircraft('JBU567', position=(175.0, 75.0), altitude=300, heading=315,
+                          speed=455, route='MCO-PDX', destination='PDX', fuel_remaining=170)
 
     def _schedule_events(self) -> None:
         """Schedule all timed events for L3"""
-
         # T+2:00 (120s): Phase 2 - Silent System Crash
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='phase_transition',
-            target='system',
-            data={
-                'phase': 2,
-                'description': 'Entering Phase 2: Silent System Crash'
-            }
-        ))
+        self.add_event('phase_transition', 120.0, target='system', phase=2,
+                       description='Entering Phase 2: Silent System Crash')
 
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='system_crash',
-            target='conflict_detection',
-            data={
-                'crash_type': 'silent',
-                'system': 'conflict_detection',
-                'indicator': 'TCAS OK',
-                'indicator_change': 'VISIBLE → HIDDEN',
-                'audio_alert': False,
-                'modal_alert': False,
-                'priority': 'critical',
-                'message': 'CONFLICT DETECTION SYSTEM OFFLINE',
-                'details': {
-                    'type': 'Silent crash - no alert',
-                    'affected_systems': ['TCAS', 'Conflict detection'],
-                    'visual_cue': 'TCAS OK indicator disappears',
-                    'detection_method': 'Controller must notice missing indicator'
-                }
-            }
-        ))
+        self.add_event('system_crash', 120.0, target='conflict_detection',
+                       crash_type='silent',
+                       system='conflict_detection',
+                       indicator='TCAS OK',
+                       indicator_change='VISIBLE → HIDDEN',
+                       audio_alert=False,
+                       modal_alert=False,
+                       priority='critical',
+                       message='CONFLICT DETECTION SYSTEM OFFLINE',
+                       details={
+                           'type': 'Silent crash - no alert',
+                           'affected_systems': ['TCAS', 'Conflict detection'],
+                           'visual_cue': 'TCAS OK indicator disappears',
+                           'detection_method': 'Controller must notice missing indicator'
+                       })
 
         # T+2:36 (156s): Phase 3 - Conflict Threshold Reached
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='phase_transition',
-            target='system',
-            data={
-                'phase': 3,
-                'description': 'Entering Phase 3: Unalerted Conflict'
-            }
-        ))
+        self.add_event('phase_transition', 156.0, target='system', phase=3,
+                       description='Entering Phase 3: Unalerted Conflict')
 
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='conflict_threshold',
-            target='DAL456_JBU567',
-            data={
-                'conflict_type': 'converging',
-                'aircraft_1': 'DAL456',
-                'aircraft_2': 'JBU567',
-                'separation': 4.5,  # nm
-                'minimum_separation': 5.0,  # nm
-                'altitude': 300,  # FL300 (same altitude)
-                'closure_rate': 15.0,  # nm/min
-                'priority': 'critical',
-                'message': 'CONFLICT: DAL456 / JBU567 - 4.5 NM',
-                'details': {
-                    'type': 'Loss of separation imminent',
-                    'aircraft_1': 'DAL456',
-                    'aircraft_2': 'JBU567',
-                    'current_separation': 4.5,
-                    'minimum_required': 5.0,
-                    'projected_minimum': 3.0,
-                    'time_to_minimum': 45,  # seconds
-                    'automatic_alert': False,  # System is crashed
-                    'requires_manual_detection': True
-                }
-            }
-        ))
+        self.add_event('conflict_threshold', 156.0, target='DAL456_JBU567',
+                       conflict_type='converging',
+                       aircraft_1='DAL456',
+                       aircraft_2='JBU567',
+                       separation=4.5,
+                       minimum_separation=5.0,
+                       altitude=300,
+                       closure_rate=15.0,
+                       priority='critical',
+                       message='CONFLICT: DAL456 / JBU567 - 4.5 NM',
+                       details={
+                           'type': 'Loss of separation imminent',
+                           'aircraft_1': 'DAL456',
+                           'aircraft_2': 'JBU567',
+                           'current_separation': 4.5,
+                           'minimum_required': 5.0,
+                           'projected_minimum': 3.0,
+                           'time_to_minimum': 45,
+                           'automatic_alert': False,
+                           'requires_manual_detection': True
+                       })
 
     def _setup_sagat_probes(self) -> None:
         """Configure SAGAT probes for situation awareness measurement"""
 
         # Probe 1: T+1:00 (60s) - During reliable automation phase
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'Is the conflict detection system operational?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Unknown', 'Degraded'],
-                    'correct_answer': 'Yes'
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'How many potential conflicts has the system detected?',
-                    'type': 'number',
-                    'correct_answer': 0,
-                    'note': 'During this phase, no actual conflicts (just testing)'
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'What is your confidence in the automation?',
-                    'type': 'multiple_choice',
-                    'options': ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
-                    'note': 'Subjective - no correct answer'
-                }
-            ]
-        ))
+        self.add_sagat_probe(60.0, [
+            {
+                'id': 'p1_q1',
+                'question': 'Is the conflict detection system operational?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Unknown', 'Degraded'],
+                'correct_answer': 'Yes'
+            },
+            {
+                'id': 'p1_q2',
+                'question': 'How many potential conflicts has the system detected?',
+                'type': 'number',
+                'correct_answer': 0,
+                'note': 'During this phase, no actual conflicts (just testing)'
+            },
+            {
+                'id': 'p1_q3',
+                'question': 'What is your confidence in the automation?',
+                'type': 'multiple_choice',
+                'options': ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
+                'note': 'Subjective - no correct answer'
+            }
+        ])
 
         # Probe 2: T+2:18 (138s) - After system crash, before conflict
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'Is the conflict detection system currently active?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Unknown'],
-                    'correct_answer': 'No',
-                    'note': 'System crashed at T+2:00'
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'Are any aircraft on converging paths?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Unsure'],
-                    'correct_answer': 'Yes',
-                    'note': 'DAL456 and JBU567 are converging'
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'What is the approximate separation between DAL456 and JBU567?',
-                    'type': 'number',
-                    'correct_answer': 7.5,  # Approximate at T+2:18
-                    'tolerance': 2.0,  # Accept ±2 nm
-                    'unit': 'nautical miles'
-                }
-            ]
-        ))
+        self.add_sagat_probe(138.0, [
+            {
+                'id': 'p2_q1',
+                'question': 'Is the conflict detection system currently active?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Unknown'],
+                'correct_answer': 'No',
+                'note': 'System crashed at T+2:00'
+            },
+            {
+                'id': 'p2_q2',
+                'question': 'Are any aircraft on converging paths?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Unsure'],
+                'correct_answer': 'Yes',
+                'note': 'DAL456 and JBU567 are converging'
+            },
+            {
+                'id': 'p2_q3',
+                'question': 'What is the approximate separation between DAL456 and JBU567?',
+                'type': 'number',
+                'correct_answer': 7.5,  # Approximate at T+2:18
+                'tolerance': 2.0,  # Accept ±2 nm
+                'unit': 'nautical miles'
+            }
+        ])
 
         # Probe 3: T+2:48 (168s) - During/after conflict
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'Did you manually detect any conflicts?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Not sure'],
-                    'correct_answer': 'Yes',
-                    'note': 'DAL456/JBU567 conflict occurred at T+2:36'
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'What action did you take for DAL456/JBU567?',
-                    'type': 'text',
-                    'note': 'Open-ended - expect: vector, altitude change, or none'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'When did you first notice the conflict?',
-                    'type': 'text',
-                    'note': 'Timing reference - cross-check with interaction logs'
-                }
-            ]
-        ))
+        self.add_sagat_probe(168.0, [
+            {
+                'id': 'p3_q1',
+                'question': 'Did you manually detect any conflicts?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Not sure'],
+                'correct_answer': 'Yes',
+                'note': 'DAL456/JBU567 conflict occurred at T+2:36'
+            },
+            {
+                'id': 'p3_q2',
+                'question': 'What action did you take for DAL456/JBU567?',
+                'type': 'text',
+                'note': 'Open-ended - expect: vector, altitude change, or none'
+            },
+            {
+                'id': 'p3_q3',
+                'question': 'When did you first notice the conflict?',
+                'type': 'text',
+                'note': 'Timing reference - cross-check with interaction logs'
+            }
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -379,7 +301,7 @@ class ScenarioL3(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: Unalerted Conflict
 
-    def _trigger_event(self, event: ScenarioEvent) -> None:
+    def _trigger_event(self, event: Any) -> None:
         """Execute event actions (override to handle L3-specific events)"""
         print(f"Triggering event: {event.event_type} for {event.target} at T+{self.elapsed_time:.0f}s")
 
@@ -393,7 +315,7 @@ class ScenarioL3(BaseScenario):
             # Call parent handler for standard events
             super()._trigger_event(event)
 
-    def _handle_system_crash_event(self, event: ScenarioEvent) -> None:
+    def _handle_system_crash_event(self, event: Any) -> None:
         """Handle silent system crash"""
         self.conflict_detection_active = False
         self.tcas_ok_indicator = False
@@ -406,7 +328,7 @@ class ScenarioL3(BaseScenario):
         # Record crash time
         self.measurements['system_monitoring']['crash_time'] = self.elapsed_time
 
-    def _handle_conflict_threshold_event(self, event: ScenarioEvent) -> None:
+    def _handle_conflict_threshold_event(self, event: Any) -> None:
         """Handle conflict threshold being reached"""
         self.conflict_threshold_reached = True
 

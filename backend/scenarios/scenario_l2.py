@@ -33,7 +33,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario, Aircraft
 
 
 class ScenarioL2(BaseScenario):
@@ -128,232 +128,111 @@ class ScenarioL2(BaseScenario):
 
     def _initialize_aircraft(self) -> None:
         """Initialize all aircraft for L2"""
-
         # UAL500: Northeast sector
-        self.aircraft['UAL500'] = Aircraft(
-            callsign='UAL500',
-            position=(100.0, 125.0),
-            altitude=280,  # FL280
-            heading=90,   # East
-            speed=450,
-            route='DEN-EWR',
-            destination='EWR',
-            fuel_remaining=120
-        )
+        self.add_aircraft('UAL500', position=(100.0, 125.0), altitude=280, heading=90,
+                          speed=450, route='DEN-EWR', destination='EWR', fuel_remaining=120)
 
         # SWA600: Southeast sector
-        self.aircraft['SWA600'] = Aircraft(
-            callsign='SWA600',
-            position=(150.0, 100.0),
-            altitude=300,  # FL300
-            heading=180,  # South
-            speed=445,
-            route='PHX-MDW',
-            destination='MDW',
-            fuel_remaining=90
-        )
+        self.add_aircraft('SWA600', position=(150.0, 100.0), altitude=300, heading=180,
+                          speed=445, route='PHX-MDW', destination='MDW', fuel_remaining=90)
 
         # AAL700: North sector
-        self.aircraft['AAL700'] = Aircraft(
-            callsign='AAL700',
-            position=(125.0, 175.0),
-            altitude=320,  # FL320
-            heading=270,  # West
-            speed=440,
-            route='JFK-LAX',
-            destination='LAX',
-            fuel_remaining=180
-        )
+        self.add_aircraft('AAL700', position=(125.0, 175.0), altitude=320, heading=270,
+                          speed=440, route='JFK-LAX', destination='LAX', fuel_remaining=180)
 
         # DAL800: Central-east sector
-        self.aircraft['DAL800'] = Aircraft(
-            callsign='DAL800',
-            position=(175.0, 150.0),
-            altitude=310,  # FL310
-            heading=180,  # South
-            speed=455,
-            route='MSP-ATL',
-            destination='ATL',
-            fuel_remaining=140
-        )
+        self.add_aircraft('DAL800', position=(175.0, 150.0), altitude=310, heading=180,
+                          speed=455, route='MSP-ATL', destination='ATL', fuel_remaining=140)
 
         # JBU900: Southwest sector
-        self.aircraft['JBU900'] = Aircraft(
-            callsign='JBU900',
-            position=(75.0, 75.0),
-            altitude=290,  # FL290
-            heading=45,   # Northeast
-            speed=450,
-            route='FLL-BOS',
-            destination='BOS',
-            fuel_remaining=110
-        )
+        self.add_aircraft('JBU900', position=(75.0, 75.0), altitude=290, heading=45,
+                          speed=450, route='FLL-BOS', destination='BOS', fuel_remaining=110)
 
     def _schedule_events(self) -> None:
         """Schedule all timed events for L2"""
-
         # T+1:12 (72s): Phase 2 - Silent Communication Failure
-        self.events.append(ScenarioEvent(
-            time_offset=72.0,
-            event_type='phase_transition',
-            target='system',
-            data={
-                'phase': 2,
-                'description': 'Entering Phase 2: Silent Communication Failure'
-            }
-        ))
+        self.add_event('phase_transition', 72.0, target='system', phase=2,
+                       description='Entering Phase 2: Silent Communication Failure')
 
-        self.events.append(ScenarioEvent(
-            time_offset=72.0,
-            event_type='comm_failure',
-            target='system',
-            data={
-                'failure_type': 'silent',
-                'affected_frequency': 119.5,
-                'backup_frequency': 121.5,
-                'visual_indicator': 'status_light',
-                'indicator_change': 'GREEN → RED',
-                'indicator_location': 'top_right_corner',
-                'audio_alert': False,
-                'modal_alert': False,
-                'priority': 'high',
-                'message': 'PRIMARY FREQUENCY 119.5 OFFLINE',
-                'details': {
-                    'type': 'Silent failure - no alert',
-                    'affected_systems': ['Voice communication on 119.5 MHz'],
-                    'backup_available': 'Emergency frequency 121.5 MHz',
-                    'detection_method': 'Controller must notice indicator change'
-                }
-            }
-        ))
+        self.add_event('comm_failure', 72.0, target='system',
+                       failure_type='silent',
+                       affected_frequency=119.5,
+                       backup_frequency=121.5,
+                       visual_indicator='status_light',
+                       indicator_change='GREEN → RED',
+                       indicator_location='top_right_corner',
+                       audio_alert=False,
+                       modal_alert=False,
+                       priority='high',
+                       message='PRIMARY FREQUENCY 119.5 OFFLINE',
+                       details={
+                           'type': 'Silent failure - no alert',
+                           'affected_systems': ['Voice communication on 119.5 MHz'],
+                           'backup_available': 'Emergency frequency 121.5 MHz',
+                           'detection_method': 'Controller must notice indicator change'
+                       })
 
         # T+2:00 (120s): Phase 3 - VFR Intrusion
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='phase_transition',
-            target='system',
-            data={
-                'phase': 3,
-                'description': 'Entering Phase 3: VFR Intrusion'
-            }
-        ))
+        self.add_event('phase_transition', 120.0, target='system', phase=3,
+                       description='Entering Phase 3: VFR Intrusion')
 
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='vfr_intrusion',
-            target='N456VF',
-            data={
-                'aircraft_type': 'VFR',
-                'transponder': False,
-                'unauthorized': True,
-                'priority': 'critical',
-                'message': 'VFR INTRUSION - N456VF UNAUTHORIZED ENTRY',
-                'details': {
-                    'callsign': 'N456VF',
-                    'initial_position': (50.0, 100.0),
-                    'altitude': 240,  # FL240
-                    'heading': 90,    # East
-                    'speed': 120,     # Typical VFR speed
-                    'climbing': True,
-                    'rate_of_climb': 500,  # fpm
-                    'no_transponder': True,
-                    'no_flight_plan': True,
-                    'status': 'Unauthorized entry into controlled airspace'
-                }
-            }
-        ))
+        self.add_event('vfr_intrusion', 120.0, target='N456VF',
+                       aircraft_type='VFR',
+                       transponder=False,
+                       unauthorized=True,
+                       priority='critical',
+                       message='VFR INTRUSION - N456VF UNAUTHORIZED ENTRY',
+                       details={
+                           'callsign': 'N456VF',
+                           'initial_position': (50.0, 100.0),
+                           'altitude': 240,
+                           'heading': 90,
+                           'speed': 120,
+                           'climbing': True,
+                           'rate_of_climb': 500,
+                           'no_transponder': True,
+                           'no_flight_plan': True,
+                           'status': 'Unauthorized entry into controlled airspace'
+                       })
 
     def _setup_sagat_probes(self) -> None:
         """Configure SAGAT probes for situation awareness measurement"""
-
         # Probe 1: T+1:00 (60s) - During trust building phase
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'What is the primary communication frequency?',
-                    'type': 'number',
-                    'correct_answer': 119.5,
-                    'unit': 'MHz'
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'How many aircraft are on frequency?',
-                    'type': 'number',
-                    'correct_answer': 5
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'What is the status of the communication system?',
-                    'type': 'multiple_choice',
-                    'options': ['Operational', 'Degraded', 'Failed', 'Unknown'],
-                    'correct_answer': 'Operational'
-                }
-            ]
-        ))
+        self.add_sagat_probe(60.0, [
+            {'id': 'p1_q1', 'question': 'What is the primary communication frequency?',
+             'type': 'number', 'correct_answer': 119.5, 'unit': 'MHz'},
+            {'id': 'p1_q2', 'question': 'How many aircraft are on frequency?',
+             'type': 'number', 'correct_answer': 5},
+            {'id': 'p1_q3', 'question': 'What is the status of the communication system?',
+             'type': 'multiple_choice',
+             'options': ['Operational', 'Degraded', 'Failed', 'Unknown'],
+             'correct_answer': 'Operational'}
+        ])
 
         # Probe 2: T+2:18 (138s) - After comm failure and VFR intrusion
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'Is the communication system operational?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Partially', 'Unknown'],
-                    'correct_answer': 'No'
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'How long has the system been offline (in seconds)?',
-                    'type': 'number',
-                    'correct_answer': 66,  # 138 - 72 = 66 seconds
-                    'tolerance': 10,  # Accept ±10 seconds
-                    'unit': 'seconds'
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'What is the backup frequency?',
-                    'type': 'number',
-                    'correct_answer': 121.5,
-                    'unit': 'MHz'
-                }
-            ]
-        ))
+        self.add_sagat_probe(138.0, [
+            {'id': 'p2_q1', 'question': 'Is the communication system operational?',
+             'type': 'multiple_choice', 'options': ['Yes', 'No', 'Partially', 'Unknown'],
+             'correct_answer': 'No'},
+            {'id': 'p2_q2', 'question': 'How long has the system been offline (in seconds)?',
+             'type': 'number', 'correct_answer': 66, 'tolerance': 10, 'unit': 'seconds'},
+            {'id': 'p2_q3', 'question': 'What is the backup frequency?',
+             'type': 'number', 'correct_answer': 121.5, 'unit': 'MHz'}
+        ])
 
         # Probe 3: T+2:48 (168s) - During VFR intrusion management
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'How many unauthorized aircraft are present?',
-                    'type': 'number',
-                    'correct_answer': 1
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'What is N456VF\'s approximate position?',
-                    'type': 'text',
-                    'correct_answer': 'Southwest sector',
-                    'note': 'Accept general position descriptions'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'What action is required for the VFR intrusion?',
-                    'type': 'multiple_choice',
-                    'options': [
-                        'Ignore - VFR are self-separating',
-                        'Contact on emergency frequency',
-                        'Vector other aircraft away',
-                        'Both contact and vector',
-                        'Declare emergency'
-                    ],
-                    'correct_answer': 'Both contact and vector'
-                }
-            ]
-        ))
+        self.add_sagat_probe(168.0, [
+            {'id': 'p3_q1', 'question': 'How many unauthorized aircraft are present?',
+             'type': 'number', 'correct_answer': 1},
+            {'id': 'p3_q2', 'question': "What is N456VF's approximate position?",
+             'type': 'text', 'correct_answer': 'Southwest sector',
+             'note': 'Accept general position descriptions'},
+            {'id': 'p3_q3', 'question': 'What action is required for the VFR intrusion?',
+             'type': 'multiple_choice',
+             'options': ['Ignore - VFR are self-separating', 'Contact on emergency frequency',
+                        'Vector other aircraft away', 'Both contact and vector', 'Declare emergency'],
+             'correct_answer': 'Both contact and vector'}
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -364,21 +243,7 @@ class ScenarioL2(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: VFR Intrusion
 
-    def _trigger_event(self, event: ScenarioEvent) -> None:
-        """Execute event actions (override to handle L2-specific events)"""
-        print(f"Triggering event: {event.event_type} for {event.target} at T+{self.elapsed_time:.0f}s")
-
-        if event.event_type == 'comm_failure':
-            self._handle_comm_failure_event(event)
-        elif event.event_type == 'vfr_intrusion':
-            self._handle_vfr_intrusion_event(event)
-        elif event.event_type == 'phase_transition':
-            self._handle_phase_transition(event)
-        else:
-            # Call parent handler for standard events
-            super()._trigger_event(event)
-
-    def _handle_comm_failure_event(self, event: ScenarioEvent) -> None:
+    def _handle_comm_failure_event(self, event) -> None:
         """Handle silent communication failure"""
         self.comm_system_status = 'failed'
         self.comm_failure_time = self.elapsed_time

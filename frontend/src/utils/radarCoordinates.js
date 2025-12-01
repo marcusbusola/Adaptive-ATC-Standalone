@@ -236,3 +236,47 @@ export function projectPosition(lat, lon, heading, distanceNM) {
 export function getScenarioCenter(scenarioId) {
   return SCENARIO_CENTERS[scenarioId] || SCENARIO_CENTERS.L1; // Default to L1
 }
+
+/**
+ * Convert grid (x, y) NM position to screen coordinates
+ * Grid is 0-250 NM, with (0,0) at bottom-left corner
+ * Screen coordinates have origin at top-left
+ *
+ * @param {number} x - X position in nautical miles (0-250)
+ * @param {number} y - Y position in nautical miles (0-250)
+ * @param {number} canvasWidth - Canvas width in pixels
+ * @param {number} canvasHeight - Canvas height in pixels
+ * @param {number} rangeNM - Radar range in nautical miles (default 250)
+ * @returns {{x: number, y: number}} Screen coordinates (origin top-left)
+ */
+export function gridToScreen(x, y, canvasWidth, canvasHeight, rangeNM = 250) {
+  // Scale: pixels per NM
+  const scale = canvasWidth / rangeNM;
+
+  // Convert grid position to screen coordinates
+  // Grid origin is bottom-left, screen origin is top-left
+  // So Y needs to be inverted
+  const screenX = x * scale;
+  const screenY = (rangeNM - y) * scale;
+
+  return { x: screenX, y: screenY };
+}
+
+/**
+ * Convert screen coordinates back to grid position
+ *
+ * @param {number} screenX - Screen X coordinate
+ * @param {number} screenY - Screen Y coordinate
+ * @param {number} canvasWidth - Canvas width in pixels
+ * @param {number} canvasHeight - Canvas height in pixels
+ * @param {number} rangeNM - Radar range in nautical miles (default 250)
+ * @returns {{x: number, y: number}} Grid position in NM
+ */
+export function screenToGrid(screenX, screenY, canvasWidth, canvasHeight, rangeNM = 250) {
+  const scale = canvasWidth / rangeNM;
+
+  const x = screenX / scale;
+  const y = rangeNM - (screenY / scale);
+
+  return { x, y };
+}

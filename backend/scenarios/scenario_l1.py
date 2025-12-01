@@ -27,7 +27,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario
 
 
 class ScenarioL1(BaseScenario):
@@ -111,210 +111,101 @@ class ScenarioL1(BaseScenario):
 
     def _initialize_aircraft(self) -> None:
         """Initialize 5 aircraft with positions and parameters"""
-        # UAL238: Will declare emergency at T+1:30
-        self.aircraft['UAL238'] = Aircraft(
-            callsign='UAL238',
-            position=(125.0, 150.0),
-            altitude=280,  # FL280
-            heading=90,  # East
-            speed=450,
-            route='ORD-JFK',
-            destination='JFK',
-            fuel_remaining=30  # Will drop to 15 during emergency
-        )
+        # UAL238: Will declare emergency at T+0:36
+        self.add_aircraft('UAL238', position=(125.0, 150.0), altitude=280, heading=90,
+                          speed=450, route='ORD-JFK', destination='JFK', fuel_remaining=30)
 
         # SWA456: Normal operations
-        self.aircraft['SWA456'] = Aircraft(
-            callsign='SWA456',
-            position=(75.0, 100.0),
-            altitude=300,  # FL300
-            heading=180,  # South
-            speed=440,
-            route='BOS-ATL',
-            destination='ATL'
-        )
+        self.add_aircraft('SWA456', position=(75.0, 100.0), altitude=300, heading=180,
+                          speed=440, route='BOS-ATL', destination='ATL')
 
         # DAL789: Normal operations
-        self.aircraft['DAL789'] = Aircraft(
-            callsign='DAL789',
-            position=(175.0, 125.0),
-            altitude=320,  # FL320
-            heading=270,  # West
-            speed=460,
-            route='LAX-MIA',
-            destination='MIA'
-        )
+        self.add_aircraft('DAL789', position=(175.0, 125.0), altitude=320, heading=270,
+                          speed=460, route='LAX-MIA', destination='MIA')
 
-        # AAL119: Will lose comm at T+6:30
-        self.aircraft['AAL119'] = Aircraft(
-            callsign='AAL119',
-            position=(200.0, 175.0),
-            altitude=310,  # FL310
-            heading=180,  # South
-            speed=445,
-            route='SEA-DFW',
-            destination='DFW'
-        )
+        # AAL119: Will lose comm at T+2:36
+        self.add_aircraft('AAL119', position=(200.0, 175.0), altitude=310, heading=180,
+                          speed=445, route='SEA-DFW', destination='DFW')
 
         # JBU321: Normal operations
-        self.aircraft['JBU321'] = Aircraft(
-            callsign='JBU321',
-            position=(100.0, 75.0),
-            altitude=290,  # FL290
-            heading=45,  # Northeast
-            speed=450,
-            route='MCO-BOS',
-            destination='BOS'
-        )
+        self.add_aircraft('JBU321', position=(100.0, 75.0), altitude=290, heading=45,
+                          speed=450, route='MCO-BOS', destination='BOS')
 
     def _schedule_events(self) -> None:
         """Schedule timed events for scenario"""
-
         # Phase 1 -> Phase 2 transition (T+0:36 = 36s)
-        self.events.append(ScenarioEvent(
-            time_offset=36.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 2}
-        ))
+        self.add_event('phase_transition', 36.0, target='system', phase=2)
 
         # T+0:36 (36s): UAL238 declares DUAL emergency
-        self.events.append(ScenarioEvent(
-            time_offset=36.0,
-            event_type='emergency',
-            target='UAL238',
-            data={
-                'emergency_type': 'FUEL + MEDICAL',
-                'fuel_remaining': 15,  # Critical fuel
-                'priority': 'critical',
-                'message': 'FUEL + MEDICAL EMERGENCY - UAL238',
-                'details': {
-                    'fuel': '15 minutes remaining',
-                    'medical': 'Passenger cardiac event',
-                    'souls_on_board': 187,
-                    'requesting': 'Priority landing JFK'
-                }
-            }
-        ))
+        self.add_event('emergency', 36.0, target='UAL238',
+                       emergency_type='FUEL + MEDICAL',
+                       fuel_remaining=15,
+                       priority='critical',
+                       message='FUEL + MEDICAL EMERGENCY - UAL238',
+                       details={
+                           'fuel': '15 minutes remaining',
+                           'medical': 'Passenger cardiac event',
+                           'souls_on_board': 187,
+                           'requesting': 'Priority landing JFK'
+                       })
 
         # Phase 2 -> Phase 3 transition (T+2:36 = 156s)
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 3}
-        ))
+        self.add_event('phase_transition', 156.0, target='system', phase=3)
 
         # T+2:36 (156s): AAL119 loses comm AND datalink (silent failure)
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='comm_loss',
-            target='AAL119',
-            data={
-                'comm_status': 'lost',
-                'datalink_status': 'lost',
-                'type': 'silent_failure',
-                'priority': 'high',
-                'message': 'AAL119 - Comm Loss',
-                'details': {
-                    'last_contact': 'T+2:36',
-                    'type': 'Dual failure (voice + data)'
-                }
-            }
-        ))
+        self.add_event('comm_loss', 156.0, target='AAL119',
+                       comm_status='lost',
+                       datalink_status='lost',
+                       type='silent_failure',
+                       priority='high',
+                       message='AAL119 - Comm Loss',
+                       details={
+                           'last_contact': 'T+2:36',
+                           'type': 'Dual failure (voice + data)'
+                       })
 
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
-
         # Probe 1: T+1:00 (60s) - During emergency
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'How many aircraft are in your sector?',
-                    'type': 'number',
-                    'correct_answer': 5
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'What is UAL238\'s altitude?',
-                    'type': 'number',
-                    'correct_answer': 280,
-                    'unit': 'FL'
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'Which aircraft is furthest north?',
-                    'type': 'multiple_choice',
-                    'options': ['UAL238', 'SWA456', 'DAL789', 'AAL119', 'JBU321'],
-                    'correct_answer': 'AAL119'
-                }
-            ]
-        ))
+        self.add_sagat_probe(60.0, [
+            {'id': 'p1_q1', 'question': 'How many aircraft are in your sector?',
+             'type': 'number', 'correct_answer': 5},
+            {'id': 'p1_q2', 'question': "What is UAL238's altitude?",
+             'type': 'number', 'correct_answer': 280, 'unit': 'FL'},
+            {'id': 'p1_q3', 'question': 'Which aircraft is furthest north?',
+             'type': 'multiple_choice',
+             'options': ['UAL238', 'SWA456', 'DAL789', 'AAL119', 'JBU321'],
+             'correct_answer': 'AAL119'}
+        ])
 
         # Probe 2: T+2:18 (138s) - Mid-emergency
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'What is UAL238\'s emergency status?',
-                    'type': 'multiple_choice',
-                    'options': ['Fuel only', 'Medical only', 'Fuel + Medical', 'No emergency'],
-                    'correct_answer': 'Fuel + Medical'
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'Which airport is UAL238 diverting to?',
-                    'type': 'multiple_choice',
-                    'options': ['ORD', 'JFK', 'LGA', 'EWR'],
-                    'correct_answer': 'JFK'
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'How many other aircraft require attention?',
-                    'type': 'number',
-                    'correct_answer': 0,
-                    'explanation': 'All other aircraft are routine'
-                }
-            ]
-        ))
+        self.add_sagat_probe(138.0, [
+            {'id': 'p2_q1', 'question': "What is UAL238's emergency status?",
+             'type': 'multiple_choice',
+             'options': ['Fuel only', 'Medical only', 'Fuel + Medical', 'No emergency'],
+             'correct_answer': 'Fuel + Medical'},
+            {'id': 'p2_q2', 'question': 'Which airport is UAL238 diverting to?',
+             'type': 'multiple_choice', 'options': ['ORD', 'JFK', 'LGA', 'EWR'],
+             'correct_answer': 'JFK'},
+            {'id': 'p2_q3', 'question': 'How many other aircraft require attention?',
+             'type': 'number', 'correct_answer': 0,
+             'explanation': 'All other aircraft are routine'}
+        ])
 
         # Probe 3: T+2:48 (168s) - After comm loss (CRITICAL for measurement)
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'What is AAL119\'s communication status?',
-                    'type': 'multiple_choice',
-                    'options': ['Normal', 'Degraded', 'Lost', 'Unknown'],
-                    'correct_answer': 'Lost',
-                    'critical': True  # Key measurement for awareness
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'How many aircraft have active comm links?',
-                    'type': 'number',
-                    'correct_answer': 4,
-                    'explanation': 'All except AAL119'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'What action is required for AAL119?',
-                    'type': 'multiple_choice',
-                    'options': [
-                        'None - normal operations',
-                        'Attempt re-contact on guard frequency',
-                        'Clear for landing',
-                        'Issue altitude restriction'
-                    ],
-                    'correct_answer': 'Attempt re-contact on guard frequency',
-                    'critical': True
-                }
-            ]
-        ))
+        self.add_sagat_probe(168.0, [
+            {'id': 'p3_q1', 'question': "What is AAL119's communication status?",
+             'type': 'multiple_choice', 'options': ['Normal', 'Degraded', 'Lost', 'Unknown'],
+             'correct_answer': 'Lost', 'critical': True},
+            {'id': 'p3_q2', 'question': 'How many aircraft have active comm links?',
+             'type': 'number', 'correct_answer': 4,
+             'explanation': 'All except AAL119'},
+            {'id': 'p3_q3', 'question': 'What action is required for AAL119?',
+             'type': 'multiple_choice',
+             'options': ['None - normal operations', 'Attempt re-contact on guard frequency',
+                        'Clear for landing', 'Issue altitude restriction'],
+             'correct_answer': 'Attempt re-contact on guard frequency', 'critical': True}
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""

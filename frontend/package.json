@@ -4,6 +4,9 @@
   "description": "Frontend for ATC Adaptive Alert Research System",
   "private": true,
   "scripts": {
+    "generate-config": "node scripts/generate-scenario-config.js",
+    "prestart": "npm run generate-config",
+    "prebuild": "npm run generate-config",
     "start": "SKIP_PREFLIGHT_CHECK=true react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

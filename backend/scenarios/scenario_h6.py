@@ -36,7 +36,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario
 
 
 class ScenarioH6(BaseScenario):
@@ -135,296 +135,196 @@ class ScenarioH6(BaseScenario):
         """Initialize 9 aircraft with positions and parameters"""
 
         # UAL100: Background traffic
-        self.aircraft['UAL100'] = Aircraft(
-            callsign='UAL100',
-            position=(75.0, 125.0),
-            altitude=300,  # FL300
-            heading=90,  # East
-            speed=450,
-            route='SEA-DEN',
-            destination='DEN'
-        )
+        self.add_aircraft('UAL100', position=(75.0, 125.0), altitude=300, heading=90,
+                          speed=450, route='SEA-DEN', destination='DEN')
 
         # SWA200: Background traffic
-        self.aircraft['SWA200'] = Aircraft(
-            callsign='SWA200',
-            position=(125.0, 175.0),
-            altitude=320,  # FL320
-            heading=180,  # South
-            speed=445,
-            route='PDX-LAX',
-            destination='LAX'
-        )
+        self.add_aircraft('SWA200', position=(125.0, 175.0), altitude=320, heading=180,
+                          speed=445, route='PDX-LAX', destination='LAX')
 
         # DAL300: Real conflict aircraft 1
-        self.aircraft['DAL300'] = Aircraft(
-            callsign='DAL300',
-            position=(100.0, 100.0),
-            altitude=310,  # FL310
-            heading=135,  # Southeast
-            speed=455,
-            route='SFO-DFW',
-            destination='DFW'
-        )
+        self.add_aircraft('DAL300', position=(100.0, 100.0), altitude=310, heading=135,
+                          speed=455, route='SFO-DFW', destination='DFW')
 
         # AAL400: Background traffic
-        self.aircraft['AAL400'] = Aircraft(
-            callsign='AAL400',
-            position=(175.0, 150.0),
-            altitude=280,  # FL280
-            heading=270,  # West
-            speed=440,
-            route='DEN-SFO',
-            destination='SFO'
-        )
+        self.add_aircraft('AAL400', position=(175.0, 150.0), altitude=280, heading=270,
+                          speed=440, route='DEN-SFO', destination='SFO')
 
         # JBU500: Background traffic
-        self.aircraft['JBU500'] = Aircraft(
-            callsign='JBU500',
-            position=(150.0, 75.0),
-            altitude=340,  # FL340
-            heading=45,  # Northeast
-            speed=460,
-            route='LAX-BOS',
-            destination='BOS'
-        )
+        self.add_aircraft('JBU500', position=(150.0, 75.0), altitude=340, heading=45,
+                          speed=460, route='LAX-BOS', destination='BOS')
 
         # UAL600: False alarm aircraft 1
-        self.aircraft['UAL600'] = Aircraft(
-            callsign='UAL600',
-            position=(50.0, 150.0),
-            altitude=320,  # FL320
-            heading=90,  # East
-            speed=450,
-            route='SEA-ORD',
-            destination='ORD'
-        )
+        self.add_aircraft('UAL600', position=(50.0, 150.0), altitude=320, heading=90,
+                          speed=450, route='SEA-ORD', destination='ORD')
 
         # SWA700: False alarm aircraft 2
-        self.aircraft['SWA700'] = Aircraft(
-            callsign='SWA700',
-            position=(125.0, 140.0),
-            altitude=320,  # FL320
-            heading=270,  # West
-            speed=445,
-            route='DEN-SEA',
-            destination='SEA'
-        )
+        self.add_aircraft('SWA700', position=(125.0, 140.0), altitude=320, heading=270,
+                          speed=445, route='DEN-SEA', destination='SEA')
 
         # DAL800: Background traffic
-        self.aircraft['DAL800'] = Aircraft(
-            callsign='DAL800',
-            position=(200.0, 100.0),
-            altitude=300,  # FL300
-            heading=225,  # Southwest
-            speed=450,
-            route='MSP-PHX',
-            destination='PHX'
-        )
+        self.add_aircraft('DAL800', position=(200.0, 100.0), altitude=300, heading=225,
+                          speed=450, route='MSP-PHX', destination='PHX')
 
         # AAL900: Real conflict aircraft 2
-        self.aircraft['AAL900'] = Aircraft(
-            callsign='AAL900',
-            position=(175.0, 50.0),
-            altitude=310,  # FL310
-            heading=315,  # Northwest
-            speed=455,
-            route='LAX-SEA',
-            destination='SEA'
-        )
+        self.add_aircraft('AAL900', position=(175.0, 50.0), altitude=310, heading=315,
+                          speed=455, route='LAX-SEA', destination='SEA')
 
     def _schedule_events(self) -> None:
         """Schedule timed events for scenario"""
 
-        # Phase 1 -> Phase 2 transition (T+5:00 = 300s)
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 2}
-        ))
+        # Phase 1 -> Phase 2 transition (T+2:00 = 120s)
+        self.add_event('phase_transition', 120.0, target='system', phase=2)
 
-        # T+5:00 (300s): FALSE ALARM - Conflict alert UAL600/SWA700
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='false_alarm',
-            target='UAL600',
-            data={
-                'alert_type': 'false_conflict',
-                'aircraft_1': 'UAL600',
-                'aircraft_2': 'SWA700',
-                'predicted_separation': '4.2 nm',
-                'actual_separation': '6.8 nm',
-                'altitude': 'FL320',
-                'is_false_positive': True,
-                'priority': 'high',
-                'message': 'CONFLICT WARNING - UAL600/SWA700',
-                'details': {
-                    'predicted': '4.2 nm separation at T+6:00',
-                    'reality': '6.8 nm separation (SAFE)',
-                    'reason': 'System miscalculation',
-                    'action_required': 'Investigation reveals false alarm'
-                }
-            }
-        ))
+        # T+2:00 (120s): FALSE ALARM - Conflict alert UAL600/SWA700
+        self.add_event('false_alarm', 120.0, target='UAL600',
+                       alert_type='false_conflict',
+                       aircraft_1='UAL600',
+                       aircraft_2='SWA700',
+                       predicted_separation='4.2 nm',
+                       actual_separation='6.8 nm',
+                       altitude='FL320',
+                       is_false_positive=True,
+                       priority='high',
+                       message='CONFLICT WARNING - UAL600/SWA700',
+                       details={
+                           'predicted': '4.2 nm separation at T+6:00',
+                           'reality': '6.8 nm separation (SAFE)',
+                           'reason': 'System miscalculation',
+                           'action_required': 'Investigation reveals false alarm'
+                       })
 
-        # Phase 2 -> Phase 3 transition (T+6:30 = 390s)
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 3}
-        ))
+        # Phase 2 -> Phase 3 transition (T+2:36 = 156s)
+        self.add_event('phase_transition', 156.0, target='system', phase=3)
 
-        # T+6:30 (390s): REAL conflict develops DAL300/AAL900
-        # But alert is DELAYED until T+6:50
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='conflict',
-            target='DAL300',
-            data={
-                'conflict_type': 'real_conflict',
-                'aircraft_1': 'DAL300',
-                'aircraft_2': 'AAL900',
-                'separation': '4.8 nm',
-                'minimum_separation': '5.0 nm',
-                'altitude': 'FL310',
-                'below_minimum': True,
-                'priority': 'critical',
-                'message': 'REAL CONFLICT - DAL300/AAL900',
-                'alert_delayed': True,
-                'alert_delay_seconds': 20,
-                'details': {
-                    'current_separation': '4.8 nm and decreasing',
-                    'minimum_required': '5.0 nm',
-                    'violation': 'Below minimum separation',
-                    'required_action': 'Immediate correction required'
-                }
-            }
-        ))
+        # T+2:36 (156s): REAL conflict develops DAL300/AAL900
+        # But alert is DELAYED until T+2:44
+        self.add_event('conflict', 156.0, target='DAL300',
+                       conflict_type='real_conflict',
+                       aircraft_1='DAL300',
+                       aircraft_2='AAL900',
+                       separation='4.8 nm',
+                       minimum_separation='5.0 nm',
+                       altitude='FL310',
+                       below_minimum=True,
+                       priority='critical',
+                       message='REAL CONFLICT - DAL300/AAL900',
+                       alert_delayed=True,
+                       alert_delay_seconds=20,
+                       details={
+                           'current_separation': '4.8 nm and decreasing',
+                           'minimum_required': '5.0 nm',
+                           'violation': 'Below minimum separation',
+                           'required_action': 'Immediate correction required'
+                       })
 
-        # T+6:50 (410s): DELAYED alert for real conflict
-        self.events.append(ScenarioEvent(
-            time_offset=164.0,
-            event_type='delayed_alert',
-            target='DAL300',
-            data={
-                'alert_type': 'real_conflict_alert',
-                'aircraft_1': 'DAL300',
-                'aircraft_2': 'AAL900',
-                'separation': '4.8 nm',
-                'priority': 'critical',
-                'delay_reason': 'system_processing_lag',
-                'delay_duration': 20,
-                'message': 'TRAFFIC CONFLICT - DAL300/AAL900',
-                'details': {
-                    'alert_delayed_by': '20 seconds',
-                    'conflict_started': 'T+6:30',
-                    'alert_time': 'T+6:50',
-                    'separation': '4.8 nm (below minimum)',
-                    'action_required': 'Immediate corrective action'
-                }
-            }
-        ))
+        # T+2:44 (164s): DELAYED alert for real conflict
+        self.add_event('delayed_alert', 164.0, target='DAL300',
+                       alert_type='real_conflict_alert',
+                       aircraft_1='DAL300',
+                       aircraft_2='AAL900',
+                       separation='4.8 nm',
+                       priority='critical',
+                       delay_reason='system_processing_lag',
+                       delay_duration=20,
+                       message='TRAFFIC CONFLICT - DAL300/AAL900',
+                       details={
+                           'alert_delayed_by': '20 seconds',
+                           'conflict_started': 'T+2:36',
+                           'alert_time': 'T+2:44',
+                           'separation': '4.8 nm (below minimum)',
+                           'action_required': 'Immediate corrective action'
+                       })
 
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 
-        # Probe 1: T+2:30 (150s) - Baseline during normal operations
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'How many conflict alerts have been generated?',
-                    'type': 'number',
-                    'correct_answer': 0,
-                    'explanation': 'No alerts yet in Phase 1'
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'What is your trust in the conflict detection system (1-10)?',
-                    'type': 'number',
-                    'correct_answer': None,  # Subjective baseline
-                    'range': [1, 10],
-                    'explanation': 'Baseline trust measurement'
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'Are any aircraft currently on conflicting paths?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Uncertain'],
-                    'correct_answer': 'No',
-                    'explanation': 'No conflicts in Phase 1'
-                }
-            ]
-        ))
+        # Probe 1: T+1:00 (60s) - Baseline during normal operations
+        self.add_sagat_probe(60.0, [
+            {
+                'id': 'p1_q1',
+                'question': 'How many conflict alerts have been generated?',
+                'type': 'number',
+                'correct_answer': 0,
+                'explanation': 'No alerts yet in Phase 1'
+            },
+            {
+                'id': 'p1_q2',
+                'question': 'What is your trust in the conflict detection system (1-10)?',
+                'type': 'number',
+                'correct_answer': None,  # Subjective baseline
+                'range': [1, 10],
+                'explanation': 'Baseline trust measurement'
+            },
+            {
+                'id': 'p1_q3',
+                'question': 'Are any aircraft currently on conflicting paths?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Uncertain'],
+                'correct_answer': 'No',
+                'explanation': 'No conflicts in Phase 1'
+            }
+        ])
 
-        # Probe 2: T+5:45 (345s) - After false alarm
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'Was the UAL600/SWA700 alert accurate?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes - real conflict', 'No - false alarm', 'Uncertain'],
-                    'correct_answer': 'No - false alarm',
-                    'critical': True,
-                    'explanation': 'Tests recognition of false positive'
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'Has your trust in the system changed?',
-                    'type': 'multiple_choice',
-                    'options': ['Increased', 'Decreased', 'No change', 'Uncertain'],
-                    'correct_answer': None,  # Subjective
-                    'critical': True,
-                    'explanation': 'Tests trust degradation after false alarm'
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'Are you manually verifying conflicts?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Sometimes'],
-                    'correct_answer': None,  # Depends on controller behavior
-                    'explanation': 'Tests behavior change after false alarm'
-                }
-            ]
-        ))
+        # Probe 2: T+2:18 (138s) - After false alarm
+        self.add_sagat_probe(138.0, [
+            {
+                'id': 'p2_q1',
+                'question': 'Was the UAL600/SWA700 alert accurate?',
+                'type': 'multiple_choice',
+                'options': ['Yes - real conflict', 'No - false alarm', 'Uncertain'],
+                'correct_answer': 'No - false alarm',
+                'critical': True,
+                'explanation': 'Tests recognition of false positive'
+            },
+            {
+                'id': 'p2_q2',
+                'question': 'Has your trust in the system changed?',
+                'type': 'multiple_choice',
+                'options': ['Increased', 'Decreased', 'No change', 'Uncertain'],
+                'correct_answer': None,  # Subjective
+                'critical': True,
+                'explanation': 'Tests trust degradation after false alarm'
+            },
+            {
+                'id': 'p2_q3',
+                'question': 'Are you manually verifying conflicts?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Sometimes'],
+                'correct_answer': None,  # Depends on controller behavior
+                'explanation': 'Tests behavior change after false alarm'
+            }
+        ])
 
-        # Probe 3: T+7:00 (420s) - During real conflict (CRITICAL)
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'Is the DAL300/AAL900 conflict real?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes - real conflict', 'No - false alarm', 'Uncertain'],
-                    'correct_answer': 'Yes - real conflict',
-                    'critical': True,
-                    'explanation': 'Tests ability to distinguish real from false'
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'What action have you taken?',
-                    'type': 'text',
-                    'correct_answer': None,  # Open-ended
-                    'critical': True,
-                    'explanation': 'Tests response to real conflict after false alarm'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'How confident are you in the current alert?',
-                    'type': 'number',
-                    'correct_answer': None,  # Subjective
-                    'range': [1, 10],
-                    'critical': True,
-                    'explanation': 'Tests trust calibration'
-                }
-            ]
-        ))
+        # Probe 3: T+2:48 (168s) - During real conflict (CRITICAL)
+        self.add_sagat_probe(168.0, [
+            {
+                'id': 'p3_q1',
+                'question': 'Is the DAL300/AAL900 conflict real?',
+                'type': 'multiple_choice',
+                'options': ['Yes - real conflict', 'No - false alarm', 'Uncertain'],
+                'correct_answer': 'Yes - real conflict',
+                'critical': True,
+                'explanation': 'Tests ability to distinguish real from false'
+            },
+            {
+                'id': 'p3_q2',
+                'question': 'What action have you taken?',
+                'type': 'text',
+                'correct_answer': None,  # Open-ended
+                'critical': True,
+                'explanation': 'Tests response to real conflict after false alarm'
+            },
+            {
+                'id': 'p3_q3',
+                'question': 'How confident are you in the current alert?',
+                'type': 'number',
+                'correct_answer': None,  # Subjective
+                'range': [1, 10],
+                'critical': True,
+                'explanation': 'Tests trust calibration'
+            }
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -435,7 +335,7 @@ class ScenarioH6(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: REAL Conflict (Delayed Alert)
 
-    def _trigger_event(self, event: ScenarioEvent) -> None:
+    def _trigger_event(self, event: Any) -> None:
         """Execute event actions (override to handle false alarm and delayed alert)"""
         # Call parent trigger first
         super()._trigger_event(event)

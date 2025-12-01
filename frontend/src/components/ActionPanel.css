@@ -1,0 +1,426 @@
+/**
+ * Action Panel Styles
+ *
+ * Dark theme matching the ATC radar display aesthetic
+ */
+
+.action-panel {
+  width: 320px;
+  min-width: 320px;
+  height: 100%;
+  background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+  border-left: 2px solid rgba(74, 144, 226, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  font-family: 'Courier New', Consolas, monospace;
+  color: #e0e0e0;
+}
+
+/* Header */
+.action-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(74, 144, 226, 0.3);
+}
+
+.action-panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #4a90e2;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.elapsed-time {
+  font-size: 18px;
+  font-weight: bold;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+}
+
+/* Panel Sections */
+.panel-section {
+  padding: 16px;
+  border-bottom: 1px solid rgba(74, 144, 226, 0.2);
+}
+
+.panel-section:last-child {
+  border-bottom: none;
+}
+
+.panel-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #4a90e2;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Situation Context */
+.situation-context .scenario-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.situation-context .phase-info {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.phase-label {
+  color: #888;
+  font-size: 12px;
+}
+
+.phase-name {
+  color: #4caf50;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.context-description {
+  font-size: 12px;
+  color: #bbb;
+  line-height: 1.5;
+  margin: 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border-left: 3px solid #4a90e2;
+}
+
+/* Aircraft Selector */
+.aircraft-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aircraft-btn {
+  padding: 6px 10px;
+  background: #2a2f4a;
+  border: 1px solid rgba(74, 144, 226, 0.3);
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.aircraft-btn:hover {
+  background: #3a3f5a;
+  border-color: #4a90e2;
+}
+
+.aircraft-btn.selected {
+  background: #4a90e2;
+  border-color: #4a90e2;
+  color: white;
+}
+
+.aircraft-btn.emergency {
+  border-color: #ff9800;
+  animation: pulse-emergency 1.5s ease-in-out infinite;
+}
+
+.aircraft-btn.nordo {
+  border-color: #f44336;
+  opacity: 0.8;
+}
+
+.status-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 14px;
+  text-align: center;
+}
+
+.status-indicator.emergency {
+  background: #ff9800;
+  color: #000;
+}
+
+.status-indicator.nordo {
+  background: #f44336;
+  color: #fff;
+}
+
+.no-aircraft {
+  color: #666;
+  font-style: italic;
+  font-size: 12px;
+  margin: 0;
+}
+
+@keyframes pulse-emergency {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 152, 0, 0); }
+}
+
+/* Command Buttons */
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.command-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.command-btn {
+  padding: 10px 12px;
+  background: #2a2f4a;
+  border: 1px solid rgba(74, 144, 226, 0.3);
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.command-btn:hover:not(:disabled) {
+  background: #3a4f6a;
+  border-color: #4a90e2;
+  transform: translateX(2px);
+}
+
+.command-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.command-btn:active:not(:disabled) {
+  transform: translateX(4px);
+  background: #4a90e2;
+}
+
+/* Scenario Commands */
+.command-btn.scenario-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.command-btn.scenario-cmd .command-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.command-btn.scenario-cmd .command-label {
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.command-btn.scenario-cmd .command-target {
+  font-size: 10px;
+  color: #888;
+}
+
+.command-btn.expected {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.command-btn.expected:hover:not(:disabled) {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: #4caf50;
+}
+
+.command-btn.completed {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.expected-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  background: #4caf50;
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.completed-badge {
+  font-size: 14px;
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.expected-counter {
+  font-size: 10px;
+  color: #4caf50;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Common Commands */
+.command-btn.common {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.command-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.command-btn.common .command-label {
+  font-size: 10px;
+  color: #bbb;
+}
+
+.hint {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin: 8px 0 0 0;
+  text-align: center;
+}
+
+/* Expected Actions Checklist */
+.expected-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.expected-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid #666;
+  margin-bottom: 6px;
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+}
+
+.expected-list li.completed {
+  background: rgba(76, 175, 80, 0.15);
+  border-left-color: #4caf50;
+}
+
+.check-icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.expected-list li.completed .check-icon {
+  color: #4caf50;
+}
+
+.action-name {
+  color: #ddd;
+}
+
+.expected-list li.completed .action-name {
+  color: #4caf50;
+}
+
+/* Action History */
+.action-history {
+  flex: 1;
+  min-height: 120px;
+}
+
+.history-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 45px 1fr 70px;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+}
+
+.history-time {
+  color: #666;
+  font-family: 'Courier New', monospace;
+}
+
+.history-action {
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-target {
+  color: #4a90e2;
+  text-align: right;
+  font-size: 10px;
+}
+
+.no-actions {
+  color: #555;
+  font-style: italic;
+  font-size: 11px;
+  margin: 0;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.no-scenario {
+  color: #888;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Scrollbar styling */
+.action-panel::-webkit-scrollbar,
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.action-panel::-webkit-scrollbar-track,
+.history-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.action-panel::-webkit-scrollbar-thumb,
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(74, 144, 226, 0.5);
+  border-radius: 3px;
+}
+
+.action-panel::-webkit-scrollbar-thumb:hover,
+.history-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 144, 226, 0.7);
+}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import RadarViewer from './RadarViewer';
+import ActionPanel from './ActionPanel';
 import Instructions from './Instructions';
 import TraditionalModalAlert from './TraditionalModalAlert';
 import AdaptiveBannerAlert from './AdaptiveBannerAlert';
@@ -492,7 +493,7 @@ function Session() {
 
             <div className="session-body">
                 {/* Radar Viewer */}
-                <div className="session-bluesky-wrapper">
+                <div className="session-radar-wrapper">
                     <RadarViewer
                         scenario={sessionDetails.scenario}
                         condition={sessionDetails.condition}
@@ -501,12 +502,18 @@ function Session() {
                     />
                 </div>
 
-                <div className="session-controls">
-                    <CommandPalette
-                        selectedAircraft={selectedAircraft}
-                        onCommand={handleCommand}
-                    />
-                </div>
+                {/* Action Panel */}
+                <ActionPanel
+                    sessionId={sessionId}
+                    scenario={sessionDetails.scenario}
+                    currentPhase={currentPhase}
+                    phaseDescription={phaseDescription}
+                    aircraft={aircraft}
+                    elapsedTime={elapsedTime}
+                    onActionLogged={(action) => {
+                        console.log('[Session] Action logged:', action);
+                    }}
+                />
             </div>
 
             {/* Debug info (remove in production) */}

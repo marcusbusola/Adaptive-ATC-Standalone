@@ -40,7 +40,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario
 
 
 class ScenarioH5(BaseScenario):
@@ -141,304 +141,197 @@ class ScenarioH5(BaseScenario):
         """Initialize 9 aircraft with positions and parameters"""
 
         # UAL100: Northern route aircraft
-        self.aircraft['UAL100'] = Aircraft(
-            callsign='UAL100',
-            position=(100.0, 175.0),
-            altitude=320,  # FL320
-            heading=15,  # Northern route
-            speed=450,
-            route='LAX-SFO-northern',
-            destination='SFO'
-        )
+        self.add_aircraft('UAL100', position=(100.0, 175.0), altitude=320, heading=15,
+                          speed=450, route='LAX-SFO-northern', destination='SFO')
 
         # DAL200: Northern route aircraft
-        self.aircraft['DAL200'] = Aircraft(
-            callsign='DAL200',
-            position=(110.0, 170.0),
-            altitude=330,  # FL330
-            heading=20,  # Northern route
-            speed=445,
-            route='SAN-SEA-northern',
-            destination='SEA'
-        )
+        self.add_aircraft('DAL200', position=(110.0, 170.0), altitude=330, heading=20,
+                          speed=445, route='SAN-SEA-northern', destination='SEA')
 
         # AAL300: Southern route aircraft (WILL DEVIATE)
-        self.aircraft['AAL300'] = Aircraft(
-            callsign='AAL300',
-            position=(125.0, 100.0),
-            altitude=310,  # FL310 (assigned, will climb to FL330 unauthorized)
-            heading=180,  # Southern route
-            speed=440,
-            route='SFO-LAX-southern',
-            destination='LAX'
-        )
+        self.add_aircraft('AAL300', position=(125.0, 100.0), altitude=310, heading=180,
+                          speed=440, route='SFO-LAX-southern', destination='LAX')
 
         # SWA400: Southern route aircraft
-        self.aircraft['SWA400'] = Aircraft(
-            callsign='SWA400',
-            position=(120.0, 95.0),
-            altitude=290,  # FL290
-            heading=185,  # Southern route
-            speed=450,
-            route='OAK-SAN-southern',
-            destination='SAN'
-        )
+        self.add_aircraft('SWA400', position=(120.0, 95.0), altitude=290, heading=185,
+                          speed=450, route='OAK-SAN-southern', destination='SAN')
 
         # UAL345: Will declare fuel emergency
-        self.aircraft['UAL345'] = Aircraft(
-            callsign='UAL345',
-            position=(75.0, 125.0),
-            altitude=280,  # FL280
-            heading=90,  # East
-            speed=450,
-            route='SEA-DEN',
-            destination='DEN',
-            fuel_remaining=60  # Will drop to 45 (critical)
-        )
+        self.add_aircraft('UAL345', position=(75.0, 125.0), altitude=280, heading=90,
+                          speed=450, route='SEA-DEN', destination='DEN', fuel_remaining=60)
 
         # JBU500: Northern route aircraft
-        self.aircraft['JBU500'] = Aircraft(
-            callsign='JBU500',
-            position=(150.0, 160.0),
-            altitude=300,  # FL300
-            heading=10,  # Northern route
-            speed=455,
-            route='LAX-PDX-northern',
-            destination='PDX'
-        )
+        self.add_aircraft('JBU500', position=(150.0, 160.0), altitude=300, heading=10,
+                          speed=455, route='LAX-PDX-northern', destination='PDX')
 
         # AAL600: Near weather system
-        self.aircraft['AAL600'] = Aircraft(
-            callsign='AAL600',
-            position=(175.0, 150.0),
-            altitude=340,  # FL340
-            heading=90,  # East
-            speed=460,
-            route='SFO-DEN',
-            destination='DEN'
-        )
+        self.add_aircraft('AAL600', position=(175.0, 150.0), altitude=340, heading=90,
+                          speed=460, route='SFO-DEN', destination='DEN')
 
         # DAL700: Background traffic
-        self.aircraft['DAL700'] = Aircraft(
-            callsign='DAL700',
-            position=(50.0, 100.0),
-            altitude=300,  # FL300
-            heading=45,  # Northeast
-            speed=445,
-            route='LAX-SLC',
-            destination='SLC'
-        )
+        self.add_aircraft('DAL700', position=(50.0, 100.0), altitude=300, heading=45,
+                          speed=445, route='LAX-SLC', destination='SLC')
 
         # UAL800: Background traffic
-        self.aircraft['UAL800'] = Aircraft(
-            callsign='UAL800',
-            position=(200.0, 125.0),
-            altitude=320,  # FL320
-            heading=270,  # West
-            speed=450,
-            route='DEN-SFO',
-            destination='SFO'
-        )
+        self.add_aircraft('UAL800', position=(200.0, 125.0), altitude=320, heading=270,
+                          speed=450, route='DEN-SFO', destination='SFO')
 
     def _schedule_events(self) -> None:
         """Schedule timed events for scenario"""
 
         # T+0:00: Weather system activation (immediate)
-        self.events.append(ScenarioEvent(
-            time_offset=0.0,
-            event_type='weather',
-            target='system',
-            data={
-                'weather_type': 'severe_thunderstorm',
-                'center': (175.0, 125.0),
-                'radius': 30.0,
-                'severity': 'high',
-                'priority': 'critical',
-                'message': 'SEVERE WEATHER ALERT',
-                'details': {
-                    'type': 'Severe thunderstorms, embedded hail',
-                    'location': 'Center sector (175, 125)',
-                    'radius': '30 nautical miles',
-                    'effect': 'All aircraft must reroute',
-                    'routes': {
-                        'northern': 'Narrow, limited capacity',
-                        'southern': 'Adds 40nm to flight'
-                    }
-                }
-            }
-        ))
+        self.add_event('weather', 0.0, target='system',
+                       weather_type='severe_thunderstorm',
+                       center=(175.0, 125.0),
+                       radius=30.0,
+                       severity='high',
+                       priority='critical',
+                       message='SEVERE WEATHER ALERT',
+                       details={
+                           'type': 'Severe thunderstorms, embedded hail',
+                           'location': 'Center sector (175, 125)',
+                           'radius': '30 nautical miles',
+                           'effect': 'All aircraft must reroute',
+                           'routes': {
+                               'northern': 'Narrow, limited capacity',
+                               'southern': 'Adds 40nm to flight'
+                           }
+                       })
 
         # Phase 1 -> Phase 2 transition (T+1:12 = 72s)
-        self.events.append(ScenarioEvent(
-            time_offset=72.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 2}
-        ))
+        self.add_event('phase_transition', 72.0, target='system', phase=2)
 
         # T+1:12 (72s): UAL345 declares FUEL EMERGENCY
-        self.events.append(ScenarioEvent(
-            time_offset=72.0,
-            event_type='emergency',
-            target='UAL345',
-            data={
-                'emergency_type': 'FUEL EMERGENCY',
-                'fuel_remaining': 45,  # Critical - 45 minutes
-                'priority': 'critical',
-                'message': 'MAYDAY - FUEL EMERGENCY - UAL345',
-                'details': {
-                    'fuel_remaining': '45 minutes',
-                    'current_position': 'West of weather system',
-                    'souls_on_board': 156,
-                    'requesting': 'Immediate divert to nearest airport',
-                    'context': 'On top of weather rerouting operations'
-                }
-            }
-        ))
+        self.add_event('emergency', 72.0, target='UAL345',
+                       emergency_type='FUEL EMERGENCY',
+                       fuel_remaining=45,  # Critical - 45 minutes
+                       priority='critical',
+                       message='MAYDAY - FUEL EMERGENCY - UAL345',
+                       details={
+                           'fuel_remaining': '45 minutes',
+                           'current_position': 'West of weather system',
+                           'souls_on_board': 156,
+                           'requesting': 'Immediate divert to nearest airport',
+                           'context': 'On top of weather rerouting operations'
+                       })
 
         # Phase 2 -> Phase 3 transition (T+2:36 = 156s)
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 3}
-        ))
+        self.add_event('phase_transition', 156.0, target='system', phase=3)
 
         # T+2:36 (156s): AAL300 unauthorized altitude deviation
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='altitude_deviation',
-            target='AAL300',
-            data={
-                'deviation_type': 'unauthorized_climb',
-                'assigned_altitude': 310,  # FL310
-                'actual_altitude': 320,  # FL320 (climbing through)
-                'target_altitude': 330,  # FL330 (unauthorized)
-                'reason': 'Pilot avoiding weather without clearance',
-                'conflict_risk': True,
-                'traffic_at_fl330': ['DAL200', 'AAL600'],
-                'priority': 'high',
-                'message': 'ALTITUDE DEVIATION - AAL300',
-                'details': {
-                    'assigned': 'FL310',
-                    'actual': 'Climbing through FL320 to FL330',
-                    'reason': 'Unauthorized weather avoidance',
-                    'risk': 'Conflict with traffic at FL330',
-                    'required_action': 'Immediate descent clearance or separation assurance'
-                }
-            }
-        ))
+        self.add_event('altitude_deviation', 156.0, target='AAL300',
+                       deviation_type='unauthorized_climb',
+                       assigned_altitude=310,  # FL310
+                       actual_altitude=320,  # FL320 (climbing through)
+                       target_altitude=330,  # FL330 (unauthorized)
+                       reason='Pilot avoiding weather without clearance',
+                       conflict_risk=True,
+                       traffic_at_fl330=['DAL200', 'AAL600'],
+                       priority='high',
+                       message='ALTITUDE DEVIATION - AAL300',
+                       details={
+                           'assigned': 'FL310',
+                           'actual': 'Climbing through FL320 to FL330',
+                           'reason': 'Unauthorized weather avoidance',
+                           'risk': 'Conflict with traffic at FL330',
+                           'required_action': 'Immediate descent clearance or separation assurance'
+                       })
 
         # Create internal event to modify AAL300 altitude
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='internal',
-            target='AAL300',
-            data={
-                'action': 'modify_altitude',
-                'new_altitude': 320  # Climbing through FL320
-            }
-        ))
+        self.add_event('internal', 156.0, target='AAL300',
+                       action='modify_altitude',
+                       new_altitude=320)  # Climbing through FL320
 
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 
         # Probe 1: T+1:00 (60s) - During weather rerouting phase
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'How many aircraft require rerouting due to weather?',
-                    'type': 'number',
-                    'correct_answer': 9,
-                    'explanation': 'All 9 aircraft need to avoid the weather system'
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'Which route (north/south) has more traffic?',
-                    'type': 'multiple_choice',
-                    'options': ['North', 'South', 'Equal', 'Unknown'],
-                    'correct_answer': 'North',
-                    'explanation': 'Northern route has UAL100, DAL200, JBU500 (3), Southern has AAL300, SWA400 (2)'
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'What is your current workload (1-10)?',
-                    'type': 'number',
-                    'correct_answer': None,  # Subjective
-                    'range': [1, 10],
-                    'explanation': 'Expected: 7-9 (very high workload)'
-                }
-            ]
-        ))
+        self.add_sagat_probe(60.0, [
+            {
+                'id': 'p1_q1',
+                'question': 'How many aircraft require rerouting due to weather?',
+                'type': 'number',
+                'correct_answer': 9,
+                'explanation': 'All 9 aircraft need to avoid the weather system'
+            },
+            {
+                'id': 'p1_q2',
+                'question': 'Which route (north/south) has more traffic?',
+                'type': 'multiple_choice',
+                'options': ['North', 'South', 'Equal', 'Unknown'],
+                'correct_answer': 'North',
+                'explanation': 'Northern route has UAL100, DAL200, JBU500 (3), Southern has AAL300, SWA400 (2)'
+            },
+            {
+                'id': 'p1_q3',
+                'question': 'What is your current workload (1-10)?',
+                'type': 'number',
+                'correct_answer': None,  # Subjective
+                'range': [1, 10],
+                'explanation': 'Expected: 7-9 (very high workload)'
+            }
+        ])
 
         # Probe 2: T+2:18 (138s) - During fuel emergency + weather management
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'What is UAL345\'s emergency status?',
-                    'type': 'multiple_choice',
-                    'options': ['No emergency', 'Fuel emergency', 'Medical emergency', 'Engine failure'],
-                    'correct_answer': 'Fuel emergency',
-                    'critical': True
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'How many aircraft are you currently managing?',
-                    'type': 'number',
-                    'correct_answer': 9,
-                    'explanation': 'All 9 aircraft require active management'
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'Are all rerouted aircraft maintaining separation?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Uncertain'],
-                    'correct_answer': None,  # Depends on controller actions
-                    'explanation': 'Controller should be monitoring separation'
-                }
-            ]
-        ))
+        self.add_sagat_probe(138.0, [
+            {
+                'id': 'p2_q1',
+                'question': 'What is UAL345\'s emergency status?',
+                'type': 'multiple_choice',
+                'options': ['No emergency', 'Fuel emergency', 'Medical emergency', 'Engine failure'],
+                'correct_answer': 'Fuel emergency',
+                'critical': True
+            },
+            {
+                'id': 'p2_q2',
+                'question': 'How many aircraft are you currently managing?',
+                'type': 'number',
+                'correct_answer': 9,
+                'explanation': 'All 9 aircraft require active management'
+            },
+            {
+                'id': 'p2_q3',
+                'question': 'Are all rerouted aircraft maintaining separation?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Uncertain'],
+                'correct_answer': None,  # Depends on controller actions
+                'explanation': 'Controller should be monitoring separation'
+            }
+        ])
 
         # Probe 3: T+2:48 (168s) - After altitude deviation (CRITICAL for measurement)
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'Is AAL300 at its assigned altitude?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Unknown'],
-                    'correct_answer': 'No',
-                    'critical': True,
-                    'explanation': 'AAL300 deviated from FL310 to FL330'
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'What is AAL300\'s current altitude?',
-                    'type': 'text',
-                    'correct_answer': None,  # Should be aware of FL330 or climbing
-                    'critical': True,
-                    'explanation': 'AAL300 is at or near FL330 (unauthorized)'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'What corrective action is required?',
-                    'type': 'multiple_choice',
-                    'options': [
-                        'None - altitude is correct',
-                        'Descend to assigned altitude or ensure separation',
-                        'Climb to higher altitude',
-                        'Speed restriction'
-                    ],
-                    'correct_answer': 'Descend to assigned altitude or ensure separation',
-                    'critical': True
-                }
-            ]
-        ))
+        self.add_sagat_probe(168.0, [
+            {
+                'id': 'p3_q1',
+                'question': 'Is AAL300 at its assigned altitude?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Unknown'],
+                'correct_answer': 'No',
+                'critical': True,
+                'explanation': 'AAL300 deviated from FL310 to FL330'
+            },
+            {
+                'id': 'p3_q2',
+                'question': 'What is AAL300\'s current altitude?',
+                'type': 'text',
+                'correct_answer': None,  # Should be aware of FL330 or climbing
+                'critical': True,
+                'explanation': 'AAL300 is at or near FL330 (unauthorized)'
+            },
+            {
+                'id': 'p3_q3',
+                'question': 'What corrective action is required?',
+                'type': 'multiple_choice',
+                'options': [
+                    'None - altitude is correct',
+                    'Descend to assigned altitude or ensure separation',
+                    'Climb to higher altitude',
+                    'Speed restriction'
+                ],
+                'correct_answer': 'Descend to assigned altitude or ensure separation',
+                'critical': True
+            }
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -449,7 +342,7 @@ class ScenarioH5(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: Unauthorized Altitude Deviation
 
-    def _trigger_event(self, event: ScenarioEvent) -> None:
+    def _trigger_event(self, event: Any) -> None:
         """Execute event actions (override to handle altitude deviation)"""
         # Call parent trigger first
         super()._trigger_event(event)

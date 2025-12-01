@@ -39,7 +39,7 @@ KEY MEASUREMENTS:
 
 from typing import Dict, Any
 from datetime import datetime
-from .base_scenario import BaseScenario, Aircraft, ScenarioEvent, SAGATProbe
+from .base_scenario import BaseScenario
 
 
 class ScenarioH4(BaseScenario):
@@ -126,289 +126,189 @@ class ScenarioH4(BaseScenario):
         """Initialize 9 aircraft with positions and parameters"""
 
         # DAL332: Primary conflict aircraft 1 (will conflict with AAL908)
-        self.aircraft['DAL332'] = Aircraft(
-            callsign='DAL332',
-            position=(100.0, 125.0),
-            altitude=340,  # FL340
-            heading=90,  # East (toward AAL908)
-            speed=460,
-            route='ORD-BOS',
-            destination='BOS'
-        )
+        self.add_aircraft('DAL332', position=(100.0, 125.0), altitude=340, heading=90,
+                          speed=460, route='ORD-BOS', destination='BOS')
 
         # AAL908: Primary conflict aircraft 2 (will conflict with DAL332)
-        self.aircraft['AAL908'] = Aircraft(
-            callsign='AAL908',
-            position=(175.0, 125.0),
-            altitude=340,  # FL340
-            heading=270,  # West (toward DAL332) - head-on
-            speed=460,
-            route='BOS-ORD',
-            destination='ORD'
-        )
+        self.add_aircraft('AAL908', position=(175.0, 125.0), altitude=340, heading=270,
+                          speed=460, route='BOS-ORD', destination='ORD')
 
         # UAL111: Background traffic
-        self.aircraft['UAL111'] = Aircraft(
-            callsign='UAL111',
-            position=(125.0, 175.0),
-            altitude=320,  # FL320
-            heading=180,  # South
-            speed=450,
-            route='SEA-LAX',
-            destination='LAX'
-        )
+        self.add_aircraft('UAL111', position=(125.0, 175.0), altitude=320, heading=180,
+                          speed=450, route='SEA-LAX', destination='LAX')
 
         # SWA222: Background traffic
-        self.aircraft['SWA222'] = Aircraft(
-            callsign='SWA222',
-            position=(75.0, 150.0),
-            altitude=300,  # FL300
-            heading=45,  # Northeast
-            speed=445,
-            route='PHX-DEN',
-            destination='DEN'
-        )
+        self.add_aircraft('SWA222', position=(75.0, 150.0), altitude=300, heading=45,
+                          speed=445, route='PHX-DEN', destination='DEN')
 
         # JBU333: Background traffic
-        self.aircraft['JBU333'] = Aircraft(
-            callsign='JBU333',
-            position=(150.0, 100.0),
-            altitude=360,  # FL360
-            heading=315,  # Northwest
-            speed=455,
-            route='MCO-BOS',
-            destination='BOS'
-        )
+        self.add_aircraft('JBU333', position=(150.0, 100.0), altitude=360, heading=315,
+                          speed=455, route='MCO-BOS', destination='BOS')
 
         # AAL444: Background traffic
-        self.aircraft['AAL444'] = Aircraft(
-            callsign='AAL444',
-            position=(50.0, 75.0),
-            altitude=280,  # FL280
-            heading=135,  # Southeast
-            speed=450,
-            route='MSP-ATL',
-            destination='ATL'
-        )
+        self.add_aircraft('AAL444', position=(50.0, 75.0), altitude=280, heading=135,
+                          speed=450, route='MSP-ATL', destination='ATL')
 
         # DAL555: Background traffic
-        self.aircraft['DAL555'] = Aircraft(
-            callsign='DAL555',
-            position=(200.0, 175.0),
-            altitude=310,  # FL310
-            heading=225,  # Southwest
-            speed=455,
-            route='JFK-DFW',
-            destination='DFW'
-        )
+        self.add_aircraft('DAL555', position=(200.0, 175.0), altitude=310, heading=225,
+                          speed=455, route='JFK-DFW', destination='DFW')
 
         # UAL666: Background traffic
-        self.aircraft['UAL666'] = Aircraft(
-            callsign='UAL666',
-            position=(175.0, 50.0),
-            altitude=290,  # FL290
-            heading=90,  # East
-            speed=450,
-            route='LAX-IAH',
-            destination='IAH'
-        )
+        self.add_aircraft('UAL666', position=(175.0, 50.0), altitude=290, heading=90,
+                          speed=450, route='LAX-IAH', destination='IAH')
 
         # SWA777: Background traffic
-        self.aircraft['SWA777'] = Aircraft(
-            callsign='SWA777',
-            position=(100.0, 200.0),
-            altitude=330,  # FL330
-            heading=180,  # South
-            speed=445,
-            route='SEA-SAN',
-            destination='SAN'
-        )
+        self.add_aircraft('SWA777', position=(100.0, 200.0), altitude=330, heading=180,
+                          speed=445, route='SEA-SAN', destination='SAN')
 
     def _schedule_events(self) -> None:
         """Schedule timed events for scenario"""
 
         # Phase 1 -> Phase 2 transition (T+2:00 = 120s)
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 2}
-        ))
+        self.add_event('phase_transition', 120.0, target='system', phase=2)
 
         # T+2:00 (120s): Conflict becomes imminent
         # DAL332 and AAL908 are now 8 nm apart, closing rapidly
-        self.events.append(ScenarioEvent(
-            time_offset=120.0,
-            event_type='conflict',
-            target='DAL332',
-            data={
-                'conflict_type': 'head_on_collision',
-                'aircraft_1': 'DAL332',
-                'aircraft_2': 'AAL908',
-                'separation': '8nm',
-                'closure_rate': '18nm/min',
-                'time_to_conflict': 240,  # 4 minutes without intervention
-                'priority': 'critical',
-                'message': 'TRAFFIC CONFLICT - DAL332/AAL908',
-                'details': {
-                    'current_separation': '8 nm and closing rapidly',
-                    'both_at': 'FL340',
-                    'heading': 'head-on (090° vs 270°)',
-                    'required_action': 'Immediate tactical intervention required',
-                    'suggested_actions': [
-                        'DAL332: Turn left heading 270, expedite',
-                        'AAL908: Climb to FL360, maintain speed'
-                    ]
-                }
-            }
-        ))
+        self.add_event('conflict', 120.0, target='DAL332',
+                       conflict_type='head_on_collision',
+                       aircraft_1='DAL332',
+                       aircraft_2='AAL908',
+                       separation='8nm',
+                       closure_rate='18nm/min',
+                       time_to_conflict=240,  # 4 minutes without intervention
+                       priority='critical',
+                       message='TRAFFIC CONFLICT - DAL332/AAL908',
+                       details={
+                           'current_separation': '8 nm and closing rapidly',
+                           'both_at': 'FL340',
+                           'heading': 'head-on (090° vs 270°)',
+                           'required_action': 'Immediate tactical intervention required',
+                           'suggested_actions': [
+                               'DAL332: Turn left heading 270, expedite',
+                               'AAL908: Climb to FL360, maintain speed'
+                           ]
+                       })
 
         # Phase 2 -> Phase 3 transition (T+2:36 = 156s)
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='phase_transition',
-            target='system',
-            data={'phase': 3}
-        ))
+        self.add_event('phase_transition', 156.0, target='system', phase=3)
 
         # T+2:36 (156s): VFR aircraft N123AB enters controlled airspace
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='aircraft_spawn',
-            target='N123AB',
-            data={
-                'aircraft_type': 'VFR_intrusion',
-                'callsign': 'N123AB',
-                'position': (200.0, 50.0),
-                'altitude': 65,  # FL65 = 6,500 feet
-                'heading': 0,  # North (climbing)
-                'speed': 120,  # Typical VFR speed
-                'squawk': '1200',  # VFR code
-                'transponder': 'mode_c',
-                'priority': 'high',
-                'message': 'VFR INTRUSION - N123AB',
-                'details': {
-                    'location': 'Southern sector, peripheral to conflict',
-                    'altitude': '6,500 feet and climbing',
-                    'status': 'Unauthorized entry into controlled airspace',
-                    'threat_level': 'Not immediately threatening but violates boundaries',
-                    'required_action': 'Contact and instruct to exit controlled airspace'
-                }
-            }
-        ))
+        self.add_event('aircraft_spawn', 156.0, target='N123AB',
+                       aircraft_type='VFR_intrusion',
+                       callsign='N123AB',
+                       position=(200.0, 50.0),
+                       altitude=65,  # FL65 = 6,500 feet
+                       heading=0,  # North (climbing)
+                       speed=120,  # Typical VFR speed
+                       squawk='1200',  # VFR code
+                       transponder='mode_c',
+                       priority='high',
+                       message='VFR INTRUSION - N123AB',
+                       details={
+                           'location': 'Southern sector, peripheral to conflict',
+                           'altitude': '6,500 feet and climbing',
+                           'status': 'Unauthorized entry into controlled airspace',
+                           'threat_level': 'Not immediately threatening but violates boundaries',
+                           'required_action': 'Contact and instruct to exit controlled airspace'
+                       })
 
         # Create the aircraft when it spawns
-        self.events.append(ScenarioEvent(
-            time_offset=156.0,
-            event_type='internal',
-            target='N123AB',
-            data={
-                'action': 'create_aircraft',
-                'aircraft_data': {
-                    'callsign': 'N123AB',
-                    'position': (200.0, 50.0),
-                    'altitude': 65,
-                    'heading': 0,
-                    'speed': 120
-                }
-            }
-        ))
+        self.add_event('internal', 156.0, target='N123AB',
+                       action='create_aircraft',
+                       aircraft_data={
+                           'callsign': 'N123AB',
+                           'position': (200.0, 50.0),
+                           'altitude': 65,
+                           'heading': 0,
+                           'speed': 120
+                       })
 
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 
         # Probe 1: T+1:00 (60s) - During high-density phase
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=60.0,
-            questions=[
-                {
-                    'id': 'p1_q1',
-                    'question': 'How many aircraft are in your sector?',
-                    'type': 'number',
-                    'correct_answer': 9
-                },
-                {
-                    'id': 'p1_q2',
-                    'question': 'Are any aircraft on conflicting paths?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Uncertain'],
-                    'correct_answer': 'Yes',
-                    'explanation': 'DAL332 and AAL908 are converging at FL340'
-                },
-                {
-                    'id': 'p1_q3',
-                    'question': 'What is your current workload level (1-10)?',
-                    'type': 'number',
-                    'correct_answer': None,  # Subjective
-                    'range': [1, 10]
-                }
-            ]
-        ))
+        self.add_sagat_probe(60.0, [
+            {
+                'id': 'p1_q1',
+                'question': 'How many aircraft are in your sector?',
+                'type': 'number',
+                'correct_answer': 9
+            },
+            {
+                'id': 'p1_q2',
+                'question': 'Are any aircraft on conflicting paths?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Uncertain'],
+                'correct_answer': 'Yes',
+                'explanation': 'DAL332 and AAL908 are converging at FL340'
+            },
+            {
+                'id': 'p1_q3',
+                'question': 'What is your current workload level (1-10)?',
+                'type': 'number',
+                'correct_answer': None,  # Subjective
+                'range': [1, 10]
+            }
+        ])
 
         # Probe 2: T+2:18 (138s) - During imminent conflict
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=138.0,
-            questions=[
-                {
-                    'id': 'p2_q1',
-                    'question': 'What is the separation between DAL332 and AAL908?',
-                    'type': 'text',
-                    'correct_answer': None,  # Depends on controller actions
-                    'explanation': 'Should be monitoring separation closely'
-                },
-                {
-                    'id': 'p2_q2',
-                    'question': 'What vectors have you issued to resolve the conflict?',
-                    'type': 'text',
-                    'correct_answer': None,  # Depends on controller strategy
-                    'critical': True
-                },
-                {
-                    'id': 'p2_q3',
-                    'question': 'Are any other aircraft requiring attention?',
-                    'type': 'multiple_choice',
-                    'options': ['Yes', 'No', 'Uncertain'],
-                    'correct_answer': 'No',
-                    'explanation': 'Other 7 aircraft should be routine'
-                }
-            ]
-        ))
+        self.add_sagat_probe(138.0, [
+            {
+                'id': 'p2_q1',
+                'question': 'What is the separation between DAL332 and AAL908?',
+                'type': 'text',
+                'correct_answer': None,  # Depends on controller actions
+                'explanation': 'Should be monitoring separation closely'
+            },
+            {
+                'id': 'p2_q2',
+                'question': 'What vectors have you issued to resolve the conflict?',
+                'type': 'text',
+                'correct_answer': None,  # Depends on controller strategy
+                'critical': True
+            },
+            {
+                'id': 'p2_q3',
+                'question': 'Are any other aircraft requiring attention?',
+                'type': 'multiple_choice',
+                'options': ['Yes', 'No', 'Uncertain'],
+                'correct_answer': 'No',
+                'explanation': 'Other 7 aircraft should be routine'
+            }
+        ])
 
         # Probe 3: T+2:48 (168s) - After VFR intrusion (CRITICAL for measurement)
-        self.sagat_probes.append(SAGATProbe(
-            time_offset=168.0,
-            questions=[
-                {
-                    'id': 'p3_q1',
-                    'question': 'How many unauthorized aircraft are in the sector?',
-                    'type': 'number',
-                    'correct_answer': 1,
-                    'critical': True,
-                    'explanation': 'N123AB VFR intrusion'
-                },
-                {
-                    'id': 'p3_q2',
-                    'question': 'What is N123AB\'s position and altitude?',
-                    'type': 'text',
-                    'correct_answer': None,  # Should be aware of southern sector, ~FL65-70
-                    'critical': True,
-                    'explanation': 'Tests awareness of peripheral VFR intrusion'
-                },
-                {
-                    'id': 'p3_q3',
-                    'question': 'What action is required for the VFR intrusion?',
-                    'type': 'multiple_choice',
-                    'options': [
-                        'None - normal operations',
-                        'Contact and instruct to exit controlled airspace',
-                        'Issue immediate climb restriction',
-                        'Declare emergency'
-                    ],
-                    'correct_answer': 'Contact and instruct to exit controlled airspace',
-                    'critical': True
-                }
-            ]
-        ))
+        self.add_sagat_probe(168.0, [
+            {
+                'id': 'p3_q1',
+                'question': 'How many unauthorized aircraft are in the sector?',
+                'type': 'number',
+                'correct_answer': 1,
+                'critical': True,
+                'explanation': 'N123AB VFR intrusion'
+            },
+            {
+                'id': 'p3_q2',
+                'question': 'What is N123AB\'s position and altitude?',
+                'type': 'text',
+                'correct_answer': None,  # Should be aware of southern sector, ~FL65-70
+                'critical': True,
+                'explanation': 'Tests awareness of peripheral VFR intrusion'
+            },
+            {
+                'id': 'p3_q3',
+                'question': 'What action is required for the VFR intrusion?',
+                'type': 'multiple_choice',
+                'options': [
+                    'None - normal operations',
+                    'Contact and instruct to exit controlled airspace',
+                    'Issue immediate climb restriction',
+                    'Declare emergency'
+                ],
+                'correct_answer': 'Contact and instruct to exit controlled airspace',
+                'critical': True
+            }
+        ])
 
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -419,7 +319,7 @@ class ScenarioH4(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: Peripheral VFR Intrusion
 
-    def _trigger_event(self, event: ScenarioEvent) -> None:
+    def _trigger_event(self, event: Any) -> None:
         """Execute event actions (override to handle VFR spawn)"""
         # Call parent trigger first
         super()._trigger_event(event)
@@ -429,7 +329,7 @@ class ScenarioH4(BaseScenario):
             self._spawn_vfr_aircraft(event)
         elif event.event_type == 'internal' and event.data.get('action') == 'create_aircraft':
             aircraft_data = event.data['aircraft_data']
-            self.aircraft[aircraft_data['callsign']] = Aircraft(
+            self.add_aircraft(
                 callsign=aircraft_data['callsign'],
                 position=tuple(aircraft_data['position']),
                 altitude=aircraft_data['altitude'],
@@ -448,7 +348,7 @@ class ScenarioH4(BaseScenario):
                 'contact_delay': None
             }
 
-    def _spawn_vfr_aircraft(self, event: ScenarioEvent) -> None:
+    def _spawn_vfr_aircraft(self, event: Any) -> None:
         """Handle VFR aircraft spawn event"""
         # Aircraft already created by internal event, ensure metrics and alert are recorded
         measurement_key = f"{event.target}_vfr_intrusion_detection"
