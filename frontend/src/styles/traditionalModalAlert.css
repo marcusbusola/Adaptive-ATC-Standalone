@@ -22,6 +22,7 @@
   opacity: 0;
   transition: opacity 0.2s ease-in;
   backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
 .traditional-modal-overlay.visible {
@@ -39,6 +40,7 @@
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
   animation: modalSlideIn 0.3s ease-out;
+  pointer-events: auto;
 }
 
 @keyframes modalSlideIn {
@@ -134,11 +136,115 @@
 }
 
 .reappear-count {
-  display: block;
+  display: inline-block;
+  font-size: 16px;
+  color: #ffffff;
+  background: rgba(255, 23, 68, 0.6);
+  padding: 4px 12px;
+  border-radius: 12px;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   ESCALATION BADGES - Progressive urgency levels
+   ============================================================================ */
+
+.escalation-badge {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: bold;
   font-size: 14px;
-  color: #ff8a80;
-  margin-top: 4px;
-  letter-spacing: 1px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+/* Level 2 - Escalated (medium urgency) */
+.escalation-badge-2 {
+  background: linear-gradient(135deg, #ff5722 0%, #e64a19 100%);
+  color: #ffffff;
+  border: 2px solid #ffab91;
+  animation: pulseBadge2 0.75s ease-in-out infinite;
+}
+
+@keyframes pulseBadge2 {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 87, 34, 0.8);
+  }
+}
+
+/* Level 3+ - Critical (highest urgency) */
+.escalation-badge-3 {
+  background: linear-gradient(135deg, #d50000 0%, #b71c1c 100%);
+  color: #ffffff;
+  border: 3px solid #ff1744;
+  animation: pulseBadge3 0.5s ease-in-out infinite;
+  font-size: 16px;
+}
+
+@keyframes pulseBadge3 {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 15px rgba(255, 23, 68, 0.7),
+                0 0 30px rgba(255, 23, 68, 0.4);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 25px rgba(255, 23, 68, 1),
+                0 0 50px rgba(255, 23, 68, 0.6);
+  }
+}
+
+/* ============================================================================
+   ESCALATION LEVEL MODIFIERS - Progressive styling on container
+   ============================================================================ */
+
+/* Level 2 - Faster pulse, darker background */
+.traditional-modal-container.escalation-level-2 {
+  background-color: #6d0000 !important;
+  animation: modalSlideIn 0.3s ease-out, pulseBorderLevel2 0.75s ease-in-out infinite !important;
+}
+
+@keyframes pulseBorderLevel2 {
+  0%, 100% {
+    border-color: #ff5722;
+    box-shadow: 0 0 50px rgba(255, 87, 34, 0.8),
+                inset 0 0 40px rgba(255, 87, 34, 0.3);
+  }
+  50% {
+    border-color: #ffab91;
+    box-shadow: 0 0 70px rgba(255, 171, 145, 0.9),
+                inset 0 0 60px rgba(255, 171, 145, 0.4);
+  }
+}
+
+/* Level 3+ - Fastest pulse, darkest background, thicker border */
+.traditional-modal-container.escalation-level-3 {
+  background-color: #5c0000 !important;
+  border-width: 14px !important;
+  animation: modalSlideIn 0.3s ease-out, pulseBorderLevel3 0.4s ease-in-out infinite !important;
+}
+
+@keyframes pulseBorderLevel3 {
+  0%, 100% {
+    border-color: #ff1744;
+    box-shadow: 0 0 60px rgba(255, 23, 68, 0.9),
+                0 0 100px rgba(255, 23, 68, 0.5),
+                inset 0 0 50px rgba(255, 23, 68, 0.4);
+  }
+  50% {
+    border-color: #ffffff;
+    box-shadow: 0 0 80px rgba(255, 255, 255, 0.8),
+                0 0 140px rgba(255, 23, 68, 0.7),
+                inset 0 0 70px rgba(255, 255, 255, 0.3);
+  }
 }
 
 /* ============================================================================

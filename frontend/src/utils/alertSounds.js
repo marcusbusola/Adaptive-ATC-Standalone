@@ -213,6 +213,72 @@ async function playAudioFile(filePath, volume) {
 }
 
 /**
+ * Play success confirmation sound
+ * A gentle ascending chime to indicate alert resolution
+ *
+ * @param {number} volume - Volume level (0.0 to 1.0), defaults to 0.25
+ * @returns {Promise<void>}
+ */
+export async function playSuccessSound(volume = 0.25) {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    // Gentle ascending chime: C5 -> E5 -> G5
+    const chimePattern = [
+      { frequency: 523, delay: 0 },      // C5
+      { frequency: 659, delay: 100 },    // E5
+      { frequency: 784, delay: 200 }     // G5
+    ];
+
+    for (const note of chimePattern) {
+      await new Promise(resolve => {
+        setTimeout(() => {
+          playSuccessTone(ctx, note.frequency, 150, volume);
+          resolve();
+        }, note.delay);
+      });
+    }
+  } catch (error) {
+    console.error('Error playing success sound:', error);
+  }
+}
+
+/**
+ * Generate and play a single success tone (softer than alert tones)
+ *
+ * @private
+ * @param {AudioContext} ctx - Web Audio context
+ * @param {number} frequency - Frequency in Hz
+ * @param {number} duration - Duration in milliseconds
+ * @param {number} volume - Volume (0.0 to 1.0)
+ */
+function playSuccessTone(ctx, frequency, duration, volume) {
+  // Create oscillator (tone generator)
+  const oscillator = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+
+  // Use triangle wave for softer, more pleasant tone
+  oscillator.type = 'triangle';
+  oscillator.frequency.value = frequency;
+
+  // Configure volume with smooth envelope
+  const durationSec = duration / 1000;
+  gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.02);
+  gainNode.gain.setValueAtTime(volume, ctx.currentTime + durationSec * 0.3);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + durationSec);
+
+  // Connect nodes: oscillator -> gain -> output
+  oscillator.connect(gainNode);
+  gainNode.connect(ctx.destination);
+
+  // Play tone
+  oscillator.start(ctx.currentTime);
+  oscillator.stop(ctx.currentTime + durationSec);
+}
+
+/**
  * Test alert sounds
  * Useful for development and participant calibration
  *
@@ -221,6 +287,15 @@ async function playAudioFile(filePath, volume) {
 export function testAlertSound(severity = 'warning') {
   console.log(`Playing ${severity} alert sound...`);
   playAlertSound(severity, { volume: 0.5 });
+}
+
+/**
+ * Test success sound
+ * Useful for development and participant calibration
+ */
+export function testSuccessSound() {
+  console.log('Playing success sound...');
+  playSuccessSound(0.4);
 }
 
 /**

@@ -23,6 +23,7 @@ const ActionPanel = ({
   const [selectedAircraft, setSelectedAircraft] = useState(null);
   const [actionHistory, setActionHistory] = useState([]);
   const [isLogging, setIsLogging] = useState(false);
+  const [clickedActionId, setClickedActionId] = useState(null); // For click feedback animation
 
   // Get scenario-specific configuration
   const scenarioConfig = useMemo(() => {
@@ -88,13 +89,21 @@ const ActionPanel = ({
     onActionLogged?.(actionData);
   }, [sessionId, currentPhase, elapsedTime, phaseConfig, onActionLogged]);
 
-  // Handle command button click
+  // Handle command button click with visual feedback
   const handleCommandClick = useCallback((action) => {
+    // Visual feedback - flash the button
+    setClickedActionId(action.id);
+    setTimeout(() => setClickedActionId(null), 300);
+
     logAction(action);
   }, [logAction]);
 
   // Handle common command click (requires selected aircraft)
   const handleCommonCommandClick = useCallback((cmd) => {
+    // Visual feedback
+    setClickedActionId(cmd.id);
+    setTimeout(() => setClickedActionId(null), 300);
+
     const action = {
       ...cmd,
       target: selectedAircraft || 'N/A',
@@ -102,6 +111,18 @@ const ActionPanel = ({
     };
     logAction(action);
   }, [selectedAircraft, logAction]);
+
+  // Check if an action would resolve any pending alerts
+  const getResolvableAlerts = useCallback((action) => {
+    if (!pendingAlerts.length) return [];
+    return pendingAlerts.filter(alert => {
+      // Check if this action targets the same aircraft as the alert
+      if (action.target === alert.target) return true;
+      // Check if action is an expected action for alerts on this target
+      if (action.target === 'all' || action.target === 'multiple') return true;
+      return false;
+    });
+  }, [pendingAlerts]);
 
   // Format elapsed time for display
   const formatTime = (seconds) => {
@@ -212,12 +233,18 @@ const ActionPanel = ({
             {phaseConfig.availableActions.map(action => {
               const isExpected = phaseConfig.expectedActions?.includes(action.id);
               const isCompleted = isActionCompleted(action.id);
+              const isClicked = clickedActionId === action.id;
+              const resolvableAlerts = getResolvableAlerts(action);
+              const willResolveAlert = resolvableAlerts.length > 0;
+
               return (
                 <button
                   key={action.id}
                   className={`command-btn scenario-cmd
                              ${isExpected ? 'expected' : ''}
-                             ${isCompleted ? 'completed' : ''}`}
+                             ${isCompleted ? 'completed' : ''}
+                             ${isClicked ? 'clicked' : ''}
+                             ${willResolveAlert ? 'resolves-alert' : ''}`}
                   onClick={() => handleCommandClick(action)}
                   disabled={isLogging}
                   title={action.command}
@@ -230,8 +257,16 @@ const ActionPanel = ({
                     {isCompleted && (
                       <span className="completed-badge">✓</span>
                     )}
+                    {willResolveAlert && !isCompleted && (
+                      <span className="resolves-badge">Resolves Alert</span>
+                    )}
                   </div>
                   <span className="command-target">{action.target}</span>
+                  {willResolveAlert && !isCompleted && (
+                    <span className="resolves-hint">
+                      → {resolvableAlerts.map(a => a.target).join(', ')}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -243,18 +278,21 @@ const ActionPanel = ({
       <section className="panel-section common-commands">
         <h3>ATC Commands</h3>
         <div className="command-grid">
-          {COMMON_COMMANDS.map(cmd => (
-            <button
-              key={cmd.id}
-              className="command-btn common"
-              onClick={() => handleCommonCommandClick(cmd)}
-              disabled={!selectedAircraft || isLogging}
-              title={selectedAircraft ? `${cmd.label} for ${selectedAircraft}` : 'Select an aircraft first'}
-            >
-              <span className="command-icon">{cmd.icon}</span>
-              <span className="command-label">{cmd.label}</span>
-            </button>
-          ))}
+          {COMMON_COMMANDS.map(cmd => {
+            const isClicked = clickedActionId === cmd.id;
+            return (
+              <button
+                key={cmd.id}
+                className={`command-btn common ${isClicked ? 'clicked' : ''}`}
+                onClick={() => handleCommonCommandClick(cmd)}
+                disabled={!selectedAircraft || isLogging}
+                title={selectedAircraft ? `${cmd.label} for ${selectedAircraft}` : 'Select an aircraft first'}
+              >
+                <span className="command-icon">{cmd.icon}</span>
+                <span className="command-label">{cmd.label}</span>
+              </button>
+            );
+          })}
         </div>
         {!selectedAircraft && (
           <p className="hint">Select an aircraft above to issue commands</p>

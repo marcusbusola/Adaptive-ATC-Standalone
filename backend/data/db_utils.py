@@ -18,6 +18,27 @@ from sqlalchemy import create_engine, text
 # Use DATABASE_URL from environment, falling back to a local SQLite file
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{Path(__file__).parent / 'atc_research.db'}")
 
+def json_serial_converter(o: Any) -> Any:
+    """Custom JSON converter to handle non-serializable types like datetime and set."""
+    if isinstance(o, datetime):
+        return o.isoformat()
+    if isinstance(o, set):
+        return list(o)
+    # Handle objects with to_dict method
+    if hasattr(o, 'to_dict'):
+        return o.to_dict()
+    # Handle objects with __dict__ (class instances)
+    if hasattr(o, '__dict__'):
+        return {k: v for k, v in o.__dict__.items() if not k.startswith('_')}
+    # Handle bytes
+    if isinstance(o, bytes):
+        return o.decode('utf-8', errors='replace')
+    # Fallback: convert to string representation
+    try:
+        return str(o)
+    except Exception:
+        return f"<non-serializable: {type(o).__name__}>"
+
 class DatabaseManager:
     """Asynchronous database manager for SQLite and PostgreSQL."""
 
@@ -92,7 +113,7 @@ class DatabaseManager:
     async def create_session(self, session_id: str, participant_id: str, scenario: str, condition: int, initial_state: Optional[Dict] = None) -> int:
         await self.create_participant_if_not_exists(participant_id)
         query = "INSERT INTO sessions (session_id, participant_id, scenario, condition, initial_state, status) VALUES (:session_id, :participant_id, :scenario, :condition, :initial_state, 'active')"
-        values = {"session_id": session_id, "participant_id": participant_id, "scenario": scenario, "condition": condition, "initial_state": json.dumps(initial_state) if initial_state else None}
+        values = {"session_id": session_id, "participant_id": participant_id, "scenario": scenario, "condition": condition, "initial_state": json.dumps(initial_state, default=json_serial_converter) if initial_state else None}
         return await self._execute_insert(query, values)
 
     async def end_session(self, session_id: str, end_reason: str = "completed", final_state: Optional[Dict] = None, performance_score: Optional[float] = None) -> bool:
@@ -116,7 +137,14 @@ class DatabaseManager:
                     duration = 0
 
             query = "UPDATE sessions SET ended_at = :ended_at, status = 'completed', end_reason = :end_reason, duration_seconds = :duration, final_state = :final_state, performance_score = :performance_score WHERE session_id = :session_id"
-            await conn.execute(query=query, values={"ended_at": ended_at, "end_reason": end_reason, "duration": duration, "final_state": json.dumps(final_state) if final_state else None, "performance_score": performance_score, "session_id": session_id})
+            
+            # Use a robust JSON serializer
+            final_state_json = json.dumps(
+                final_state,
+                default=json_serial_converter
+            ) if final_state else None
+            
+            await conn.execute(query=query, values={"ended_at": ended_at, "end_reason": end_reason, "duration": duration, "final_state": final_state_json, "performance_score": performance_score, "session_id": session_id})
         return True
 
     async def get_session(self, session_id: str) -> Optional[Dict]:
@@ -133,7 +161,7 @@ class DatabaseManager:
 
     async def add_behavioral_event(self, session_id: str, event_type: str, timestamp: float, event_data: Dict, screen_width: Optional[int] = None, screen_height: Optional[int] = None) -> int:
         query = 'INSERT INTO behavioral_events (session_id, event_type, "timestamp", event_data, screen_width, screen_height) VALUES (:session_id, :event_type, :timestamp, :event_data, :screen_width, :screen_height)'
-        values = {"session_id": session_id, "event_type": event_type, "timestamp": timestamp, "event_data": json.dumps(event_data), "screen_width": screen_width, "screen_height": screen_height}
+        values = {"session_id": session_id, "event_type": event_type, "timestamp": timestamp, "event_data": json.dumps(event_data, default=json_serial_converter), "screen_width": screen_width, "screen_height": screen_height}
         return await self._execute_insert(query, values)
 
     async def get_behavioral_events(self, session_id: str, event_type: Optional[str] = None, limit: Optional[int] = None) -> List[Dict]:
@@ -152,7 +180,7 @@ class DatabaseManager:
 
     async def add_scenario_event(self, session_id: str, event_id: str, event_name: str, event_type: str, scenario_time: float, event_data: Dict, severity: Optional[str] = None, aircraft_id: Optional[str] = None) -> int:
         query = "INSERT INTO scenario_events (session_id, event_id, event_name, event_type, scenario_time, event_data, severity, aircraft_id) VALUES (:session_id, :event_id, :event_name, :event_type, :scenario_time, :event_data, :severity, :aircraft_id)"
-        values = {"session_id": session_id, "event_id": event_id, "event_name": event_name, "event_type": event_type, "scenario_time": scenario_time, "event_data": json.dumps(event_data), "severity": severity, "aircraft_id": aircraft_id}
+        values = {"session_id": session_id, "event_id": event_id, "event_name": event_name, "event_type": event_type, "scenario_time": scenario_time, "event_data": json.dumps(event_data, default=json_serial_converter), "severity": severity, "aircraft_id": aircraft_id}
         return await self._execute_insert(query, values)
 
     async def update_scenario_event_response(self, event_id: str, response_time: float, action: str) -> bool:
@@ -166,7 +194,7 @@ class DatabaseManager:
 
     async def add_alert(self, session_id: str, alert_id: str, alert_type: str, condition: int, priority: str, message: str, aircraft_id: Optional[str] = None, presentation_data: Optional[Dict] = None, additional_data: Optional[Dict] = None) -> int:
         query = "INSERT INTO alerts (session_id, alert_id, alert_type, condition, priority, message, aircraft_id, presentation_data, additional_data) VALUES (:session_id, :alert_id, :alert_type, :condition, :priority, :message, :aircraft_id, :presentation_data, :additional_data)"
-        values = {"session_id": session_id, "alert_id": alert_id, "alert_type": alert_type, "condition": condition, "priority": priority, "message": message, "aircraft_id": aircraft_id, "presentation_data": json.dumps(presentation_data) if presentation_data else None, "additional_data": json.dumps(additional_data) if additional_data else None}
+        values = {"session_id": session_id, "alert_id": alert_id, "alert_type": alert_type, "condition": condition, "priority": priority, "message": message, "aircraft_id": aircraft_id, "presentation_data": json.dumps(presentation_data, default=json_serial_converter) if presentation_data else None, "additional_data": json.dumps(additional_data, default=json_serial_converter) if additional_data else None}
         return await self._execute_insert(query, values)
 
     async def acknowledge_alert(self, alert_id: str, action_taken: Optional[str] = None, action_correct: Optional[bool] = None, response_time_ms: Optional[float] = None) -> bool:
@@ -254,7 +282,7 @@ class DatabaseManager:
         async with self.get_connection() as conn:
             await conn.execute(query=query, values={
                 "session_id": session_id,
-                "checkpoint_data": json.dumps(checkpoint_data),
+                "checkpoint_data": json.dumps(checkpoint_data, default=json_serial_converter),
                 "checkpoint_at": datetime.utcnow().isoformat()
             })
         return True

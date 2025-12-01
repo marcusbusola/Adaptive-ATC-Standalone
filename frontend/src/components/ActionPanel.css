@@ -299,6 +299,65 @@
   background: rgba(76, 175, 80, 0.2);
 }
 
+/* Click Feedback Animation */
+.command-btn.clicked {
+  background: #4caf50 !important;
+  border-color: #81c784 !important;
+  transform: scale(0.95) !important;
+  transition: all 0.1s ease-out !important;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+}
+
+.command-btn.clicked .command-label {
+  color: #ffffff !important;
+}
+
+/* Resolves Alert - Highlight actions that will resolve pending alerts */
+.command-btn.resolves-alert {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.15);
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.3);
+  animation: pulse-resolves 1.5s ease-in-out infinite;
+}
+
+.command-btn.resolves-alert:hover:not(:disabled) {
+  background: rgba(255, 152, 0, 0.25);
+  border-color: #ffc107;
+}
+
+@keyframes pulse-resolves {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 152, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 152, 0, 0.5);
+  }
+}
+
+.resolves-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+  margin-left: 4px;
+  animation: flash-badge 1s ease-in-out infinite;
+}
+
+@keyframes flash-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.resolves-hint {
+  display: block;
+  font-size: 10px;
+  color: #ff9800;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 .expected-badge {
   font-size: 9px;
   padding: 2px 6px;

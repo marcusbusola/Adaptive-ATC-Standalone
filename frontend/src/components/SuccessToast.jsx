@@ -12,6 +12,7 @@ function SuccessToast({
   message,
   aircraft,
   actionTaken,
+  alertType,
   duration = 3000,
   onDismiss
 }) {
@@ -38,17 +39,30 @@ function SuccessToast({
     };
   }, [duration, onDismiss]);
 
+  // Format alert type for display
+  const formatAlertType = (type) => {
+    if (!type) return null;
+    return type.replace(/_/g, ' ').toUpperCase();
+  };
+
   return (
     <div className={`success-toast ${isVisible ? 'visible' : ''} ${isExiting ? 'exiting' : ''}`}>
-      <div className="success-toast-icon">✓</div>
+      <div className="success-toast-icon-wrapper">
+        <div className="success-toast-icon">✓</div>
+      </div>
       <div className="success-toast-content">
-        <div className="success-toast-title">Issue Resolved</div>
+        <div className="success-toast-header">
+          <div className="success-toast-title">Alert Resolved</div>
+          {alertType && (
+            <div className="success-toast-type">{formatAlertType(alertType)}</div>
+          )}
+        </div>
         <div className="success-toast-message">
           {message || `${aircraft} situation handled correctly`}
         </div>
         {actionTaken && (
           <div className="success-toast-action">
-            Action: {actionTaken}
+            <span className="action-label">Action taken:</span> {actionTaken}
           </div>
         )}
       </div>
@@ -68,6 +82,7 @@ export function SuccessToastContainer({ toasts, onDismiss }) {
           message={toast.message}
           aircraft={toast.aircraft}
           actionTaken={toast.actionTaken}
+          alertType={toast.alertType}
           duration={toast.duration || 3000}
           onDismiss={() => onDismiss(toast.id)}
         />

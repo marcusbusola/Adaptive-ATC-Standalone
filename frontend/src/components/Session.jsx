@@ -12,6 +12,7 @@ import { SuccessToastContainer } from './SuccessToast';
 import { logBehavioralEvent, logAlertDisplay, logAlertAcknowledgment } from '../services/api';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { SCENARIO_ACTIONS } from '../config/scenarioActions';
+import { playSuccessSound } from '../utils/alertSounds';
 import '../styles/session.css';
 
 const API_URL = getApiBaseUrl();
@@ -207,21 +208,68 @@ function Session() {
     }, [sessionId, scenarioComplete, elapsedTime, handleEndSession]); // Removed scenarioStarted, using ref instead
 
     // Convert scenario events to alerts based on condition
+    // Uses stable alert IDs to deduplicate and enable proper escalation
     const processTriggeredEvents = async (events) => {
         const condition = sessionDetails?.condition || 1;
 
         for (const event of events) {
-            const alertId = `alert_${event.event_type}_${event.target}_${Date.now()}`;
+            // Stable alert ID based on event type + target (no timestamp)
+            const alertId = `alert_${event.event_type}_${event.target}`;
+            const newPriority = event.data?.priority || 'medium';
+
+            // Check if this alert already exists in active, pending, or history
+            const existsInActive = activeAlerts.some(a => a.id === alertId);
+            const existsInPending = pendingAlerts.some(a => a.id === alertId);
+            const existsInHistory = alertHistory.some(a => a.id === alertId);
+
+            if (existsInActive) {
+                // Alert already showing - escalate it
+                console.log(`[Alert] Escalating existing active alert: ${alertId}`);
+                setActiveAlerts(prev => prev.map(a => {
+                    if (a.id === alertId) {
+                        const newEscalationLevel = (a.escalationLevel || 1) + 1;
+                        return {
+                            ...a,
+                            escalationLevel: newEscalationLevel,
+                            priority: getPriorityMax(a.priority, newPriority),
+                            message: event.data?.message || a.message,
+                            lastEscalatedAt: Date.now()
+                        };
+                    }
+                    return a;
+                }));
+                continue; // Skip to next event
+            }
+
+            if (existsInPending) {
+                // Alert is pending (acknowledged but not resolved) - don't create duplicate
+                console.log(`[Alert] Alert already pending, skipping: ${alertId}`);
+                continue;
+            }
+
+            if (existsInHistory && !existsInActive && !existsInPending) {
+                // Alert was previously resolved/dismissed - could be a new occurrence
+                // Check if it was resolved recently (within 30 seconds)
+                const historyAlert = alertHistory.find(a => a.id === alertId);
+                if (historyAlert?.resolved && (Date.now() - (historyAlert.resolvedAt || 0)) < 30000) {
+                    console.log(`[Alert] Alert recently resolved, skipping: ${alertId}`);
+                    continue;
+                }
+            }
+
+            // New alert - create it
             const alertData = {
                 id: alertId,
                 type: event.event_type,
                 target: event.target,
-                priority: event.data?.priority || 'medium',
+                priority: newPriority,
                 message: event.data?.message || `${event.event_type}: ${event.target}`,
                 details: event.data?.details || {},
                 timestamp: Date.now(),
                 condition: condition,
-                acknowledged: false
+                acknowledged: false,
+                escalationLevel: 1,
+                reappearCount: 0
             };
 
             // Log alert display
@@ -237,9 +285,16 @@ function Session() {
                 console.error('Failed to log alert display:', err);
             }
 
+            console.log(`[Alert] Creating new alert: ${alertId}`);
             setActiveAlerts(prev => [...prev, alertData]);
             setAlertHistory(prev => [...prev, alertData]);
         }
+    };
+
+    // Helper to get the higher priority
+    const getPriorityMax = (p1, p2) => {
+        const priorityOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
+        return (priorityOrder[p1] || 0) >= (priorityOrder[p2] || 0) ? p1 : p2;
     };
 
     /**
@@ -304,12 +359,16 @@ function Session() {
      * Show success toast when alert is resolved
      */
     const showSuccessToast = useCallback((alert, actionLabel) => {
+        // Play success confirmation sound
+        playSuccessSound();
+
         const toastId = `toast_${alert.id}_${Date.now()}`;
         const newToast = {
             id: toastId,
             message: `${alert.target} situation handled correctly`,
             aircraft: alert.target,
             actionTaken: actionLabel,
+            alertType: alert.type,
             duration: 3000
         };
 
@@ -327,6 +386,7 @@ function Session() {
      * Handle alert reappearance after hide duration
      */
     const handleAlertReappear = useCallback((alert) => {
+        console.log(`[DEBUG] Reappear timer fired for alert ${alert.id}. Moving from pending back to active.`);
         // Remove from pending
         setPendingAlerts(prev => prev.filter(a => a.id !== alert.id));
 
@@ -336,18 +396,24 @@ function Session() {
             delete pendingAlertTimers.current[alert.id];
         }
 
+        const newReappearCount = (alert.reappearCount || 0) + 1;
+        const newEscalationLevel = (alert.escalationLevel || 1) + 1;
+
         // Add back to active alerts with escalated state
         const escalatedAlert = {
             ...alert,
             isEscalated: true,
-            reappearCount: (alert.reappearCount || 0) + 1,
-            timestamp: Date.now() // Reset timestamp for new response time tracking
+            reappearCount: newReappearCount,
+            escalationLevel: newEscalationLevel,
+            // Keep original timestamp for tracking, but record reappear time
+            originalTimestamp: alert.originalTimestamp || alert.timestamp,
+            timestamp: Date.now() // Reset for new response time tracking
         };
 
         setActiveAlerts(prev => [...prev, escalatedAlert]);
 
         // Log the reappearance
-        console.log(`[Alert] Alert reappeared (escalated): ${alert.id}, reappear count: ${escalatedAlert.reappearCount}`);
+        console.log(`[Alert] Alert reappeared (escalated): ${alert.id}, reappear count: ${newReappearCount}, escalation level: ${newEscalationLevel}`);
     }, []);
 
     // Handle alert acknowledgment - for traditional alerts, this hides them for 15 seconds
@@ -401,11 +467,12 @@ function Session() {
             setPendingAlerts(prev => [...prev, pendingAlert]);
 
             // Set timer for reappearance if not resolved
-            pendingAlertTimers.current[alert.id] = setTimeout(() => {
+            const timerId = setTimeout(() => {
                 handleAlertReappear(pendingAlert);
             }, ALERT_HIDE_DURATION);
+            pendingAlertTimers.current[alert.id] = timerId;
 
-            console.log(`[Alert] Alert acknowledged and hidden: ${alert.id}, will reappear in ${ALERT_HIDE_DURATION / 1000}s if not resolved`);
+            console.log(`[DEBUG] Traditional alert ${alert.id} acknowledged. Reappear timer set for ${ALERT_HIDE_DURATION / 1000}s. Timer ID: ${timerId}`);
         }
 
         // Update history
@@ -498,7 +565,9 @@ function Session() {
             resolvedAlerts.forEach(alert => {
                 // Clear the reappear timer
                 if (pendingAlertTimers.current[alert.id]) {
-                    clearTimeout(pendingAlertTimers.current[alert.id]);
+                    const timerId = pendingAlertTimers.current[alert.id];
+                    console.log(`[DEBUG] Action resolves pending alert ${alert.id}. Clearing reappear timer ID: ${timerId}.`);
+                    clearTimeout(timerId);
                     delete pendingAlertTimers.current[alert.id];
                 }
 
@@ -585,6 +654,7 @@ function Session() {
                             requiresAcknowledgment={true}
                             isEscalated={alert.isEscalated || false}
                             reappearCount={alert.reappearCount || 0}
+                            escalationLevel={alert.escalationLevel || 1}
                             onAcknowledge={(data) => handleAlertAcknowledge(alert, data?.action_taken)}
                         />
                     );
@@ -702,6 +772,7 @@ function Session() {
                         condition={sessionDetails.condition}
                         showControls={false}
                         aircraftConfig={sessionDetails.aircraft_config}
+                        pendingAlerts={pendingAlerts}
                     />
                 </div>
 

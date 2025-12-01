@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import useSimulation from '../hooks/useSimulation';
 import simulationApi from '../services/simulation-api';
 import ErrorNotification from './ErrorNotification';
+import PulsingDot from './PulsingDot';
 import {
   latLonToScreen,
   gridToScreen,
@@ -23,7 +24,8 @@ function RadarViewer({
   onEvent = null,
   onConflict = null,
   showControls = true,
-  aircraftConfig = null
+  aircraftConfig = null,
+  pendingAlerts = [],
 }) {
   // Canvas refs
   const canvasRef = useRef(null);
@@ -546,6 +548,33 @@ function RadarViewer({
           className="radar-canvas"
           onClick={handleCanvasClick}
         />
+
+        {/* Pulsing dots for pending alerts */}
+        {aircraft && aircraft.length > 0 && pendingAlerts && pendingAlerts.length > 0 && (
+          <div className="pulsing-dot-layer">
+            {aircraft.map(ac => {
+              const hasPendingAlert = pendingAlerts.some(p => p.target === ac.callsign);
+              if (!hasPendingAlert) {
+                return null;
+              }
+
+              const pos = getAircraftScreenPos(ac);
+              if (!pos) {
+                return null;
+              }
+
+              return (
+                <PulsingDot
+                  key={`dot-${ac.callsign}`}
+                  style={{
+                    top: `${pos.y}px`,
+                    left: `${pos.x}px`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
 
         {/* Connection status */}
         <div className="connection-status">

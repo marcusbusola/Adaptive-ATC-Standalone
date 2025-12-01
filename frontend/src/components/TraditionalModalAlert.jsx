@@ -32,7 +32,8 @@ function TraditionalModalAlert({
   enableAudio = true,
   zIndex = 0, // For stacking multiple alerts
   isEscalated = false, // Alert has reappeared after being acknowledged but not resolved
-  reappearCount = 0 // Number of times alert has reappeared
+  reappearCount = 0, // Number of times alert has reappeared
+  escalationLevel = 1 // Progressive urgency level (1 = normal, 2+ = escalated)
 }) {
   const [responseTime, setResponseTime] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -106,14 +107,41 @@ function TraditionalModalAlert({
   /**
    * Get severity-specific class names
    * Escalated alerts always show as critical with additional escalated styling
+   * Higher escalation levels get progressively more urgent styling
    */
   const getSeverityClass = () => {
-    if (isEscalated) {
-      return 'traditional-modal-critical traditional-modal-escalated';
+    const classes = [];
+
+    // Base severity
+    if (isEscalated || escalationLevel >= 2) {
+      classes.push('traditional-modal-critical');
+      classes.push('traditional-modal-escalated');
+    } else if (severity === 'critical') {
+      classes.push('traditional-modal-critical');
+    } else {
+      classes.push('traditional-modal-warning');
     }
-    return severity === 'critical'
-      ? 'traditional-modal-critical'
-      : 'traditional-modal-warning';
+
+    // Progressive urgency levels
+    if (escalationLevel >= 3) {
+      classes.push('escalation-level-3');
+    } else if (escalationLevel >= 2) {
+      classes.push('escalation-level-2');
+    }
+
+    return classes.join(' ');
+  };
+
+  /**
+   * Get escalation badge text based on level
+   */
+  const getEscalationBadge = () => {
+    if (escalationLevel >= 3) {
+      return `CRITICAL - LEVEL ${escalationLevel}`;
+    } else if (escalationLevel === 2) {
+      return 'ESCALATED';
+    }
+    return null;
   };
 
   return (
@@ -129,13 +157,22 @@ function TraditionalModalAlert({
       <div className={`traditional-modal-container ${getSeverityClass()}`}>
         {/* Alert Header */}
         <div className="traditional-modal-header">
+          {/* Escalation level badge */}
+          {escalationLevel >= 2 && (
+            <div className={`escalation-badge escalation-badge-${Math.min(escalationLevel, 3)}`}>
+              {getEscalationBadge()}
+            </div>
+          )}
+
           {isEscalated && (
             <div className="escalated-indicator">
               ⚠️ UNRESOLVED - REQUIRES IMMEDIATE ACTION ⚠️
-              {reappearCount > 1 && <span className="reappear-count">(Reappeared {reappearCount}x)</span>}
+              {reappearCount >= 1 && (
+                <span className="reappear-count">Reappeared: {reappearCount}x</span>
+              )}
             </div>
           )}
-          {severity === 'critical' && !isEscalated && (
+          {severity === 'critical' && !isEscalated && escalationLevel < 2 && (
             <div className="critical-indicator">
               CRITICAL ALERT
             </div>
