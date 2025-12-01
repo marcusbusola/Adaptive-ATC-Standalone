@@ -99,6 +99,26 @@
   border-left: 3px solid #4a90e2;
 }
 
+.error-message {
+  margin: 0 0 8px 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(244, 67, 54, 0.15);
+  border: 1px solid rgba(244, 67, 54, 0.35);
+  color: #ffcdd2;
+  font-size: 12px;
+}
+
+.success-message {
+  margin: 0 0 8px 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(76, 175, 80, 0.14);
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  color: #c8e6c9;
+  font-size: 12px;
+}
+
 /* Aircraft Selector */
 .aircraft-buttons {
   display: flex;

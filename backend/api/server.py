@@ -63,7 +63,7 @@ except ImportError as e:
 # Import database utilities and schema setup
 from data.db_utils import get_db_manager, DatabaseManager
 from data.setup_database import DatabaseSetup
-from api.queue_manager import get_queue_manager
+from api.queue_manager import get_queue_manager, QueueItemStatus
 
 # Load environment variables
 load_dotenv()
@@ -416,6 +416,43 @@ async def v1_scenario_next(session_id: str, elapsed_time: float):
 async def start_session(body: SessionStartRequest, request: Request):
     """Starts a new research session and stores it in the database."""
     try:
+        # Guard: prevent multiple active sessions for the same participant
+        existing_active = await db_manager.get_active_session_for_participant(body.participant_id)
+        if existing_active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Participant already has an active session",
+                    "active_session_id": existing_active["session_id"],
+                    "scenario": existing_active["scenario"],
+                    "condition": existing_active["condition"]
+                }
+            )
+
+        # Guard: validate queue item status if launching from queue
+        queue_item = None
+        if body.queue_id:
+            qm = get_queue_manager()
+            queue = qm.get_queue(body.queue_id)
+            if not queue:
+                raise HTTPException(status_code=404, detail=f"Queue {body.queue_id} not found")
+            if body.queue_item_index is None or body.queue_item_index < 0 or body.queue_item_index >= len(queue.items):
+                raise HTTPException(status_code=400, detail="queue_item_index missing or out of range")
+
+            queue_item = queue.items[body.queue_item_index]
+            if queue_item.status == QueueItemStatus.COMPLETED:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Queue item already completed")
+            if queue_item.status == QueueItemStatus.ERROR:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Queue item is marked error")
+            if queue_item.status == QueueItemStatus.IN_PROGRESS and queue_item.session_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "Queue item already in progress",
+                        "existing_session_id": queue_item.session_id
+                    }
+                )
+
         session_id = f"session_{uuid.uuid4().hex[:12]}"
         logger.info(f"Starting session: {session_id} for participant {body.participant_id}")
 
@@ -428,20 +465,20 @@ async def start_session(body: SessionStartRequest, request: Request):
         )
 
         # If launched from a queue, mark the queue item as in progress and attach the session_id
-        if body.queue_id:
+        if body.queue_id and queue_item is not None:
             try:
+                queue_item.status = QueueItemStatus.IN_PROGRESS
+                queue_item.session_id = session_id
+                queue_item.start_time = datetime.utcnow().isoformat()
+
                 qm = get_queue_manager()
                 queue = qm.get_queue(body.queue_id)
-                if not queue:
-                    logger.warning(f"Queue {body.queue_id} not found while starting session {session_id}")
-                elif body.queue_item_index is None:
-                    logger.warning(f"queue_item_index missing for queue {body.queue_id} while starting session {session_id}")
-                elif 0 <= body.queue_item_index < len(queue.items):
-                    queue.mark_item_started(body.queue_item_index, session_id)
+                if queue:
+                    queue.items[body.queue_item_index] = queue_item
                     qm.update_queue(queue)
                     logger.info(f"Marked queue {body.queue_id} item {body.queue_item_index} in progress for session {session_id}")
                 else:
-                    logger.warning(f"queue_item_index {body.queue_item_index} out of range for queue {body.queue_id}")
+                    logger.warning(f"Queue {body.queue_id} disappeared while starting session {session_id}")
             except Exception as e:
                 logger.warning(f"Failed to mark queue item started for session {session_id}: {e}")
 
@@ -1400,8 +1437,32 @@ async def get_queue(queue_id: str):
 async def get_participant_next_session(participant_id: str):
     """Gets the next pending session for a participant from their queues."""
     try:
+        # If participant already has an active session, surface it so frontend can resume/redirect
+        active_session = await db_manager.get_active_session_for_participant(participant_id)
+        if active_session:
+            return {
+                "status": "active_session",
+                "active_session": {
+                    "session_id": active_session["session_id"],
+                    "scenario": active_session["scenario"],
+                    "condition": active_session["condition"]
+                }
+            }
+
         qm = get_queue_manager()
         participant_queues = qm.get_participant_queues(participant_id)
+
+        # First, check for in-progress queue items to allow resuming
+        for queue in sorted(participant_queues, key=lambda q: q.created_at):
+            for idx, item in enumerate(queue.items):
+                if item.status == QueueItemStatus.IN_PROGRESS:
+                    return {
+                        "status": "resume",
+                        "next_session": item.to_dict(),
+                        "queue_id": queue.queue_id,
+                        "item_index": idx,
+                        "session_id": item.session_id
+                    }
 
         for queue in sorted(participant_queues, key=lambda q: q.created_at):
             if queue.status == "active":
@@ -1420,6 +1481,57 @@ async def get_participant_next_session(participant_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting next session for participant {participant_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/participants/{participant_id}/status")
+async def get_participant_status(participant_id: str):
+    """
+    Returns participant session status, including any active session and queue state.
+    Useful for showing 'loading next scenario' or resume prompts without relying on queue UI.
+    """
+    try:
+        active_session = await db_manager.get_active_session_for_participant(participant_id)
+
+        qm = get_queue_manager()
+        participant_queues = qm.get_participant_queues(participant_id)
+
+        in_progress_info = None
+        next_pending_info = None
+
+        for queue in sorted(participant_queues, key=lambda q: q.created_at):
+            # In-progress item (resume)
+            for idx, item in enumerate(queue.items):
+                if item.status == QueueItemStatus.IN_PROGRESS:
+                    in_progress_info = {
+                        "queue_id": queue.queue_id,
+                        "item_index": idx,
+                        "item": item.to_dict()
+                    }
+                    break
+            if in_progress_info:
+                break
+
+        if not in_progress_info:
+            for queue in sorted(participant_queues, key=lambda q: q.created_at):
+                if queue.status == "active":
+                    pending_item = queue.get_next_item()
+                    if pending_item:
+                        next_pending_info = {
+                            "queue_id": queue.queue_id,
+                            "item_index": queue.current_index,
+                            "item": pending_item.to_dict()
+                        }
+                        break
+
+        return {
+            "status": "success",
+            "active_session": active_session,
+            "in_progress_item": in_progress_info,
+            "next_session": next_pending_info
+        }
+    except Exception as e:
+        logger.error(f"Error getting participant status for {participant_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

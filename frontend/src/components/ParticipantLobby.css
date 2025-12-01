@@ -170,3 +170,35 @@
     margin: 0;
     color: #d7d0ff;
 }
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.08) 40%, transparent 80%);
+    animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-pill {
+    min-width: 90px;
+    height: 16px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.skeleton-button {
+    width: 140px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}

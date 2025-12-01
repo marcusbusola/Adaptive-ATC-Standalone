@@ -5,7 +5,7 @@
  * Logs all operator actions for research analysis.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { SCENARIO_ACTIONS, COMMON_COMMANDS } from '../config/scenarioActions';
 import './ActionPanel.css';
@@ -25,6 +25,8 @@ const ActionPanel = ({
   const [isLogging, setIsLogging] = useState(false);
   const [clickedActionId, setClickedActionId] = useState(null); // For click feedback animation
   const [actionError, setActionError] = useState('');
+  const [actionToast, setActionToast] = useState('');
+  const toastTimeoutRef = useRef(null);
 
   // Get scenario-specific configuration
   const scenarioConfig = useMemo(() => {
@@ -85,6 +87,11 @@ const ActionPanel = ({
 
       // Notify parent
       onActionLogged?.(actionData);
+      setActionToast(`${action.label} sent`);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      toastTimeoutRef.current = setTimeout(() => setActionToast(''), 2000);
     } catch (err) {
       console.error('[ActionPanel] Failed to log action:', err);
       setActionError('Failed to log action. Please try again.');
@@ -182,6 +189,11 @@ const ActionPanel = ({
       {actionError && (
         <div className="panel-section">
           <div className="error-message">{actionError}</div>
+        </div>
+      )}
+      {actionToast && (
+        <div className="panel-section">
+          <div className="success-message">{actionToast}</div>
         </div>
       )}
 

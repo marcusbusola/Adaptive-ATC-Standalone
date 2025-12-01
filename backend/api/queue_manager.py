@@ -214,9 +214,11 @@ class QueueManager:
     def _save_queue(self, queue: SessionQueue) -> None:
         """Save queue to storage"""
         queue_file = self.storage_path / f"{queue.queue_id}.json"
+        tmp_file = self.storage_path / f".{queue.queue_id}.json.tmp"
         try:
-            with open(queue_file, 'w') as f:
+            with open(tmp_file, 'w') as f:
                 json.dump(queue.to_dict(), f, indent=2)
+            tmp_file.replace(queue_file)
         except Exception as e:
             print(f"Error saving queue {queue.queue_id}: {e}")
 

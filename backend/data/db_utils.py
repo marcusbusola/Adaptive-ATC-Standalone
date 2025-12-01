@@ -229,6 +229,13 @@ class DatabaseManager:
             rows = await conn.fetch_all(query)
         return [dict(row) for row in rows]
 
+    async def get_active_session_for_participant(self, participant_id: str) -> Optional[Dict]:
+        """Get the active session (if any) for a participant."""
+        query = "SELECT * FROM sessions WHERE participant_id = :participant_id AND status = 'active' ORDER BY started_at DESC LIMIT 1"
+        async with self.get_connection() as conn:
+            row = await conn.fetch_one(query, {"participant_id": participant_id})
+        return dict(row) if row else None
+
     # ========== METRICS OPERATIONS ==========
 
     async def add_metric(

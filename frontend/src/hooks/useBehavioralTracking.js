@@ -59,6 +59,8 @@ const useBehavioralTracking = (sessionId) => {
   const addEvent = useCallback((eventType, eventData = {}) => {
     const allowIfDisabled = eventType === 'tracking_started' || eventType === 'tracking_stopped';
     if ((!trackingActive && !allowIfDisabled) || !sessionId) return;
+    // Avoid noisy events when tab is hidden to reduce unnecessary processing
+    if (document.hidden && !allowIfDisabled) return;
 
     const event = {
       session_id: sessionId,
@@ -213,14 +215,15 @@ const useBehavioralTracking = (sessionId) => {
     eventsBufferRef.current = [];
 
     // Add event listeners
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('click', handleClick);
+    const passiveOpts = { passive: true };
+    window.addEventListener('mousemove', handleMouseMove, passiveOpts);
+    window.addEventListener('click', handleClick, passiveOpts);
     window.addEventListener('mouseenter', handleMouseEnter, true);
     window.addEventListener('mouseleave', handleMouseLeave, true);
-    window.addEventListener('keypress', handleKeyPress);
+    window.addEventListener('keypress', handleKeyPress, passiveOpts);
     window.addEventListener('focus', handleFocus, true);
     window.addEventListener('blur', handleBlur, true);
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, passiveOpts);
 
     // Start batch interval
     batchIntervalRef.current = setInterval(sendBatch, BATCH_INTERVAL);

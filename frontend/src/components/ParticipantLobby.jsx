@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import './ParticipantLobby.css';
@@ -8,9 +8,26 @@ const API_URL = getApiBaseUrl();
 function ParticipantLobby() {
     const [participantId, setParticipantId] = useState('');
     const [nextSession, setNextSession] = useState(null);
+    const [activeSession, setActiveSession] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [info, setInfo] = useState('');
     const navigate = useNavigate();
+
+    // Prefill participant ID from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem('participantId');
+        if (saved) {
+            setParticipantId(saved);
+        }
+    }, []);
+
+    const saveParticipantId = (value) => {
+        setParticipantId(value);
+        localStorage.setItem('participantId', value);
+    };
+
+    const isResume = useMemo(() => !!(activeSession || (nextSession && nextSession.status === 'resume')), [activeSession, nextSession]);
 
     const handleFindSession = async () => {
         if (!participantId) {
@@ -20,6 +37,8 @@ function ParticipantLobby() {
         setIsLoading(true);
         setError('');
         setNextSession(null);
+        setActiveSession(null);
+        setInfo('');
 
         try {
             const response = await fetch(`${API_URL}/api/participants/${participantId}/next-session`);
@@ -31,7 +50,15 @@ function ParticipantLobby() {
                 }
             } else {
                 const data = await response.json();
-                setNextSession(data);
+                if (data.status === 'active_session') {
+                    setActiveSession(data.active_session);
+                    setInfo('You already have an active session. Resume to continue.');
+                } else {
+                    setNextSession(data);
+                    if (data.status === 'resume') {
+                        setInfo('You have a session in progress. Resume to continue.');
+                    }
+                }
             }
         } catch (err) {
             setError(err.message);
@@ -45,6 +72,7 @@ function ParticipantLobby() {
 
         setIsLoading(true);
         setError('');
+        setInfo('');
 
         try {
             const startRequest = {
@@ -62,6 +90,19 @@ function ParticipantLobby() {
             });
 
             if (!response.ok) {
+                if (response.status === 409) {
+                    const detail = await response.json().catch(() => ({}));
+                    const existingId = detail?.detail?.active_session_id || detail?.detail?.existing_session_id;
+                    if (existingId) {
+                        setActiveSession({
+                            session_id: existingId,
+                            scenario: detail?.detail?.scenario,
+                            condition: detail?.detail?.condition
+                        });
+                        setInfo('You already have an active session. Resume below.');
+                        return;
+                    }
+                }
                 throw new Error('Failed to start the session.');
             }
 
@@ -83,6 +124,23 @@ function ParticipantLobby() {
         }
     };
 
+    const handleResumeSession = (sessionId) => {
+        const params = new URLSearchParams();
+        params.set('returnTo', '/participant');
+        navigate(`/session/${sessionId}?${params.toString()}`);
+    };
+
+    const renderSkeleton = () => (
+        <div className="session-panel skeleton">
+            <div className="session-meta">
+                <div className="pill skeleton-pill"></div>
+                <div className="pill skeleton-pill"></div>
+            </div>
+            <p className="session-desc">Loading your next scenario…</p>
+            <div className="skeleton-button"></div>
+        </div>
+    );
+
     return (
         <div className="lobby-shell">
             <div className="lobby-gradient"></div>
@@ -100,19 +158,47 @@ function ParticipantLobby() {
                             id="participant-id"
                             type="text"
                             value={participantId}
-                            onChange={(e) => setParticipantId(e.target.value)}
+                            onChange={(e) => saveParticipantId(e.target.value)}
                             placeholder="e.g., PAX-104"
-                            disabled={isLoading}
+                            disabled={isLoading || isResume}
                         />
-                        <button className="primary-btn" onClick={handleFindSession} disabled={isLoading}>
-                            {isLoading ? 'Searching…' : 'Find Session'}
+                        <button className="primary-btn" onClick={handleFindSession} disabled={isLoading || isResume}>
+                            {isLoading ? 'Searching…' : (isResume ? 'Resume or Cancel' : 'Find Session')}
                         </button>
                     </div>
                 </div>
 
                 {error && <div className="banner banner-error">{error}</div>}
+                {info && !error && <div className="banner banner-info">{info}</div>}
                 {isLoading && !error && <div className="banner banner-info">Checking for your next session…</div>}
-                {nextSession && !error && (
+                {isLoading && renderSkeleton()}
+                {activeSession && !error && (
+                    <div className="session-panel">
+                        <div className="session-meta">
+                            <div className="pill">Active Session</div>
+                            <div className="pill">Scenario {activeSession.scenario || '?'}</div>
+                            <div className="pill">Condition {activeSession.condition || '?'}</div>
+                        </div>
+                        <p className="session-desc">You have an ongoing run. Resume to continue.</p>
+                        <button className="primary-btn accent" onClick={() => handleResumeSession(activeSession.session_id)} disabled={isLoading}>
+                            Resume Session
+                        </button>
+                    </div>
+                )}
+                {nextSession && !error && nextSession.status === 'resume' && (
+                    <div className="session-panel">
+                        <div className="session-meta">
+                            <div className="pill">Resume</div>
+                            <div className="pill">Scenario {nextSession.next_session?.scenario_id}</div>
+                            <div className="pill">Condition {nextSession.next_session?.condition}</div>
+                        </div>
+                        <p className="session-desc">You previously started this run. Resume to continue.</p>
+                        <button className="primary-btn accent" onClick={() => handleResumeSession(nextSession.session_id || nextSession.next_session?.session_id)} disabled={isLoading}>
+                            Resume Session
+                        </button>
+                    </div>
+                )}
+                {nextSession && !error && nextSession.status !== 'resume' && (
                     <div className="session-panel">
                         <div className="session-meta">
                             <div className="pill">Scenario {nextSession.next_session.scenario_id}</div>

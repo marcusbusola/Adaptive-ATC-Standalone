@@ -154,6 +154,16 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
 
     } catch (err) {
       console.error('Error starting session:', err);
+      if (err.response?.status === 409) {
+        const detail = err.response?.data?.detail;
+        const existingSessionId = detail?.active_session_id || detail?.existing_session_id;
+        if (existingSessionId) {
+          setError('Participant already has an active session. Resume below.');
+          setSessionId(existingSessionId);
+          setSessionActive(true);
+          return;
+        }
+      }
       setError(err.response?.data?.detail || 'Failed to start session');
       setLoading(false);
     }
@@ -378,6 +388,14 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
                 {currentItem.status.replace('_', ' ')}
               </span>
             </div>
+            {currentItem.status === 'in_progress' && currentItem.session_id && (
+              <div className="detail-row">
+                <span className="detail-label">Active Session:</span>
+                <button className="link-button" onClick={() => navigate(`/session/${currentItem.session_id}?returnTo=/queue/${queueId}`)}>
+                  Resume {currentItem.session_id}
+                </button>
+              </div>
+            )}
           </div>
 
           {sessionActive && (

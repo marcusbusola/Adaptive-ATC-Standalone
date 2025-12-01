@@ -47,6 +47,7 @@ function Session() {
     const [sagatProbes, setSagatProbes] = useState([]);
     const [scenarioComplete, setScenarioComplete] = useState(false);
     const [showSurvey, setShowSurvey] = useState(false);
+    const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
 
     const timerRef = useRef(null);
@@ -123,8 +124,9 @@ function Session() {
                 }
             }
 
-            // Show surveys instead of redirecting
-            setShowSurvey(true);
+            // Show brief completion message before surveys
+            setShowSurveyIntro(true);
+            setTimeout(() => setShowSurvey(true), 1000);
             setScenarioComplete(true);
         } catch (err) {
             setError(err.message);
@@ -733,6 +735,14 @@ function Session() {
     }
 
     // Show surveys after session ends
+    if (showSurveyIntro && !showSurvey) {
+        return (
+            <div className="session-loading">
+                Run complete. Loading survey…
+            </div>
+        );
+    }
+
     if (showSurvey) {
         return (
             <SurveyManager
