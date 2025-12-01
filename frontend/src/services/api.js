@@ -179,14 +179,43 @@ export async function getAlerts(sessionId) {
 
 /**
  * Submit survey response (single survey)
+ *
+ * Properly extracts survey responses and metadata to avoid nested structures.
  */
 export async function submitSurveyResponse(sessionId, surveyData) {
-  // Transform to backend expected format
-  const { survey_type, phase, survey_phase, duration_seconds, ...rest } = surveyData;
+  // Extract known fields and separate actual responses from metadata
+  const {
+    survey_type,
+    phase,
+    survey_phase,
+    duration_seconds,
+    responses,        // Actual survey answers (e.g., { helped_respond: 5, timely: 6 })
+    session_id,       // Don't include - already in URL
+    survey_index,     // Internal tracking - don't send to backend
+    ...metadata       // Everything else: condition, scores, comments, completed_at
+  } = surveyData;
+
+  // Build clean payload structure
   const payload = {
     survey_type: survey_type || 'unknown',
     survey_phase: survey_phase || phase || 'post',
-    responses: rest,
+    responses: {
+      // Actual survey answers
+      ...(responses || {}),
+      // Include metadata for analysis (condition, computed scores, comments)
+      _metadata: {
+        condition: metadata.condition,
+        completed_at: metadata.completed_at,
+        // Include any computed scores
+        ...(metadata.raw_tlx !== undefined && { raw_tlx: metadata.raw_tlx }),
+        ...(metadata.weighted_tlx !== undefined && { weighted_tlx: metadata.weighted_tlx }),
+        ...(metadata.trust_score !== undefined && { trust_score: metadata.trust_score }),
+        ...(metadata.effectiveness_score !== undefined && { effectiveness_score: metadata.effectiveness_score }),
+        ...(metadata.manipulation_successful !== undefined && { manipulation_successful: metadata.manipulation_successful }),
+        ...(metadata.attention_check_passed !== undefined && { attention_check_passed: metadata.attention_check_passed }),
+        ...(metadata.comments && { comments: metadata.comments })
+      }
+    },
     duration_seconds: duration_seconds || null
   };
 

@@ -26,6 +26,7 @@ const SurveyManager = ({
   const [surveyResponses, setSurveyResponses] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [lastFailedData, setLastFailedData] = useState(null); // For retry functionality
 
   // Define survey sequences for each phase
   const surveySequences = {
@@ -61,6 +62,7 @@ const SurveyManager = ({
     // Save to backend
     setIsSubmitting(true);
     setError(null);
+    setLastFailedData(null);
 
     try {
       await submitSurveyResponse(sessionId, response);
@@ -79,9 +81,33 @@ const SurveyManager = ({
       }
     } catch (err) {
       console.error('Failed to save survey response:', err);
-      setError('Failed to save response. Please try again.');
+      setError(`Failed to save response: ${err.message || 'Unknown error'}. Please try again.`);
+      setLastFailedData(surveyData); // Store for retry
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Retry failed submission
+  const handleRetry = () => {
+    if (lastFailedData) {
+      handleSurveyComplete(lastFailedData);
+    }
+  };
+
+  // Skip failed survey and continue (for non-critical errors)
+  const handleSkipAndContinue = () => {
+    setError(null);
+    setLastFailedData(null);
+    if (currentSurveyIndex < totalSurveys - 1) {
+      setCurrentSurveyIndex(prev => prev + 1);
+    } else {
+      onComplete({
+        phase,
+        responses: surveyResponses,
+        completed_at: new Date().toISOString(),
+        had_errors: true
+      });
     }
   };
 
@@ -129,16 +155,35 @@ const SurveyManager = ({
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Error Display with Retry Options */}
       {error && (
         <div className="survey-error-banner">
-          <span>{error}</span>
-          <button
-            className="error-close"
-            onClick={() => setError(null)}
-          >
-            &times;
-          </button>
+          <div className="error-message">
+            <span className="error-icon">⚠️</span>
+            <span>{error}</span>
+          </div>
+          <div className="error-actions">
+            {lastFailedData && (
+              <button
+                className="btn btn-retry"
+                onClick={handleRetry}
+              >
+                Retry
+              </button>
+            )}
+            <button
+              className="btn btn-skip"
+              onClick={handleSkipAndContinue}
+            >
+              Skip & Continue
+            </button>
+            <button
+              className="error-close"
+              onClick={() => { setError(null); setLastFailedData(null); }}
+            >
+              &times;
+            </button>
+          </div>
         </div>
       )}
 

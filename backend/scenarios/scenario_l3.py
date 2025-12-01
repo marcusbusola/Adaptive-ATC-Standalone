@@ -212,6 +212,23 @@ class ScenarioL3(BaseScenario):
                            'requires_manual_detection': True
                        })
 
+        # ML PREDICTIONS (Condition 3 only) - predict events before they occur
+        # Predict system crash 50 seconds before it occurs (at T+70s, predicting T+120s)
+        self.add_event('ml_prediction', 70.0, target='conflict_detection',
+                       predicted_event='system_crash',
+                       predicted_time=120.0,
+                       confidence=0.72,
+                       reasoning='Conflict detection system showing elevated CPU usage and memory pressure. Pattern consistent with imminent system instability.',
+                       suggested_action_ids=['check_tcas_status', 'increase_manual_scan'])
+
+        # Predict conflict 50 seconds before threshold (at T+106s, predicting T+156s)
+        self.add_event('ml_prediction', 106.0, target='DAL456_JBU567',
+                       predicted_event='conflict_threshold',
+                       predicted_time=156.0,
+                       confidence=0.85,
+                       reasoning='DAL456 and JBU567 converging trajectories detected. Current closure rate will result in separation violation in approximately 50 seconds.',
+                       suggested_action_ids=['vector_dal456', 'altitude_change_jbu567'])
+
     def _setup_sagat_probes(self) -> None:
         """Configure SAGAT probes for situation awareness measurement"""
 

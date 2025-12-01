@@ -223,6 +223,23 @@ class ScenarioH4(BaseScenario):
                            'speed': 120
                        })
 
+        # ML PREDICTIONS (Condition 3 only) - predict events before they occur
+        # Predict conflict 50 seconds before it becomes imminent (at T+70s, predicting T+120s)
+        self.add_event('ml_prediction', 70.0, target='DAL332',
+                       predicted_event='conflict',
+                       predicted_time=120.0,
+                       confidence=0.91,
+                       reasoning='DAL332 and AAL908 trajectories converging at FL340. Current closure rate of 18nm/min indicates imminent conflict requiring tactical intervention.',
+                       suggested_action_ids=['vector_dal332_left', 'climb_aal908'])
+
+        # Predict VFR intrusion 50 seconds before spawn (at T+106s, predicting T+156s)
+        self.add_event('ml_prediction', 106.0, target='N123AB',
+                       predicted_event='aircraft_spawn',
+                       predicted_time=156.0,
+                       confidence=0.76,
+                       reasoning='Primary radar detecting slow-moving target approaching southern sector boundary. Pattern suggests VFR aircraft may enter controlled airspace.',
+                       suggested_action_ids=['monitor_south_sector', 'prepare_vfr_contact'])
+
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 

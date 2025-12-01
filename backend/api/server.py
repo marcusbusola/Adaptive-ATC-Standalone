@@ -311,6 +311,11 @@ class AlertDismissRequest(BaseModel):
     dismissed_at: Optional[str] = None
     time_displayed_ms: Optional[float] = None
 
+class PredictionResolveRequest(BaseModel):
+    prediction_id: str
+    action_taken: Optional[str] = None
+    resolved_at: Optional[str] = None
+
 class SurveyRequest(BaseModel):
     survey_type: str
     survey_phase: str = "post"
@@ -986,14 +991,97 @@ async def get_alerts(session_id: str):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+# ===== ML PREDICTION ENDPOINTS =====
+
+@app.post("/api/sessions/{session_id}/predictions/{prediction_id}/resolve")
+async def resolve_prediction(session_id: str, prediction_id: str, request: PredictionResolveRequest):
+    """
+    Resolve an ML prediction by marking it as acted upon.
+
+    When a user acts on an ML prediction (e.g., takes suggested action),
+    this endpoint marks the prediction as resolved. This prevents the
+    real alert from appearing when the predicted event would have occurred.
+
+    Only applicable for Condition 3 (ML-based adaptive alerts).
+    """
+    try:
+        # Get active scenario
+        scenario = active_scenarios.get(session_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail=f"No active scenario for session {session_id}")
+
+        # Resolve the prediction in the scenario
+        resolved = scenario.resolve_prediction(
+            prediction_id=request.prediction_id,
+            action_taken=request.action_taken
+        )
+
+        if resolved:
+            logger.info(f"Prediction {prediction_id} resolved for session {session_id} via action: {request.action_taken}")
+            return {
+                "status": "success",
+                "prediction_id": prediction_id,
+                "resolved": True,
+                "action_taken": request.action_taken,
+                "message": "Prediction resolved - real alert will be suppressed"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "prediction_id": prediction_id,
+                "resolved": False,
+                "message": "Prediction not found or already resolved"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving prediction: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/sessions/{session_id}/predictions")
+async def get_predictions(session_id: str):
+    """
+    Get all pending and resolved ML predictions for a session.
+
+    Returns the current state of ML predictions including which ones
+    are pending and which have been resolved by user action.
+    """
+    try:
+        # Get active scenario
+        scenario = active_scenarios.get(session_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail=f"No active scenario for session {session_id}")
+
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "condition": scenario.condition,
+            "pending_predictions": scenario.pending_predictions,
+            "resolved_predictions": list(scenario.resolved_predictions),
+            "pending_count": len(scenario.pending_predictions),
+            "resolved_count": len(scenario.resolved_predictions)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting predictions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 # ===== SURVEY ENDPOINTS =====
 
 @app.post("/api/sessions/{session_id}/surveys")
 async def submit_survey(session_id: str, request: SurveyRequest):
     """Submit survey response."""
     try:
+        logger.info(f"Survey submission: session={session_id}, type={request.survey_type}, phase={request.survey_phase}")
+
         session = await db_manager.get_session(session_id)
         if not session:
+            logger.warning(f"Survey submission failed: session {session_id} not found")
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
         survey_id = f"survey_{session_id}_{request.survey_type}_{uuid.uuid4().hex[:8]}"
@@ -1029,6 +1117,7 @@ async def submit_survey(session_id: str, request: SurveyRequest):
                 }
             )
 
+        logger.info(f"Survey saved: {survey_id}")
         return {
             "status": "success",
             "survey_id": survey_id
@@ -1037,8 +1126,8 @@ async def submit_survey(session_id: str, request: SurveyRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error submitting survey: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error submitting survey for session {session_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.get("/api/sessions/{session_id}/surveys")

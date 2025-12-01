@@ -195,6 +195,23 @@ class ScenarioL2(BaseScenario):
                            'status': 'Unauthorized entry into controlled airspace'
                        })
 
+        # ML PREDICTIONS (Condition 3 only) - predict events before they occur
+        # Predict comm failure 50 seconds before it occurs (at T+22s, predicting T+72s)
+        self.add_event('ml_prediction', 22.0, target='system',
+                       predicted_event='comm_failure',
+                       predicted_time=72.0,
+                       confidence=0.78,
+                       reasoning='Primary frequency 119.5 MHz showing signal degradation. Communication reliability decreasing, recommend monitoring status indicator.',
+                       suggested_action_ids=['check_comm_status', 'prepare_backup_freq'])
+
+        # Predict VFR intrusion 50 seconds before it occurs (at T+70s, predicting T+120s)
+        self.add_event('ml_prediction', 70.0, target='N456VF',
+                       predicted_event='vfr_intrusion',
+                       predicted_time=120.0,
+                       confidence=0.75,
+                       reasoning='Radar detecting unidentified aircraft approaching controlled airspace boundary from southwest. Pattern consistent with VFR traffic.',
+                       suggested_action_ids=['monitor_boundary', 'prepare_contact'])
+
     def _setup_sagat_probes(self) -> None:
         """Configure SAGAT probes for situation awareness measurement"""
         # Probe 1: T+1:00 (60s) - During trust building phase

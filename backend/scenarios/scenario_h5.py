@@ -242,6 +242,23 @@ class ScenarioH5(BaseScenario):
                        action='modify_altitude',
                        new_altitude=320)  # Climbing through FL320
 
+        # ML PREDICTIONS (Condition 3 only) - predict events before they occur
+        # Predict fuel emergency 50 seconds before it occurs (at T+22s, predicting T+72s)
+        self.add_event('ml_prediction', 22.0, target='UAL345',
+                       predicted_event='emergency',
+                       predicted_time=72.0,
+                       confidence=0.84,
+                       reasoning='UAL345 fuel consumption rate elevated due to weather avoidance routing. Current reserves trending toward critical threshold.',
+                       suggested_action_ids=['check_ual345_fuel', 'prepare_divert_options'])
+
+        # Predict altitude deviation 50 seconds before it occurs (at T+106s, predicting T+156s)
+        self.add_event('ml_prediction', 106.0, target='AAL300',
+                       predicted_event='altitude_deviation',
+                       predicted_time=156.0,
+                       confidence=0.79,
+                       reasoning='AAL300 pilot behavior pattern suggests potential unauthorized weather avoidance maneuver. Aircraft positioning inconsistent with assigned altitude.',
+                       suggested_action_ids=['verify_aal300_altitude', 'confirm_clearance'])
+
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 

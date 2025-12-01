@@ -220,6 +220,10 @@ class BaseScenario(ABC):
         self.max_simultaneous_alerts: int = 3  # Max non-critical alerts at once
         self.suppressed_alerts: List[Dict[str, Any]] = []  # Alerts that were suppressed
 
+        # ML Prediction tracking (for Condition 3)
+        self.resolved_predictions: set = set()  # Track which predictions user resolved
+        self.pending_predictions: Dict[str, Dict[str, Any]] = {}  # prediction_id -> prediction data
+
         # Event handler registry
         self._event_handlers: Dict[str, Callable[[ScenarioEvent], None]] = {
             'emergency': self._handle_emergency_event,
@@ -236,6 +240,7 @@ class BaseScenario(ABC):
             'false_alarm': self._handle_false_alarm_event,
             'delayed_alert': self._handle_delayed_alert_event,
             'internal': self._handle_internal_event,
+            'ml_prediction': self._handle_ml_prediction_event,
         }
 
     @abstractmethod
@@ -793,6 +798,101 @@ class BaseScenario(ABC):
                 aircraft.speed = data.get('new_speed', aircraft.speed)
                 print(f"  {target} speed: {old_spd} -> {aircraft.speed} kts")
 
+    def _handle_ml_prediction_event(self, event: ScenarioEvent) -> None:
+        """
+        Handle ML prediction events - generates early warning alerts (Condition 3 only).
+
+        ML predictions appear 45-60 seconds before the real event occurs, giving
+        controllers a chance to act proactively. If they act on the suggestion,
+        the real alert is prevented.
+        """
+        if self.condition != 3:
+            return  # Only for ML condition
+
+        data = event.data
+        target = event.target
+        predicted_event = data.get('predicted_event', 'unknown')
+        predicted_time = data.get('predicted_time', self.elapsed_time + 50)
+
+        # Create unique prediction ID for tracking
+        prediction_id = f"{target}_{predicted_event}"
+
+        # Store prediction for later resolution check
+        self.pending_predictions[prediction_id] = {
+            'target': target,
+            'predicted_event': predicted_event,
+            'predicted_time': predicted_time,
+            'prediction_time': self.elapsed_time,
+            'confidence': data.get('confidence', 0.80),
+            'reasoning': data.get('reasoning', ''),
+            'suggested_action_ids': data.get('suggested_action_ids', [])
+        }
+
+        print(f"  ML Prediction: {predicted_event} for {target} in {predicted_time - self.elapsed_time:.0f}s")
+
+        # Generate ML prediction alert
+        self.generate_alert('ml_prediction', target, {
+            'priority': 'medium',
+            'message': f'ML predicts {predicted_event.replace("_", " ")} for {target}',
+            'is_prediction': True,
+            'prediction_id': prediction_id,
+            'predicted_event': predicted_event,
+            'predicted_time': predicted_time,
+            'time_until_event': predicted_time - self.elapsed_time,
+            'confidence': data.get('confidence', 0.80),
+            'reasoning': data.get('reasoning', ''),
+            'suggested_action_ids': data.get('suggested_action_ids', []),
+            'ml_prediction': {
+                'confidence': data.get('confidence', 0.80),
+                'rationale': data.get('reasoning', 'ML model detected early signs of this event'),
+                'explanation': data.get('reasoning', '')
+            }
+        })
+
+    def resolve_prediction(self, prediction_id: str, action_taken: str = None) -> bool:
+        """
+        Mark an ML prediction as resolved by user action.
+
+        When a user acts on an ML suggestion, this prevents the real alert
+        from appearing when the predicted event would have occurred.
+
+        Args:
+            prediction_id: The prediction identifier (format: "target_event_type")
+            action_taken: The action the user took to resolve
+
+        Returns:
+            True if prediction was resolved, False if not found
+        """
+        if prediction_id in self.pending_predictions:
+            prediction = self.pending_predictions[prediction_id]
+            prediction['resolved'] = True
+            prediction['resolved_at'] = self.elapsed_time
+            prediction['action_taken'] = action_taken
+            self.resolved_predictions.add(prediction_id)
+            print(f"  ML Prediction resolved: {prediction_id} via action '{action_taken}'")
+            return True
+        return False
+
+    def should_show_real_alert(self, event_type: str, target: str) -> bool:
+        """
+        Check if real alert should be shown (not if prediction was resolved).
+
+        If the user acted on an ML prediction for this event, the real alert
+        is suppressed since the issue was proactively addressed.
+
+        Args:
+            event_type: Type of event (e.g., 'comm_loss', 'emergency')
+            target: Target aircraft or system
+
+        Returns:
+            True if real alert should be shown, False if prediction was resolved
+        """
+        prediction_id = f"{target}_{event_type}"
+        if prediction_id in self.resolved_predictions:
+            print(f"  Real alert suppressed: {event_type} for {target} (prediction was resolved)")
+            return False
+        return True
+
     def _check_sagat_probes(self) -> List[Dict[str, Any]]:
         """Check for SAGAT probes that should trigger"""
         triggered = []
@@ -979,6 +1079,23 @@ class BaseScenario(ABC):
         priority = data.get('priority', 'medium')
 
         # ===== SUPPRESSION LOGIC =====
+
+        # Check if ML prediction was resolved (Condition 3 only)
+        # Skip this check for ml_prediction alerts themselves
+        if self.condition == 3 and alert_type != 'ml_prediction':
+            # Don't suppress alerts that are marked as predictions themselves
+            if not data.get('is_prediction', False):
+                if not self.should_show_real_alert(alert_type, target):
+                    suppressed = {
+                        'alert_id': alert_id,
+                        'type': alert_type,
+                        'target': target,
+                        'priority': priority,
+                        'reason': 'ml_prediction_resolved',
+                        'suppressed_at': self.elapsed_time
+                    }
+                    self.suppressed_alerts.append(suppressed)
+                    return None
 
         # Check for duplicate/similar active alerts
         existing_alert = self._find_similar_alert(alert_type, target)

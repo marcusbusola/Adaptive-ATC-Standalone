@@ -345,7 +345,28 @@
 .session-body > .action-panel {
   flex-shrink: 0;
   border-radius: 5px;
-  overflow: hidden;
+  overflow-y: auto;  /* Allow scrolling when content overflows */
+  overflow-x: hidden;
+  max-height: calc(100vh - 120px); /* Constrain height to viewport minus header */
+}
+
+/* Custom scrollbar for action panel */
+.session-body > .action-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.session-body > .action-panel::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.session-body > .action-panel::-webkit-scrollbar-thumb {
+  background: rgba(74, 144, 226, 0.5);
+  border-radius: 4px;
+}
+
+.session-body > .action-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 144, 226, 0.7);
 }
 
 .debug-panel {

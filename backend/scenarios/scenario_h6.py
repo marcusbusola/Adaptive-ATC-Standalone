@@ -236,6 +236,24 @@ class ScenarioH6(BaseScenario):
                            'action_required': 'Immediate corrective action'
                        })
 
+        # ML PREDICTIONS (Condition 3 only) - predict events before they occur
+        # Predict false alarm with LOW confidence (at T+70s, predicting T+120s)
+        # This helps establish that ML shows confidence levels
+        self.add_event('ml_prediction', 70.0, target='UAL600',
+                       predicted_event='false_alarm',
+                       predicted_time=120.0,
+                       confidence=0.38,  # LOW confidence - helps preserve trust
+                       reasoning='Potential conflict detected between UAL600/SWA700, but trajectory analysis shows low probability. Recommend manual verification.',
+                       suggested_action_ids=['verify_separation', 'monitor_ual600_swa700'])
+
+        # Predict real conflict with HIGH confidence (at T+106s, predicting T+156s)
+        self.add_event('ml_prediction', 106.0, target='DAL300',
+                       predicted_event='conflict',
+                       predicted_time=156.0,
+                       confidence=0.94,  # HIGH confidence - distinguishes from false alarm
+                       reasoning='DAL300 and AAL900 converging at FL310. High confidence real conflict developing. Unlike previous alert, this trajectory analysis shows certain violation.',
+                       suggested_action_ids=['vector_dal300', 'altitude_change_aal900'])
+
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
 

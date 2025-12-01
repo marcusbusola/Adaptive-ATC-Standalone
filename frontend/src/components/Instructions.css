@@ -17,7 +17,9 @@
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
     text-align: center;
     width: 100%;
-    max-width: 700px;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
     line-height: 1.7;
     color: #333;
 }
@@ -69,6 +71,67 @@
 
 .instructions-card li strong {
     color: #333;
+}
+
+/* Section styling */
+.instructions-section {
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.instructions-section h2 {
+    color: #333;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.instructions-section h3 {
+    color: #555;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem 0;
+}
+
+/* Alert info section - highlighted */
+.alert-info-section {
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid #e0e6ff;
+    margin: 1.5rem 0;
+}
+
+.alert-info-section h2 {
+    color: #5a67d8;
+    border-bottom-color: #c3d0ff;
+}
+
+.alert-description {
+    font-size: 1.1rem;
+    color: #4a5568;
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+
+/* Tips list styling */
+.tips-list li {
+    background: #fff;
+    border-left-color: #48bb78;
+}
+
+.tips-list li::before {
+    content: "✓ ";
+    color: #48bb78;
+    font-weight: bold;
+}
+
+/* Ready text */
+.ready-text {
+    text-align: center;
+    margin-bottom: 0.5rem;
 }
 
 .continue-button {

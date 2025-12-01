@@ -366,6 +366,27 @@ function Session() {
             console.error('Failed to log alert acknowledgment:', err);
         }
 
+        // For ML predictions (Condition 3), resolve the prediction when accepted
+        // This prevents the real alert from appearing later
+        if (condition === 3 && actionTaken === 'accepted' && alert.details?.prediction_id) {
+            try {
+                const response = await fetch(`${API_URL}/api/sessions/${sessionId}/predictions/${alert.details.prediction_id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prediction_id: alert.details.prediction_id,
+                        action_taken: actionTaken,
+                        resolved_at: new Date().toISOString()
+                    })
+                });
+                if (response.ok) {
+                    console.log(`[ML Prediction] Prediction resolved: ${alert.details.prediction_id}`);
+                }
+            } catch (err) {
+                console.error('Failed to resolve ML prediction:', err);
+            }
+        }
+
         // Remove from active alerts
         setActiveAlerts(prev => prev.filter(a => a.id !== alert.id));
 
@@ -626,7 +647,7 @@ function Session() {
     }
 
     if (showInstructions) {
-        return <Instructions onContinue={handleContinueToExperiment} />;
+        return <Instructions onContinue={handleContinueToExperiment} condition={sessionDetails?.condition || 1} />;
     }
 
     // Show surveys after session ends

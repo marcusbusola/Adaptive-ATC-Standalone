@@ -164,6 +164,15 @@ class ScenarioL1(BaseScenario):
                            'type': 'Dual failure (voice + data)'
                        })
 
+        # ML PREDICTIONS (Condition 3 only) - 50 seconds before real events
+        # Predict comm loss 50 seconds before it occurs
+        self.add_event('ml_prediction', 106.0, target='AAL119',
+                       predicted_event='comm_loss',
+                       predicted_time=156.0,
+                       confidence=0.82,
+                       reasoning='AAL119 showing signs of radio degradation. Signal quality decreasing, possible equipment failure developing.',
+                       suggested_action_ids=['contact_guard', 'verify_position'])
+
     def _setup_sagat_probes(self) -> None:
         """Setup SAGAT situation awareness probes"""
         # Probe 1: T+1:00 (60s) - During emergency
