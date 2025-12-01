@@ -562,7 +562,7 @@ function Session() {
         if (resolvedAlerts.length > 0) {
             console.log('[Session] Action resolves pending alerts:', resolvedAlerts.map(a => a.id));
 
-            resolvedAlerts.forEach(alert => {
+            for (const alert of resolvedAlerts) {
                 // Clear the reappear timer
                 if (pendingAlertTimers.current[alert.id]) {
                     const timerId = pendingAlertTimers.current[alert.id];
@@ -574,11 +574,23 @@ function Session() {
                 // Show success toast
                 showSuccessToast(alert, actionData.action_label);
 
+                // Log to backend that the alert was resolved via this action
+                try {
+                    await logAlertAcknowledgment(sessionId, alert.id, {
+                        acknowledged_at: new Date().toISOString(),
+                        response_time_ms: null,
+                        action_taken: actionData.action_id,
+                        action_correct: true
+                    });
+                } catch (err) {
+                    console.error('Failed to record alert resolution via action:', err);
+                }
+
                 // Update alert history to mark as resolved
                 setAlertHistory(prev => prev.map(a =>
                     a.id === alert.id ? { ...a, resolved: true, resolvedBy: actionData.action_id } : a
                 ));
-            });
+            }
 
             // Remove resolved alerts from pending
             const resolvedIds = resolvedAlerts.map(a => a.id);

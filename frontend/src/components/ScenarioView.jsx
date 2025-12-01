@@ -1,6 +1,7 @@
 import React from 'react';
 import './ScenarioView.css';
 import useSimulation from '../hooks/useSimulation';
+import { logAlertAcknowledgment } from '../services/api';
 
 const ScenarioView = ({
   sessionId,
@@ -11,6 +12,30 @@ const ScenarioView = ({
   onEndScenario
 }) => {
   const { connected, state: simState } = useSimulation();
+
+  const handleAcknowledgeFirst = async () => {
+    const first = alerts?.[0];
+    if (!first) return;
+
+    const alertId = first.alert_id || first.id;
+    const timestamp = first.timestamp || first.displayed_at;
+    const responseTime = timestamp ? Date.now() - new Date(timestamp).getTime() : null;
+
+    try {
+      if (sessionId && alertId) {
+        await logAlertAcknowledgment(sessionId, alertId, {
+          acknowledged_at: new Date().toISOString(),
+          response_time_ms: responseTime
+        });
+      }
+    } catch (err) {
+      console.error('Failed to log alert acknowledgment from ScenarioView:', err);
+    }
+
+    if (onAlertAcknowledge && alertId) {
+      onAlertAcknowledge(alertId);
+    }
+  };
 
   return (
     <div className="scenario-view">
@@ -34,7 +59,7 @@ const ScenarioView = ({
         <div className="scenario-actions">
           <button className="btn" onClick={onEndScenario}>End Scenario</button>
           {alerts?.length > 0 && (
-            <button className="btn" onClick={() => onAlertAcknowledge(alerts[0].alert_id)}>Acknowledge First Alert</button>
+            <button className="btn" onClick={handleAcknowledgeFirst}>Acknowledge First Alert</button>
           )}
         </div>
       </div>

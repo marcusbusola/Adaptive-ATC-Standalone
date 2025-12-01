@@ -57,7 +57,8 @@ const useBehavioralTracking = (sessionId) => {
    * Add event to buffer
    */
   const addEvent = useCallback((eventType, eventData = {}) => {
-    if (!trackingActive || !sessionId) return;
+    const allowIfDisabled = eventType === 'tracking_started' || eventType === 'tracking_stopped';
+    if ((!trackingActive && !allowIfDisabled) || !sessionId) return;
 
     const event = {
       session_id: sessionId,

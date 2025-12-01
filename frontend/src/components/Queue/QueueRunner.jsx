@@ -114,29 +114,30 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
         throw new Error('Could not find pending item in queue');
       }
 
-      // Generate session ID
-      const newSessionId = `session_${queueId}_${itemIndex}_${Date.now()}`;
-
       // Start backend session with queue context
       const sessionResponse = await axios.post(`${API_URL}/api/sessions/start`, {
         scenario: currentItem.scenario_id,
         condition: currentItem.condition,
         participant_id: currentItem.participant_id,
-        session_id: newSessionId,
         queue_id: queueId,
         queue_item_index: itemIndex
       });
 
       console.log('Session started:', sessionResponse.data);
 
+      const createdSessionId = sessionResponse.data?.session_id;
+      if (!createdSessionId) {
+        throw new Error('Backend did not return a session_id');
+      }
+
       // Update local state
-      setSessionId(newSessionId);
+      setSessionId(createdSessionId);
       setSessionActive(true);
 
       // Notify parent component
       if (onSessionStart) {
         onSessionStart({
-          sessionId: newSessionId,
+          sessionId: createdSessionId,
           scenarioId: currentItem.scenario_id,
           condition: currentItem.condition,
           participantId: currentItem.participant_id,
@@ -149,7 +150,7 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
       const returnUrl = `/queue/${queueId}`;
 
       // Navigate to session route with return URL and queue context
-      window.location.href = `/session/${newSessionId}?returnTo=${encodeURIComponent(returnUrl)}&queueId=${queueId}&itemIndex=${itemIndex}`;
+      window.location.href = `/session/${createdSessionId}?returnTo=${encodeURIComponent(returnUrl)}&queueId=${queueId}&itemIndex=${itemIndex}`;
 
     } catch (err) {
       console.error('Error starting session:', err);

@@ -69,7 +69,8 @@ const SessionRunner = () => {
     startTracking,
     stopTracking,
     trackingActive,
-    getTrackedEvents
+    getTrackedEvents,
+    eventCount
   } = useBehavioralTracking(sessionId);
 
   // Load session data on mount
@@ -122,7 +123,7 @@ const SessionRunner = () => {
         final_state: {
           elapsed_time: scenarioState.elapsed_time,
           total_alerts: alerts.length,
-          tracked_events: getTrackedEvents().length
+          tracked_events: eventCount
         }
       });
 
@@ -250,7 +251,7 @@ const SessionRunner = () => {
       return (
         <SurveyScreen
           sessionId={sessionId}
-          sessionConfig={sessionConfig}
+          condition={sessionConfig?.condition}
           onComplete={handleSurveyComplete}
         />
       );

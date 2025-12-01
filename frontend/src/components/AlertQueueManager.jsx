@@ -204,7 +204,14 @@ function AlertQueueManager({
         <QueueOverlay $peeking={false}>
           <AlertContainer>
             <TraditionalModalAlert
-              alert={currentAlert}
+              alertId={currentAlert.alert_id || currentAlert.id}
+              title={currentAlert.title || currentAlert.message || 'Alert'}
+              message={currentAlert.message || currentAlert.description || 'Attention required'}
+              severity={currentAlert.severity || currentAlert.priority || 'warning'}
+              timestamp={
+                currentAlert.timestamp ||
+                (currentAlert.displayed_at ? new Date(currentAlert.displayed_at).getTime() : Date.now())
+              }
               onAcknowledge={(action) => handleAcknowledge(currentAlert.alert_id || currentAlert.id, action)}
               onDismiss={() => handleDismiss(currentAlert.alert_id || currentAlert.id)}
               suppressAudio={currentAlert.suppress_audio || currentAlert.is_reemit}

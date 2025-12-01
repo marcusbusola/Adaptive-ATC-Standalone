@@ -150,7 +150,9 @@ export async function logAlertAcknowledgment(sessionId, alertId, data) {
     method: 'POST',
     body: JSON.stringify({
       acknowledged_at: data.acknowledged_at,
-      response_time_ms: data.response_time_ms
+      response_time_ms: data.response_time_ms,
+      ...(data.action_taken ? { action_taken: data.action_taken } : {}),
+      ...(data.action_correct !== undefined ? { action_correct: data.action_correct } : {})
     })
   });
 }

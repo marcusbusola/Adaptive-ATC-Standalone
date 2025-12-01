@@ -62,12 +62,27 @@ const SurveyScreen = ({ sessionId, condition, onComplete }) => {
     setError(null);
 
     try {
-      const surveyData = {
-        session_id: sessionId,
+      const responses = {
         nasa_tlx: nasaTLX,
-        trust_scores: condition === 3 ? trust : null,
         alert_feedback: alertFeedback,
         qualitative_feedback: qualitative
+      };
+
+      if (condition === 3) {
+        responses.trust_scores = trust;
+      }
+
+      const surveyData = {
+        survey_type: 'post_session',
+        survey_phase: 'post',
+        duration_seconds: null,
+        responses: {
+          ...responses,
+          _metadata: {
+            condition: condition ?? null,
+            completed_at: new Date().toISOString()
+          }
+        }
       };
 
       await submitSurvey(sessionId, surveyData);
