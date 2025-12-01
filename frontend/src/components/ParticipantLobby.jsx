@@ -51,6 +51,8 @@ function ParticipantLobby() {
                 participant_id: nextSession.next_session.participant_id,
                 scenario: nextSession.next_session.scenario_id,
                 condition: nextSession.next_session.condition,
+                queue_id: nextSession.queue_id,
+                queue_item_index: nextSession.item_index
             };
 
             const response = await fetch(`${API_URL}/api/sessions/start`, {
@@ -66,7 +68,13 @@ function ParticipantLobby() {
             const sessionData = await response.json();
             
             // Redirect to the experiment page
-            navigate(`/session/${sessionData.session_id}`);
+            const params = new URLSearchParams();
+            if (nextSession.queue_id) params.set('queueId', nextSession.queue_id);
+            if (nextSession.item_index !== undefined && nextSession.item_index !== null) {
+                params.set('itemIndex', nextSession.item_index);
+            }
+            params.set('returnTo', '/participant');
+            navigate(`/session/${sessionData.session_id}?${params.toString()}`);
 
         } catch (err) {
             setError(err.message);

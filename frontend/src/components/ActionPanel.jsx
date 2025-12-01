@@ -24,6 +24,7 @@ const ActionPanel = ({
   const [actionHistory, setActionHistory] = useState([]);
   const [isLogging, setIsLogging] = useState(false);
   const [clickedActionId, setClickedActionId] = useState(null); // For click feedback animation
+  const [actionError, setActionError] = useState('');
 
   // Get scenario-specific configuration
   const scenarioConfig = useMemo(() => {
@@ -58,6 +59,7 @@ const ActionPanel = ({
     };
 
     setIsLogging(true);
+    setActionError('');
 
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/sessions/${sessionId}/behavioral-events`, {
@@ -74,19 +76,21 @@ const ActionPanel = ({
       });
 
       if (!response.ok) {
-        console.error('[ActionPanel] Failed to log action:', response.statusText);
+        const detail = await response.text().catch(() => response.statusText);
+        throw new Error(detail || response.statusText);
       }
+
+      // Only update local state if backend logging succeeded
+      setActionHistory(prev => [...prev, actionData]);
+
+      // Notify parent
+      onActionLogged?.(actionData);
     } catch (err) {
       console.error('[ActionPanel] Failed to log action:', err);
+      setActionError('Failed to log action. Please try again.');
     } finally {
       setIsLogging(false);
     }
-
-    // Update local history
-    setActionHistory(prev => [...prev, actionData]);
-
-    // Notify parent
-    onActionLogged?.(actionData);
   }, [sessionId, currentPhase, elapsedTime, phaseConfig, onActionLogged]);
 
   // Handle command button click with visual feedback
@@ -175,6 +179,11 @@ const ActionPanel = ({
         <h2>Action Panel</h2>
         <div className="elapsed-time">{formatTime(elapsedTime)}</div>
       </div>
+      {actionError && (
+        <div className="panel-section">
+          <div className="error-message">{actionError}</div>
+        </div>
+      )}
 
       {/* Situation Context */}
       <section className="panel-section situation-context">

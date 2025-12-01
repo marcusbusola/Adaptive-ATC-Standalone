@@ -148,6 +148,23 @@ class SessionQueue:
             self.items[index].error_message = error_message
             self.items[index].end_time = datetime.now().isoformat()
 
+    def reset_item(self, index: int) -> None:
+        """Reset an item to pending so it can be rerun (clears session metadata)."""
+        if 0 <= index < len(self.items):
+            item = self.items[index]
+            item.status = QueueItemStatus.PENDING
+            item.session_id = None
+            item.start_time = None
+            item.end_time = None
+            item.duration_seconds = None
+            item.error_message = None
+            item.results = None
+            # Move pointer back so this item is next in line
+            self.current_index = min(self.current_index, index)
+            # If queue had been marked completed, reopen it
+            if self.status == "completed":
+                self.status = "active"
+
     def is_complete(self) -> bool:
         """Check if queue is complete"""
         return all(

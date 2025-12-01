@@ -256,6 +256,8 @@ class SessionStartRequest(BaseModel):
     scenario: ScenarioType
     condition: ConditionType
     participant_id: str = Field(..., min_length=1, max_length=100)
+    queue_id: Optional[str] = None
+    queue_item_index: Optional[int] = None
 
 class SessionStartResponse(BaseModel):
     session_id: str
@@ -424,6 +426,24 @@ async def start_session(body: SessionStartRequest, request: Request):
             scenario=body.scenario.value,
             condition=body.condition.value,
         )
+
+        # If launched from a queue, mark the queue item as in progress and attach the session_id
+        if body.queue_id:
+            try:
+                qm = get_queue_manager()
+                queue = qm.get_queue(body.queue_id)
+                if not queue:
+                    logger.warning(f"Queue {body.queue_id} not found while starting session {session_id}")
+                elif body.queue_item_index is None:
+                    logger.warning(f"queue_item_index missing for queue {body.queue_id} while starting session {session_id}")
+                elif 0 <= body.queue_item_index < len(queue.items):
+                    queue.mark_item_started(body.queue_item_index, session_id)
+                    qm.update_queue(queue)
+                    logger.info(f"Marked queue {body.queue_id} item {body.queue_item_index} in progress for session {session_id}")
+                else:
+                    logger.warning(f"queue_item_index {body.queue_item_index} out of range for queue {body.queue_id}")
+            except Exception as e:
+                logger.warning(f"Failed to mark queue item started for session {session_id}: {e}")
 
         # Construct WebSocket URL using actual hostname from request
         # For Render deployment, use the RENDER_EXTERNAL_URL if available
@@ -1425,7 +1445,7 @@ async def get_next_queue_item(queue_id: str):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/api/queues/{queue_id}/items/{item_index}/complete", dependencies=[Depends(require_researcher_token)])
+@app.post("/api/queues/{queue_id}/items/{item_index}/complete")
 async def complete_queue_item(queue_id: str, item_index: int, request: Optional[QueueItemCompleteRequest] = None):
     """Mark a queue item as completed and persist the update."""
     try:
@@ -1477,6 +1497,29 @@ async def error_queue_item(queue_id: str, item_index: int, request: Optional[Que
         raise
     except Exception as e:
         logger.error(f"Error marking queue item {item_index} error for queue {queue_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/queues/{queue_id}/items/{item_index}/reset")
+async def reset_queue_item(queue_id: str, item_index: int):
+    """Reset a queue item to pending so it can be rerun (participant-safe)."""
+    try:
+        qm = get_queue_manager()
+        queue = qm.get_queue(queue_id)
+        if not queue:
+            raise HTTPException(status_code=404, detail=f"Queue {queue_id} not found")
+
+        if item_index < 0 or item_index >= len(queue.items):
+            raise HTTPException(status_code=404, detail=f"Queue item {item_index} not found")
+
+        queue.reset_item(item_index)
+        qm.update_queue(queue)
+
+        return {"status": "success", "queue": queue.to_dict(), "reset_item_index": item_index}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting queue item {item_index} for queue {queue_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.delete("/api/queues/{queue_id}", dependencies=[Depends(require_researcher_token)])

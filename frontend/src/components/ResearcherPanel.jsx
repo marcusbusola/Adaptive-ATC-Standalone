@@ -66,6 +66,12 @@ const ResearcherPanel = ({
     }
   }, [alerts, events, sessionActive]);
 
+  const getResponseTimeMs = (alert) => {
+    const val = alert.response_time_ms ?? alert.response_time;
+    const parsed = typeof val === 'string' ? parseFloat(val) : val;
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const loadInitialData = async () => {
     try {
       const [scenariosData, conditionsData] = await Promise.all([
@@ -81,9 +87,11 @@ const ResearcherPanel = ({
 
   const calculateMetrics = () => {
     // Calculate average response time
-    const acknowledgedAlerts = alerts.filter(a => a.response_time_ms);
+    const acknowledgedAlerts = alerts
+      .map(getResponseTimeMs)
+      .filter(rt => rt !== null);
     const avgResponseTime = acknowledgedAlerts.length > 0
-      ? acknowledgedAlerts.reduce((sum, a) => sum + a.response_time_ms, 0) / acknowledgedAlerts.length
+      ? acknowledgedAlerts.reduce((sum, rt) => sum + rt, 0) / acknowledgedAlerts.length
       : 0;
 
     // Calculate fixation ratio (example: mouse movements vs clicks)
@@ -392,9 +400,10 @@ const ResearcherPanel = ({
                           )}
                         </td>
                         <td>
-                          {alert.response_time_ms
-                            ? `${(alert.response_time_ms / 1000).toFixed(2)}s`
-                            : '-'}
+                          {(() => {
+                            const rtMs = getResponseTimeMs(alert);
+                            return rtMs !== null ? `${(rtMs / 1000).toFixed(2)}s` : '-';
+                          })()}
                         </td>
                       </tr>
                     ))}
