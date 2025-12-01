@@ -5,7 +5,7 @@
  * This file is auto-generated from backend/scenarios/scenario_manifest.json
  * Run: npm run generate-config (or it runs automatically on build)
  *
- * Generated at: 2025-12-01T00:15:55.549Z
+ * Generated at: 2025-12-01T15:21:49.631Z
  */
 
 export const scenarios = {

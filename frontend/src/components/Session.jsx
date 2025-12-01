@@ -553,7 +553,7 @@ function Session() {
     /**
      * Handle action logged from ActionPanel - check if it resolves any pending alerts
      */
-    const handleActionLogged = useCallback((actionData) => {
+    const handleActionLogged = useCallback(async (actionData) => {
         console.log('[Session] Action logged:', actionData);
 
         // Check if this action resolves any pending alerts
