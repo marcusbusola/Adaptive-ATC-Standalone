@@ -334,12 +334,22 @@ class SessionStartRequest(BaseModel):
     queue_id: Optional[str] = None
     queue_item_index: Optional[int] = None
 
+class QueueItemInfo(BaseModel):
+    """Queue item info for participant view (no sensitive data)"""
+    scenario_id: str
+    condition: int
+    status: str
+
 class SessionStartResponse(BaseModel):
     session_id: str
     scenario: ScenarioType
     condition: ConditionType
     websocket_url: str
     created_at: datetime
+    # Queue context for multi-scenario progression
+    queue_id: Optional[str] = None
+    queue_item_index: Optional[int] = None
+    queue_items: Optional[List[QueueItemInfo]] = None
 
 class SessionEndRequest(BaseModel):
     reason: Optional[str] = "completed"
@@ -581,13 +591,33 @@ async def start_session(body: SessionStartRequest, request: Request):
             else:
                 ws_url = f"{scheme}://{host}/ws/session/{session_id}"
 
+        # Build queue items list for multi-scenario progression
+        queue_items_info = None
+        if body.queue_id:
+            qm = get_queue_manager()
+            queue = qm.get_queue(body.queue_id)
+            if queue and queue.items:
+                queue_items_info = [
+                    QueueItemInfo(
+                        scenario_id=item.scenario_id,
+                        condition=item.condition,
+                        status=item.status.value if hasattr(item.status, 'value') else str(item.status)
+                    )
+                    for item in queue.items
+                ]
+
         return SessionStartResponse(
             session_id=session_id,
             scenario=body.scenario,
             condition=body.condition,
             websocket_url=ws_url,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            queue_id=body.queue_id,
+            queue_item_index=body.queue_item_index,
+            queue_items=queue_items_info
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to start session: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -814,6 +844,23 @@ async def get_session_details(session_id: str):
 
         session["aircraft_config"] = aircraft_config
         logger.info(f"[Aircraft Config] Added aircraft_config to session with {len(aircraft_config)} aircraft")
+
+        # Add queue information for multi-scenario progression (participant-accessible)
+        qm = get_queue_manager()
+        queue_result = qm.find_queue_by_session(session_id)
+        if queue_result:
+            queue, item_index = queue_result
+            session["queue_id"] = queue.queue_id
+            session["queue_item_index"] = item_index
+            session["queue_items"] = [
+                {
+                    "scenario_id": item.scenario_id,
+                    "condition": item.condition,
+                    "status": item.status.value if hasattr(item.status, 'value') else str(item.status)
+                }
+                for item in queue.items
+            ]
+            logger.info(f"[Queue] Added queue info for session {session_id}: queue={queue.queue_id}, index={item_index}, items={len(queue.items)}")
 
         return session
     except HTTPException:
@@ -1826,6 +1873,55 @@ async def reset_queue_item(queue_id: str, item_index: int):
     except Exception as e:
         logger.error(f"Error resetting queue item {item_index} for queue {queue_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/queues/{queue_id}/pause", dependencies=[Depends(require_researcher_token)])
+async def pause_queue(queue_id: str):
+    """Pause a queue to prevent new sessions from starting."""
+    try:
+        qm = get_queue_manager()
+        queue = qm.get_queue(queue_id)
+        if not queue:
+            raise HTTPException(status_code=404, detail=f"Queue {queue_id} not found")
+
+        if queue.status == "paused":
+            return {"status": "already_paused", "queue": queue.to_dict()}
+
+        queue.status = "paused"
+        qm.update_queue(queue)
+        logger.info(f"Queue {queue_id} paused")
+
+        return {"status": "success", "queue": queue.to_dict()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error pausing queue {queue_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/queues/{queue_id}/resume", dependencies=[Depends(require_researcher_token)])
+async def resume_queue(queue_id: str):
+    """Resume a paused queue to allow new sessions to start."""
+    try:
+        qm = get_queue_manager()
+        queue = qm.get_queue(queue_id)
+        if not queue:
+            raise HTTPException(status_code=404, detail=f"Queue {queue_id} not found")
+
+        if queue.status != "paused":
+            return {"status": "not_paused", "current_status": queue.status, "queue": queue.to_dict()}
+
+        queue.status = "active"
+        qm.update_queue(queue)
+        logger.info(f"Queue {queue_id} resumed")
+
+        return {"status": "success", "queue": queue.to_dict()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resuming queue {queue_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.delete("/api/queues/{queue_id}", dependencies=[Depends(require_researcher_token)])
 async def delete_queue(queue_id: str):

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 
 // Components
 import InstructionsScreen from './InstructionsScreen';
@@ -9,12 +8,10 @@ import SurveyScreen from './SurveyScreen';
 import DebugPanel from './DebugPanel';
 
 // Services
-import { endSession } from '../services/api';
+import { endSession, getSessionData, completeQueueItem } from '../services/api';
 import useWebSocket from '../hooks/useWebSocket';
 import useBehavioralTracking from '../hooks/useBehavioralTracking';
-import { getApiBaseUrl, buildWebSocketUrl } from '../utils/apiConfig';
-
-const API_URL = getApiBaseUrl();
+import { buildWebSocketUrl } from '../utils/apiConfig';
 
 // Session phases
 const PHASES = {
@@ -69,7 +66,6 @@ const SessionRunner = () => {
     startTracking,
     stopTracking,
     trackingActive,
-    getTrackedEvents,
     eventCount
   } = useBehavioralTracking(sessionId);
 
@@ -82,14 +78,14 @@ const SessionRunner = () => {
       }
 
       try {
-        const response = await axios.get(`${API_URL}/api/sessions/${sessionId}/data`);
+        const data = await getSessionData(sessionId);
 
-        if (response.data) {
-          setSessionData(response.data);
+        if (data) {
+          setSessionData(data);
           setSessionConfig({
-            participantId: response.data.participant_id,
-            scenario: response.data.scenario,
-            condition: response.data.condition
+            participantId: data.participant_id,
+            scenario: data.scenario,
+            condition: data.condition
           });
 
           // Construct WebSocket URL from configured API host/protocol
@@ -132,10 +128,7 @@ const SessionRunner = () => {
       // If part of a queue, mark queue item as completed
       if (queueId && itemIndex !== null) {
         try {
-          await axios.post(
-            `${API_URL}/api/queues/${queueId}/items/${itemIndex}/complete`,
-            { results: response.summary }
-          );
+          await completeQueueItem(queueId, itemIndex, { results: response.summary });
           console.log('Queue item marked as completed');
         } catch (err) {
           console.error('Failed to update queue status:', err);
@@ -151,7 +144,7 @@ const SessionRunner = () => {
       setError(err.message || 'Failed to end session');
       setLoading(false);
     }
-  }, [sessionId, trackingActive, stopTracking, alerts, scenarioState, getTrackedEvents, queueId, itemIndex]);
+  }, [sessionId, trackingActive, stopTracking, alerts, scenarioState, eventCount, queueId, itemIndex]);
 
   const handleSurveyComplete = useCallback(() => {
     setPhase(PHASES.COMPLETE);

@@ -73,12 +73,23 @@ class AlertSeverity(Enum):
 
 @dataclass
 class Aircraft:
-    """Aircraft state representation"""
+    """
+    Aircraft state representation for scenario simulation.
+
+    NOTE: This class uses RADAR COORDINATES (x, y in nautical miles from sector center),
+    NOT geographic lat/lon. This is distinct from simulation/aircraft.py which uses
+    geographic coordinates for the BlueSky-style simulation engine.
+
+    Coordinate System:
+    - position: (x, y) where x increases East, y increases North
+    - Values typically range 0-250 NM representing radar display
+    - Use _convert_to_bluesky_coords() in BaseScenario to convert to lat/lon if needed
+    """
     callsign: str
-    position: Tuple[float, float]  # (x, y) in nautical miles
+    position: Tuple[float, float]  # (x, y) in nautical miles from sector center
     altitude: int  # Flight level (e.g., 280 = FL280 = 28,000 ft)
-    heading: int  # Degrees (0-360)
-    speed: int  # Knots
+    heading: int  # Degrees (0-360, 0=North, 90=East)
+    speed: int  # Knots (ground speed)
 
     # Status flags
     emergency: bool = False
@@ -472,6 +483,13 @@ class BaseScenario(ABC):
         resolved_alerts = self._check_alert_resolution()
         reemit_alerts = self._check_alert_reemission()
 
+        # Detect conflicts using radar coordinates (matches frontend display)
+        detected_conflicts = self.detect_conflicts()
+
+        # Update gamification state (moods and safety score)
+        self._update_pilot_moods(dt)
+        self._update_safety_score(dt)
+
         return {
             'elapsed_time': self.elapsed_time,
             'current_phase': self.current_phase,
@@ -482,7 +500,12 @@ class BaseScenario(ABC):
             'measurements': self.measurements,
             'active_alerts': list(self.active_alerts.values()),
             'reemit_alerts': reemit_alerts,
-            'resolved_alerts': resolved_alerts
+            'resolved_alerts': resolved_alerts,
+            'detected_conflicts': detected_conflicts,
+            # Gamification data
+            'safety_score': self.safety_score,
+            'score_changes': self.score_changes[-5:] if self.score_changes else [],
+            'pilot_complaints': self.pilot_complaints[-3:] if self.pilot_complaints else []
         }
 
     def _check_and_trigger_events(self) -> List[Dict[str, Any]]:
@@ -950,6 +973,186 @@ class BaseScenario(ABC):
                 aircraft.position[1] + dy
             )
 
+    def calculate_separation(self, ac1: Aircraft, ac2: Aircraft) -> Tuple[float, float]:
+        """
+        Calculate separation between two aircraft using radar coordinates.
+
+        Uses 2D Euclidean distance which matches the frontend radar display.
+        This ensures collision detection aligns with what's visually shown.
+
+        Args:
+            ac1: First aircraft
+            ac2: Second aircraft
+
+        Returns:
+            Tuple of (horizontal_nm, vertical_ft):
+            - horizontal_nm: Horizontal separation in nautical miles
+            - vertical_ft: Vertical separation in feet
+        """
+        # 2D Euclidean distance for radar display coordinates (x, y in NM)
+        dx = ac1.position[0] - ac2.position[0]
+        dy = ac1.position[1] - ac2.position[1]
+        horizontal_nm = math.sqrt(dx**2 + dy**2)
+
+        # Vertical separation: flight levels to feet (FL * 100)
+        vertical_ft = abs(ac1.altitude - ac2.altitude) * 100
+
+        return horizontal_nm, vertical_ft
+
+    def detect_conflicts(self) -> List[Dict[str, Any]]:
+        """
+        Detect all conflicts between aircraft using radar coordinates.
+
+        Uses the same coordinate system as the frontend display, ensuring
+        collision detection matches the visual representation exactly.
+
+        Separation standards:
+        - Horizontal: 3.0 NM minimum
+        - Vertical: 1000 ft minimum
+
+        Returns:
+            List of conflict dictionaries containing:
+            - aircraft_1, aircraft_2: Callsigns of conflicting aircraft
+            - horizontal_separation_nm: Current horizontal separation
+            - vertical_separation_ft: Current vertical separation
+            - severity: 'warning', 'alert', or 'critical'
+            - position_1, position_2: Aircraft positions (x, y in NM)
+        """
+        MIN_HORIZONTAL_NM = 3.0
+        MIN_VERTICAL_FT = 1000
+
+        conflicts = []
+        aircraft_list = list(self.aircraft.values())
+
+        for i, ac1 in enumerate(aircraft_list):
+            for ac2 in aircraft_list[i + 1:]:
+                h_sep, v_sep = self.calculate_separation(ac1, ac2)
+
+                if h_sep < MIN_HORIZONTAL_NM and v_sep < MIN_VERTICAL_FT:
+                    # Determine severity based on separation
+                    if h_sep < 1.0 and v_sep < 500:
+                        severity = 'critical'
+                    elif h_sep < 2.0 and v_sep < 750:
+                        severity = 'alert'
+                    else:
+                        severity = 'warning'
+
+                    conflicts.append({
+                        'aircraft_1': ac1.callsign,
+                        'aircraft_2': ac2.callsign,
+                        'horizontal_separation_nm': round(h_sep, 2),
+                        'vertical_separation_ft': round(v_sep, 0),
+                        'severity': severity,
+                        'position_1': ac1.position,
+                        'position_2': ac2.position
+                    })
+
+        return conflicts
+
+    # ==================== GAMIFICATION METHODS ====================
+
+    def _update_pilot_moods(self, dt: float) -> None:
+        """
+        Update pilot moods based on time since last controller contact.
+
+        Mood transitions:
+        - Happy (default): Controller has contacted recently
+        - Annoyed: 45+ seconds since last contact
+        - Angry: 90+ seconds since last contact (also triggers complaint)
+        """
+        for aircraft in self.aircraft.values():
+            time_since_contact = self.elapsed_time - aircraft.last_contact_time
+
+            # Update mood based on thresholds
+            old_mood = aircraft.mood
+            if time_since_contact >= self.MOOD_ANGRY_THRESHOLD:
+                aircraft.mood = 'angry'
+            elif time_since_contact >= self.MOOD_ANNOYED_THRESHOLD:
+                aircraft.mood = 'annoyed'
+            else:
+                aircraft.mood = 'happy'
+
+            # Track angry time for metrics
+            if aircraft.mood == 'angry':
+                aircraft.total_angry_time += dt
+                aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_since_contact)
+
+                # File complaint once when crossing threshold (not every update)
+                if old_mood != 'angry' and time_since_contact >= self.COMPLAINT_THRESHOLD:
+                    self._file_pilot_complaint(aircraft)
+
+    def _update_safety_score(self, dt: float) -> None:
+        """
+        Update safety score based on current situation.
+
+        Scoring:
+        - -2 pts/sec per angry pilot
+        - -5 pts/sec per active conflict
+        - +1 pt/sec bonus when all is well (no conflicts, no angry pilots)
+        """
+        score_delta = 0.0
+        reasons = []
+
+        # Penalty for angry pilots
+        angry_count = sum(1 for ac in self.aircraft.values() if ac.mood == 'angry')
+        if angry_count > 0:
+            penalty = angry_count * self.ANGRY_PENALTY_PER_SECOND * dt
+            score_delta -= penalty
+            reasons.append(f"{angry_count} angry pilot{'s' if angry_count > 1 else ''}")
+
+        # Penalty for active conflicts (use cached result from update if available)
+        conflicts = self.detect_conflicts()
+        conflict_count = len(conflicts)
+        if conflict_count > 0:
+            penalty = conflict_count * self.CONFLICT_PENALTY_PER_SECOND * dt
+            score_delta -= penalty
+            reasons.append(f"{conflict_count} conflict{'s' if conflict_count > 1 else ''}")
+
+        # Bonus for all clear
+        if angry_count == 0 and conflict_count == 0:
+            bonus = self.HAPPY_BONUS_PER_SECOND * dt
+            score_delta += bonus
+            if len(self.score_changes) == 0 or self.score_changes[-1].get('reasons') != ['all clear']:
+                reasons.append('all clear')
+
+        # Apply score change (floor at 0)
+        old_score = self.safety_score
+        self.safety_score = max(0, int(self.safety_score + score_delta))
+
+        # Track significant changes (at least 1 point difference)
+        if abs(self.safety_score - old_score) >= 1 and reasons:
+            self.score_changes.append({
+                'time': round(self.elapsed_time, 1),
+                'delta': round(score_delta, 1),
+                'new_score': self.safety_score,
+                'reasons': reasons
+            })
+
+    def _file_pilot_complaint(self, aircraft: 'Aircraft') -> None:
+        """
+        Record a pilot complaint when they've been ignored too long.
+
+        Only files one complaint per aircraft per angry period.
+        """
+        # Check if we already have a recent complaint from this aircraft
+        recent_complaints = [
+            c for c in self.pilot_complaints
+            if c.get('callsign') == aircraft.callsign
+            and self.elapsed_time - c.get('time', 0) < 60  # No duplicate within 60s
+        ]
+
+        if not recent_complaints:
+            complaint = {
+                'callsign': aircraft.callsign,
+                'time': round(self.elapsed_time, 1),
+                'ignored_duration': round(self.elapsed_time - aircraft.last_contact_time, 1),
+                'message': f"{aircraft.callsign} is requesting immediate attention!"
+            }
+            self.pilot_complaints.append(complaint)
+            print(f"[COMPLAINT] {complaint['message']} (ignored for {complaint['ignored_duration']}s)")
+
+    # ==================== END GAMIFICATION METHODS ====================
+
     @abstractmethod
     def _update_current_phase(self) -> None:
         """Update current phase based on elapsed time"""
@@ -1043,6 +1246,17 @@ class BaseScenario(ABC):
 
         self.interactions.append(interaction)
         self._check_measurement_resolution(interaction_type, target)
+
+        # Gamification: Update last contact time when interacting with aircraft
+        if target in self.aircraft:
+            aircraft = self.aircraft[target]
+            aircraft.last_contact_time = self.elapsed_time
+
+            # Reset mood to happy on contact (pilot feels acknowledged)
+            if aircraft.mood in ['annoyed', 'angry']:
+                old_mood = aircraft.mood
+                aircraft.mood = 'happy'
+                print(f"[MOOD] {target} mood reset: {old_mood} → happy (controller contact)")
 
     def _check_measurement_resolution(self, interaction_type: str, target: str) -> None:
         """

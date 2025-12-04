@@ -22,7 +22,11 @@ const ActionPanel = ({
   pendingAlerts = [], // Alerts that are acknowledged but not yet resolved
   onActionLogged,
   selectedAircraft: externalSelectedAircraft = null, // External selection from Session
-  onAircraftSelect = null // Callback to sync selection with RadarViewer
+  onAircraftSelect = null, // Callback to sync selection with RadarViewer
+  // Gamification props
+  safetyScore = 1000,
+  scoreChanges = [],
+  pilotComplaints = []
 }) => {
   // Use external selection if provided, otherwise maintain internal state
   const [internalSelectedAircraft, setInternalSelectedAircraft] = useState(null);
@@ -327,6 +331,31 @@ const ActionPanel = ({
         <h2>Action Panel</h2>
         <div className="elapsed-time">{formatTime(elapsedTime)}</div>
       </div>
+
+      {/* Safety Score Display */}
+      <section className="panel-section safety-score-section">
+        <h3>Safety Score</h3>
+        <div className="safety-score-display">
+          <span className={`score-value ${safetyScore > 800 ? 'good' : safetyScore > 400 ? 'warning' : 'danger'}`}>
+            {safetyScore}
+          </span>
+          <span className="score-trend">
+            {scoreChanges.length > 0 && scoreChanges[scoreChanges.length - 1]?.delta > 0 ? '↑' :
+             scoreChanges.length > 0 && scoreChanges[scoreChanges.length - 1]?.delta < 0 ? '↓' : '—'}
+          </span>
+        </div>
+        {scoreChanges.length > 0 && scoreChanges[scoreChanges.length - 1]?.reasons && (
+          <div className="score-reason">
+            {scoreChanges[scoreChanges.length - 1].reasons.join(', ')}
+          </div>
+        )}
+        {pilotComplaints.length > 0 && (
+          <div className="pilot-complaint">
+            {pilotComplaints[pilotComplaints.length - 1]?.message}
+          </div>
+        )}
+      </section>
+
       {actionError && (
         <div className="panel-section">
           <div className="error-message">{actionError}</div>
@@ -357,20 +386,24 @@ const ActionPanel = ({
         <div className="aircraft-buttons">
           {aircraftList.map(ac => {
             const hasPendingAlert = aircraftWithPendingAlerts.has(ac.callsign);
+            const mood = ac.mood || 'happy';
             return (
               <button
                 key={ac.callsign}
                 className={`aircraft-btn ${selectedAircraftCallsign === ac.callsign ? 'selected' : ''}
                            ${ac.emergency ? 'emergency' : ''}
                            ${ac.comm_loss ? 'nordo' : ''}
-                           ${hasPendingAlert ? 'pending-alert' : ''}`}
+                           ${hasPendingAlert ? 'pending-alert' : ''}
+                           mood-${mood}`}
                 onClick={() => handleAircraftSelect(ac.callsign)}
-                title={`${ac.callsign} - FL${Math.floor((ac.altitude || 0) / 100)}${hasPendingAlert ? ' - ACTION REQUIRED' : ''}`}
+                title={`${ac.callsign} - FL${Math.floor((ac.altitude || 0) / 100)}${hasPendingAlert ? ' - ACTION REQUIRED' : ''}${mood !== 'happy' ? ` - Pilot ${mood}` : ''}`}
               >
                 {ac.callsign}
                 {ac.emergency && <span className="status-indicator emergency">!</span>}
                 {ac.comm_loss && <span className="status-indicator nordo">X</span>}
                 {hasPendingAlert && <span className="status-indicator pending">⚠</span>}
+                {mood === 'annoyed' && <span className="mood-indicator annoyed">😐</span>}
+                {mood === 'angry' && <span className="mood-indicator angry">😠</span>}
               </button>
             );
           })}
@@ -492,7 +525,10 @@ const ActionPanel = ({
 
       {/* Common ATC Commands */}
       <section className="panel-section common-commands">
-        <h3>ATC Commands</h3>
+        {/* Only show header if no Required Actions are displayed */}
+        {commandsForSelectedAircraft.length === 0 && (
+          <h3>ATC Commands</h3>
+        )}
         <div className="command-grid">
           {COMMON_COMMANDS.map(cmd => {
             const isClicked = clickedActionId === cmd.id;

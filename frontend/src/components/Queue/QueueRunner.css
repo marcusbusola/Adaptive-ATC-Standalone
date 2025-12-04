@@ -43,6 +43,38 @@
   color: white;
 }
 
+/* Header Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-pause {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #FF9800;
+  color: white;
+}
+
+.btn-pause:hover {
+  background: #F57C00;
+  transform: translateY(-1px);
+}
+
+.btn-pause.paused {
+  background: #4CAF50;
+}
+
+.btn-pause.paused:hover {
+  background: #388E3C;
+}
+
 /* Progress Section */
 .progress-section {
   margin: 20px 0;

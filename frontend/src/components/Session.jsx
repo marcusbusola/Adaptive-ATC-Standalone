@@ -68,6 +68,11 @@ function Session() {
     const [alertHistory, setAlertHistory] = useState([]);
     const [sagatProbes, setSagatProbes] = useState([]);
     const [scenarioComplete, setScenarioComplete] = useState(false);
+
+    // Gamification state
+    const [safetyScore, setSafetyScore] = useState(1000);
+    const [scoreChanges, setScoreChanges] = useState([]);
+    const [pilotComplaints, setPilotComplaints] = useState([]);
     const [showSurvey, setShowSurvey] = useState(false);
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
@@ -105,32 +110,20 @@ function Session() {
         }
     }, [sessionId]);
 
-    // Load queue data for multi-scenario flow
-    const loadQueueData = useCallback(async () => {
-        if (!queueId) {
-            return;
+    // Load queue data from session details (no auth required)
+    // Queue items are now embedded in the session details response
+    useEffect(() => {
+        if (sessionDetails?.queue_items && sessionDetails.queue_items.length > 0) {
+            console.log('[Session] Queue items loaded from session details:', sessionDetails.queue_items.length);
+            setQueueScenarios(sessionDetails.queue_items);
+            // Use queue_item_index from session details if available, otherwise from URL param
+            const idx = sessionDetails.queue_item_index ?? (parseInt(itemIndex) || 0);
+            setCurrentScenarioIndex(idx);
+        } else if (queueId) {
+            // Fallback: queue context in URL but not in session details (shouldn't happen normally)
+            console.warn('[Session] Queue ID in URL but no queue_items in session details');
         }
-
-        try {
-            const response = await fetch(`${API_URL}/api/queues/${queueId}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.status === 'success' && data.queue?.items) {
-                    setQueueScenarios(data.queue.items);
-                    const idx = parseInt(itemIndex) || 0;
-                    setCurrentScenarioIndex(idx);
-                } else {
-                    console.warn('[Session] Queue API returned unexpected data format:', data);
-                }
-            } else {
-                console.error('[Session] Queue API returned non-ok status:', response.status);
-            }
-        } catch (err) {
-            console.error('[Session] Failed to load queue data:', err);
-            // Non-fatal - continue with single scenario
-        }
-    }, [queueId, itemIndex]);
+    }, [sessionDetails?.queue_items, sessionDetails?.queue_item_index, itemIndex, queueId]);
 
     const handleEndSession = useCallback(async (reason = 'completed') => {
         // Stop timers
@@ -291,6 +284,17 @@ function Session() {
             setCurrentPhase(data.current_phase);
             setPhaseDescription(data.phase_description);
             setAircraft(data.aircraft || {});
+
+            // Update gamification state
+            if (data.safety_score !== undefined) {
+                setSafetyScore(data.safety_score);
+            }
+            if (data.score_changes) {
+                setScoreChanges(data.score_changes);
+            }
+            if (data.pilot_complaints) {
+                setPilotComplaints(data.pilot_complaints);
+            }
 
             // Handle triggered events (convert to alerts)
             if (data.triggered_events && data.triggered_events.length > 0) {
@@ -734,8 +738,8 @@ function Session() {
 
     useEffect(() => {
         fetchSessionDetails();
-        loadQueueData(); // Load queue for multi-scenario flow
-    }, [sessionId, fetchSessionDetails, loadQueueData]);
+        // Queue data is now loaded automatically via useEffect when sessionDetails arrives
+    }, [sessionId, fetchSessionDetails]);
 
     // Log when aircraftConfig is available
     useEffect(() => {
@@ -963,6 +967,10 @@ function Session() {
                     onActionLogged={handleActionLogged}
                     selectedAircraft={selectedAircraft}
                     onAircraftSelect={handleAircraftSelect}
+                    // Gamification props
+                    safetyScore={safetyScore}
+                    scoreChanges={scoreChanges}
+                    pilotComplaints={pilotComplaints}
                 />
             </div>
 

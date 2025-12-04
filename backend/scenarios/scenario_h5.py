@@ -40,6 +40,7 @@ KEY MEASUREMENTS:
 """
 
 from typing import Dict, Any
+from loguru import logger
 from .base_scenario import BaseScenario
 
 

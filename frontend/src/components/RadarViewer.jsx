@@ -379,6 +379,33 @@ function RadarViewer({
       return;
     }
 
+    // Draw mood ring FIRST (behind the aircraft symbol)
+    // Mood colors: happy=green, annoyed=yellow, angry=red
+    const moodColors = {
+      happy: '#00ff00',
+      annoyed: '#ffaa00',
+      angry: '#ff4444'
+    };
+    const mood = ac.mood || 'happy';
+    const moodColor = moodColors[mood] || moodColors.happy;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = moodColor;
+    ctx.lineWidth = mood === 'angry' ? 3 : 2;
+    ctx.stroke();
+
+    // Add pulsing glow for angry pilots
+    if (mood === 'angry') {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 16, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 68, 68, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+
     ctx.save();
     ctx.translate(pos.x, pos.y);
 

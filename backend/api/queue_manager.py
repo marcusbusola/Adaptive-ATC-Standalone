@@ -335,6 +335,19 @@ class QueueManager:
             'is_complete': queue.is_complete()
         }
 
+    def find_queue_by_session(self, session_id: str) -> Optional[tuple]:
+        """
+        Find a queue and item index that contains the given session_id.
+
+        Returns:
+            Tuple of (SessionQueue, item_index) if found, None otherwise
+        """
+        for queue in self.queues.values():
+            for idx, item in enumerate(queue.items):
+                if item.session_id == session_id:
+                    return (queue, idx)
+        return None
+
 
 # Singleton instance
 _queue_manager_instance: Optional[QueueManager] = None

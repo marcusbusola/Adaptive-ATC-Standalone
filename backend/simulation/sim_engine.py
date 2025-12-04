@@ -2,6 +2,17 @@
 Main simulation engine for ATC aircraft simulation.
 
 Uses simple kinematic physics for reliable aircraft movement.
+
+COORDINATE SYSTEM: This engine uses GEOGRAPHIC COORDINATES (lat/lon in degrees).
+All distance calculations use the haversine formula expecting decimal degrees.
+
+NOTE: This is a standalone simulation engine. The scenario system in
+scenarios/base_scenario.py uses its own Aircraft class with radar coordinates
+(x, y in NM). These are two separate systems:
+- sim_engine.py + simulation/aircraft.py: Geographic coordinates (lat/lon)
+- scenarios/*.py + base_scenario.Aircraft: Radar coordinates (x, y NM)
+
+If you need to convert between systems, use BaseScenario._convert_to_bluesky_coords()
 """
 
 import asyncio
@@ -21,8 +32,8 @@ KNOTS_TO_NM_PER_SEC = 1 / 3600  # 1 knot = 1 NM/hour
 MIN_HORIZONTAL_SEPARATION_NM = 3.0  # 3 nautical miles
 MIN_VERTICAL_SEPARATION_FT = 1000  # 1000 feet
 
-# Altitude change rate
-ALTITUDE_CHANGE_RATE = 2000  # feet per second
+# Altitude change rate (realistic commercial aircraft climb/descent rate)
+ALTITUDE_CHANGE_RATE_FPM = 2000  # feet per minute (standard for commercial aircraft)
 
 
 def calculate_distance_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -281,10 +292,11 @@ class SimulationEngine:
             aircraft.speed = aircraft.target_speed
             aircraft.target_speed = None
 
-        # GRADUAL ALTITUDE - change at 2000 ft/s
+        # GRADUAL ALTITUDE - change at realistic rate (2000 fpm)
         if aircraft.target_altitude is not None:
             alt_diff = aircraft.target_altitude - aircraft.altitude
-            max_change = ALTITUDE_CHANGE_RATE * dt
+            # Convert fpm to ft/sec: divide by 60
+            max_change = (ALTITUDE_CHANGE_RATE_FPM / 60.0) * dt
 
             if abs(alt_diff) <= max_change:
                 # Close enough - snap to target
@@ -295,10 +307,10 @@ class SimulationEngine:
                 # Move toward target
                 if alt_diff > 0:
                     aircraft.altitude += max_change
-                    aircraft.vertical_rate = ALTITUDE_CHANGE_RATE * 60  # Convert to fpm for display
+                    aircraft.vertical_rate = ALTITUDE_CHANGE_RATE_FPM  # Already in fpm for display
                 else:
                     aircraft.altitude -= max_change
-                    aircraft.vertical_rate = -ALTITUDE_CHANGE_RATE * 60
+                    aircraft.vertical_rate = -ALTITUDE_CHANGE_RATE_FPM
         else:
             aircraft.vertical_rate = 0
 

@@ -817,3 +817,140 @@
 .history-list::-webkit-scrollbar-thumb:hover {
   background: rgba(74, 144, 226, 0.7);
 }
+
+/* ==================== GAMIFICATION STYLES ==================== */
+
+/* Safety Score Section */
+.safety-score-section {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(74, 144, 226, 0.3);
+  border-radius: 4px;
+  margin: 8px;
+  padding: 12px !important;
+}
+
+.safety-score-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.safety-score-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.safety-score-display .score-value {
+  font-size: 32px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  transition: color 0.3s ease;
+}
+
+.safety-score-display .score-value.good {
+  color: #00ff00;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.safety-score-display .score-value.warning {
+  color: #ffaa00;
+  text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
+}
+
+.safety-score-display .score-value.danger {
+  color: #ff4444;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+  animation: pulse-danger 1s ease-in-out infinite;
+}
+
+.safety-score-display .score-trend {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.score-reason {
+  font-size: 10px;
+  color: #888;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.pilot-complaint {
+  font-size: 11px;
+  color: #ff6666;
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 68, 68, 0.1);
+  border-left: 3px solid #ff4444;
+  border-radius: 2px;
+  animation: flash-complaint 0.5s ease-in-out;
+}
+
+@keyframes pulse-danger {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes flash-complaint {
+  0%, 100% { background: rgba(255, 68, 68, 0.1); }
+  50% { background: rgba(255, 68, 68, 0.3); }
+}
+
+/* Mood-based Aircraft Button Styling */
+.aircraft-btn.mood-happy {
+  /* Default styling - no extra changes needed */
+}
+
+.aircraft-btn.mood-annoyed {
+  border-color: #ffaa00 !important;
+  box-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+}
+
+.aircraft-btn.mood-angry {
+  border-color: #ff4444 !important;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.5);
+  animation: pulse-angry 1s ease-in-out infinite;
+}
+
+@keyframes pulse-angry {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 68, 68, 0.8);
+  }
+}
+
+/* Mood Indicator Emoji */
+.mood-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 12px;
+  background: #1a1f3a;
+  border-radius: 50%;
+  padding: 2px;
+  line-height: 1;
+}
+
+.mood-indicator.annoyed {
+  filter: drop-shadow(0 0 4px rgba(255, 170, 0, 0.6));
+}
+
+.mood-indicator.angry {
+  filter: drop-shadow(0 0 4px rgba(255, 68, 68, 0.8));
+  animation: bounce-angry 0.5s ease-in-out infinite;
+}
+
+@keyframes bounce-angry {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Make aircraft button position relative for mood indicator positioning */
+.aircraft-btn {
+  position: relative;
+}

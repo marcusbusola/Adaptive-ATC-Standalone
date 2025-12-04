@@ -75,6 +75,13 @@ export async function getSession(sessionId) {
 }
 
 /**
+ * Get full session data (including scenario config)
+ */
+export async function getSessionData(sessionId) {
+  return await apiFetch(`/api/sessions/${sessionId}/data`);
+}
+
+/**
  * Update scenario state and get triggered events
  */
 export async function updateScenario(sessionId, elapsedTime) {
@@ -273,6 +280,18 @@ export async function getMLPredictionHistory(sessionId) {
   return await apiFetch(`/api/sessions/${sessionId}/ml-predictions`);
 }
 
+// ============ QUEUE MANAGEMENT ============
+
+/**
+ * Mark a queue item as completed
+ */
+export async function completeQueueItem(queueId, itemIndex, data = {}) {
+  return await apiFetch(`/api/queues/${queueId}/items/${itemIndex}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
 // ============ HEALTH CHECK ============
 
 /**
@@ -286,6 +305,7 @@ export default {
   startSession,
   endSession,
   getSession,
+  getSessionData,
   updateScenario,
   exportSessionData,
   fetchScenarios,
@@ -301,5 +321,6 @@ export default {
   getPerformanceSummary,
   getMLPrediction,
   getMLPredictionHistory,
+  completeQueueItem,
   healthCheck
 };

@@ -256,9 +256,8 @@ const useBehavioralTracking = (sessionId) => {
     }
 
     console.log('Stopping behavioral tracking');
-    setTrackingActive(false);
 
-    // Remove event listeners
+    // Remove event listeners first to prevent new events
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('click', handleClick);
     window.removeEventListener('mouseenter', handleMouseEnter, true);
@@ -274,16 +273,26 @@ const useBehavioralTracking = (sessionId) => {
       batchIntervalRef.current = null;
     }
 
-    // Send remaining events
+    // Add tracking stop event BEFORE sending final batch (so it's included)
+    // Note: We add directly to buffer since addEvent checks trackingActive
+    const stopEvent = {
+      session_id: sessionId,
+      event_type: 'tracking_stopped',
+      timestamp: Date.now(),
+      data: {
+        session_id: sessionId,
+        total_events: eventCount
+      }
+    };
+    eventsBufferRef.current.push(stopEvent);
+
+    // Now set tracking inactive
+    setTrackingActive(false);
+
+    // Send all remaining events including the stop event
     if (eventsBufferRef.current.length > 0) {
       sendBatch();
     }
-
-    // Log tracking stop event
-    addEvent('tracking_stopped', {
-      session_id: sessionId,
-      total_events: eventCount
-    });
   }, [
     handleMouseMove,
     handleClick,
@@ -295,8 +304,7 @@ const useBehavioralTracking = (sessionId) => {
     handleScroll,
     sendBatch,
     sessionId,
-    eventCount,
-    addEvent
+    eventCount
   ]);
 
   /**

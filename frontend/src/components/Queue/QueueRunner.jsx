@@ -14,7 +14,6 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
   const [error, setError] = useState(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionId, setSessionId] = useState(null);
-  const [autoAdvance, setAutoAdvance] = useState(false);
   const [activeSessions, setActiveSessions] = useState([]);
   const [sessionActionError, setSessionActionError] = useState('');
   const navigate = useNavigate();
@@ -93,12 +92,8 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
 
   // Initial load
   useEffect(() => {
-    const init = async () => {
-      await loadQueue();
-      await loadNextItem();
-    };
-    init();
-  }, [loadQueue, loadNextItem]);
+    loadQueue();
+  }, [loadQueue]);
 
   // Poll for queue updates every 5 seconds when session active
   useEffect(() => {
@@ -185,11 +180,9 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
         });
       }
 
-      // Construct return URL
-      const returnUrl = `/queue/${queueId}`;
-
       // Navigate to session route with return URL and queue context
-      window.location.href = `/session/${createdSessionId}?returnTo=${encodeURIComponent(returnUrl)}&queueId=${queueId}&itemIndex=${itemIndex}`;
+      const returnUrl = `/queue/${queueId}`;
+      navigate(`/session/${createdSessionId}?returnTo=${encodeURIComponent(returnUrl)}&queueId=${queueId}&itemIndex=${itemIndex}`);
 
     } catch (err) {
       console.error('Error starting session:', err);
@@ -200,6 +193,7 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
           setError('Participant already has an active session. Resume below.');
           setSessionId(existingSessionId);
           setSessionActive(true);
+          setLoading(false);
           return;
         }
       }
@@ -228,6 +222,22 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
 
   const handleViewSession = (id) => {
     navigate(`/researcher/${id}`);
+  };
+
+  // Pause/Resume queue
+  const handleTogglePause = async () => {
+    setSessionActionError('');
+    try {
+      const isPaused = queue?.status === 'paused';
+      const endpoint = isPaused ? 'resume' : 'pause';
+      await axios.post(`${API_URL}/api/queues/${queueId}/${endpoint}`, {}, {
+        headers: getAuthHeaders()
+      });
+      await loadQueue();
+    } catch (err) {
+      console.error('Failed to toggle queue pause:', err);
+      setSessionActionError(`Failed to ${queue?.status === 'paused' ? 'resume' : 'pause'} queue.`);
+    }
   };
 
   // Complete current session
@@ -262,13 +272,8 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
       const nextItem = await loadNextItem();
 
       // Check if queue is complete
-      if (!nextItem) {
-        if (onQueueComplete) {
-          onQueueComplete(queue);
-        }
-      } else if (autoAdvance) {
-        // Auto-advance to next session
-        setTimeout(() => handleStartNext(), 2000);
+      if (!nextItem && onQueueComplete) {
+        onQueueComplete(queue);
       }
 
     } catch (err) {
@@ -361,7 +366,18 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
     <div className="queue-runner">
       <div className="queue-runner-header">
         <h2>Queue: {queue.participant_id}</h2>
-        <span className={`queue-status ${queue.status}`}>{queue.status}</span>
+        <div className="header-actions">
+          <span className={`queue-status ${queue.status}`}>{queue.status}</span>
+          {!isComplete && (
+            <button
+              className={`btn-pause ${queue.status === 'paused' ? 'paused' : ''}`}
+              onClick={handleTogglePause}
+              title={queue.status === 'paused' ? 'Resume queue' : 'Pause queue'}
+            >
+              {queue.status === 'paused' ? '▶ Resume' : '⏸ Pause'}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -467,7 +483,7 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
               <p className="status-info">A session is currently in progress.</p>
               <button
                 className="btn-resume"
-                onClick={() => window.location.href = `/session/${currentItem.session_id}?queueId=${queueId}&itemIndex=${queue.items.findIndex(i => i.session_id === currentItem.session_id)}`}
+                onClick={() => navigate(`/session/${currentItem.session_id}?queueId=${queueId}&itemIndex=${queue.items.findIndex(i => i.session_id === currentItem.session_id)}`)}
               >
                 Resume Session
               </button>

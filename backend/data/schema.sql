@@ -497,6 +497,9 @@ LEFT JOIN alerts a ON s.session_id = a.session_id
 GROUP BY s.participant_id;
 
 -- View: Scenario Difficulty
+-- Note: SQLite doesn't support STDDEV. For PostgreSQL, you can add:
+--   STDDEV(s.performance_score) as performance_std_dev
+-- For SQLite, we compute variance manually using the formula: sqrt(avg(x^2) - avg(x)^2)
 CREATE VIEW IF NOT EXISTS v_scenario_difficulty AS
 SELECT
     s.scenario,
@@ -505,7 +508,13 @@ SELECT
     AVG(s.duration_seconds) as avg_duration,
     AVG(s.total_alerts) as avg_alerts,
     AVG(a.response_time) as avg_response_time,
-    STDDEV(s.performance_score) as performance_std_dev
+    -- SQLite-compatible standard deviation approximation
+    -- Formula: sqrt(E[X^2] - E[X]^2)
+    CASE
+        WHEN COUNT(s.performance_score) > 1 THEN
+            SQRT(AVG(s.performance_score * s.performance_score) - AVG(s.performance_score) * AVG(s.performance_score))
+        ELSE NULL
+    END as performance_std_dev
 FROM sessions s
 LEFT JOIN alerts a ON s.session_id = a.session_id
 WHERE s.status = 'completed'

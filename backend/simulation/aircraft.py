@@ -1,5 +1,13 @@
 """
 Aircraft state model for ATC simulation.
+
+NOTE: This module uses GEOGRAPHIC COORDINATES (lat/lon in degrees) for the
+standalone simulation engine (sim_engine.py). This is distinct from
+scenarios/base_scenario.py Aircraft class which uses radar coordinates (x, y in NM).
+
+The sim_engine uses these coordinates with haversine formula for accurate
+distance calculations. If integrating with scenarios, use Aircraft.from_config()
+which handles coordinate conversion.
 """
 
 from dataclasses import dataclass, field
@@ -9,13 +17,22 @@ from datetime import datetime
 
 @dataclass
 class Aircraft:
-    """Represents an aircraft in the simulation."""
+    """
+    Represents an aircraft in the simulation using geographic coordinates.
+
+    Coordinate System:
+    - lat/lon: Geographic coordinates in decimal degrees
+    - lat: -90 to 90 (negative = South)
+    - lon: -180 to 180 (negative = West)
+
+    For radar coordinate conversion, see scenarios/base_scenario.py
+    """
 
     callsign: str
-    lat: float
-    lon: float
-    altitude: float  # feet
-    heading: float  # degrees (0-360)
+    lat: float  # Latitude in decimal degrees
+    lon: float  # Longitude in decimal degrees
+    altitude: float  # feet (not flight level)
+    heading: float  # degrees (0-360, 0=North, 90=East)
     speed: float  # knots (ground speed)
 
     # Target values for autopilot
