@@ -274,7 +274,7 @@ class SessionEndRequest(BaseModel):
 class SessionEndResponse(BaseModel):
     session_id: str
     summary: Dict[str, Any]
-    ended_at: datetime
+    ended_at: Optional[datetime] = None  # Optional for safety
 
 class ScenarioUpdateRequest(BaseModel):
     elapsed_time: float
@@ -761,24 +761,33 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
         final_state = request.final_state if request else None
         performance_score = request.performance_score if request else None
 
-        # Get final scenario state if active
+        # 1. Try to get final scenario state if active (with error handling)
         if session_id in active_scenarios:
             scenario = active_scenarios[session_id]
             if final_state is None:
-                final_state = scenario.get_results()
+                try:
+                    final_state = scenario.get_results()
+                    logger.info(f"Got results for session {session_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to get scenario results for {session_id}: {e}")
+                    final_state = {"error": "Could not retrieve results", "reason": str(e)}
             # Remove from active scenarios
             del active_scenarios[session_id]
         else:
-            # Scenario not in memory (possibly crashed) - try to recover from checkpoint
+            logger.info(f"Session {session_id} not in active_scenarios, trying checkpoint recovery")
+            # 2. Try checkpoint recovery (with error handling)
             if final_state is None:
-                checkpoint = await db_manager.get_session_checkpoint(session_id)
-                if checkpoint:
-                    final_state = checkpoint['data']
-                    final_state['recovered_from_checkpoint'] = True
-                    final_state['checkpoint_at'] = checkpoint['checkpoint_at']
-                    logger.info(f"Recovered session {session_id} from checkpoint at {checkpoint['checkpoint_at']}")
+                try:
+                    checkpoint = await db_manager.get_session_checkpoint(session_id)
+                    if checkpoint:
+                        final_state = checkpoint['data']
+                        final_state['recovered_from_checkpoint'] = True
+                        final_state['checkpoint_at'] = checkpoint['checkpoint_at']
+                        logger.info(f"Recovered session {session_id} from checkpoint at {checkpoint['checkpoint_at']}")
+                except Exception as e:
+                    logger.warning(f"Failed to get checkpoint for {session_id}: {e}")
 
-        # Close WebSocket if connected
+        # 3. Close WebSocket if connected (already wrapped)
         if session_id in websocket_connections:
             try:
                 await websocket_connections[session_id].close()
@@ -786,6 +795,7 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
                 pass
             del websocket_connections[session_id]
 
+        # 4. End session in database
         success = await db_manager.end_session(
             session_id=session_id,
             end_reason=reason,
@@ -796,15 +806,15 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
         if not success:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found or could not be ended.")
 
-        # Fetch the updated session to return summary
+        # 5. Fetch the updated session with safe key access
         session = await db_manager.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found after ending.")
 
         summary = {
-            "participant_id": session["participant_id"],
-            "scenario": session["scenario"],
-            "condition": session["condition"],
+            "participant_id": session.get("participant_id"),
+            "scenario": session.get("scenario"),
+            "condition": session.get("condition"),
             "duration_seconds": session.get("duration_seconds", 0),
             "performance_score": session.get("performance_score"),
             "end_reason": session.get("end_reason")
@@ -813,7 +823,7 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
         return SessionEndResponse(
             session_id=session_id,
             summary=summary,
-            ended_at=session["ended_at"]
+            ended_at=session.get("ended_at")  # Use .get() for safety
         )
 
     except HTTPException:

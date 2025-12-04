@@ -115,22 +115,35 @@ function Session() {
 
     // Load queue data for multi-scenario flow
     const loadQueueData = useCallback(async () => {
-        if (!queueId) return;
+        console.log('[Session] loadQueueData called with:', { queueId, itemIndex });
+
+        if (!queueId) {
+            console.log('[Session] No queueId, skipping queue load');
+            return;
+        }
 
         try {
+            console.log('[Session] Fetching queue from:', `${API_URL}/api/queues/${queueId}`);
             const response = await fetch(`${API_URL}/api/queues/${queueId}`);
+            console.log('[Session] Queue API response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log('[Session] Queue API response data:', data);
                 if (data.status === 'success' && data.queue?.items) {
                     setQueueScenarios(data.queue.items);
                     const idx = parseInt(itemIndex) || 0;
                     setCurrentScenarioIndex(idx);
-                    console.log('[Session] Queue loaded:', {
+                    console.log('[Session] Queue loaded successfully:', {
                         totalScenarios: data.queue.items.length,
                         currentIndex: idx,
                         scenarios: data.queue.items.map(i => i.scenario_id)
                     });
+                } else {
+                    console.warn('[Session] Queue API returned unexpected data format:', data);
                 }
+            } else {
+                console.error('[Session] Queue API returned non-ok status:', response.status);
             }
         } catch (err) {
             console.error('[Session] Failed to load queue data:', err);
