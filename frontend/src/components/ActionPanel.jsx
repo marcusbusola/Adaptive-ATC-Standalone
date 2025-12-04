@@ -23,6 +23,7 @@ const ActionPanel = ({
   onActionLogged,
   selectedAircraft: externalSelectedAircraft = null, // External selection from Session
   onAircraftSelect = null, // Callback to sync selection with RadarViewer
+  conflicts = [], // Separation conflicts between aircraft
   // Gamification props
   safetyScore = 1000,
   scoreChanges = [],
@@ -277,6 +278,16 @@ const ActionPanel = ({
     return pendingAlerts.filter(alert => alert.target === selectedAircraftCallsign);
   }, [selectedAircraftCallsign, pendingAlerts]);
 
+  // Conflicts involving the selected aircraft
+  const conflictsForSelectedAircraft = useMemo(() => {
+    if (!selectedAircraftCallsign || !conflicts.length) return [];
+    return conflicts.filter(
+      conflict =>
+        conflict.aircraft_1 === selectedAircraftCallsign ||
+        conflict.aircraft_2 === selectedAircraftCallsign
+    );
+  }, [selectedAircraftCallsign, conflicts]);
+
   // Commands for selected aircraft (only if it has alerts)
   const commandsForSelectedAircraft = useMemo(() => {
     if (!alertsForSelectedAircraft.length || !phaseConfig?.availableActions) return [];
@@ -413,47 +424,50 @@ const ActionPanel = ({
         </div>
       </section>
 
-      {/* Dynamic Content Area - shows aircraft info or scenario commands based on state */}
+      {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
       <section className="panel-section dynamic-content">
         {selectedAircraftData ? (
-          // AIRCRAFT SELECTED: Show info + commands if aircraft has alerts
+          // AIRCRAFT SELECTED: Show conflicts, commands, and full info
           <>
             <h3>Selected: {selectedAircraftData.callsign}</h3>
-            <div className="aircraft-telemetry">
-              <div className="telemetry-row">
-                <span className="telemetry-label">Altitude:</span>
-                <span className="telemetry-value">{Math.floor(selectedAircraftData.altitude || 0).toLocaleString()} ft</span>
-                {selectedAircraftData.target_altitude && selectedAircraftData.target_altitude !== selectedAircraftData.altitude && (
-                  <span className="telemetry-target">
-                    {selectedAircraftData.target_altitude > selectedAircraftData.altitude ? '↑' : '↓'} {Math.floor(selectedAircraftData.target_altitude).toLocaleString()} ft
-                  </span>
-                )}
-              </div>
-              {selectedAircraftData.vertical_rate && Math.abs(selectedAircraftData.vertical_rate) > 50 && (
-                <div className="telemetry-row sub">
-                  <span className="telemetry-label">V/S:</span>
-                  <span className="telemetry-value vs">{selectedAircraftData.vertical_rate > 0 ? '+' : ''}{Math.floor(selectedAircraftData.vertical_rate)} fpm</span>
-                </div>
-              )}
-              <div className="telemetry-row">
-                <span className="telemetry-label">Speed:</span>
-                <span className="telemetry-value">{Math.floor(selectedAircraftData.speed || 0)} kts</span>
-              </div>
-              <div className="telemetry-row">
-                <span className="telemetry-label">Heading:</span>
-                <span className="telemetry-value">{Math.floor(selectedAircraftData.heading || 0)}°</span>
-              </div>
-              {(selectedAircraftData.emergency || selectedAircraftData.comm_loss) && (
-                <div className="telemetry-row status">
-                  <span className="telemetry-label">Status:</span>
-                  <span className={`telemetry-value ${selectedAircraftData.emergency ? 'emergency' : 'nordo'}`}>
-                    {selectedAircraftData.emergency ? 'EMERGENCY' : 'COMM LOSS'}
-                  </span>
-                </div>
-              )}
-            </div>
 
-            {/* Commands for this aircraft (only shown if aircraft has alerts) */}
+            {/* Conflict Warnings - shown first if aircraft is in conflict */}
+            {conflictsForSelectedAircraft.length > 0 && (
+              <div className="conflict-warning-box">
+                <div className="conflict-warning-header">
+                  <span className="conflict-icon">⚠</span>
+                  <span>SEPARATION WARNING</span>
+                </div>
+                {conflictsForSelectedAircraft.map((conflict, idx) => {
+                  const otherAircraft = conflict.aircraft_1 === selectedAircraftCallsign
+                    ? conflict.aircraft_2
+                    : conflict.aircraft_1;
+                  return (
+                    <div key={idx} className={`conflict-detail severity-${conflict.severity}`}>
+                      <div className="conflict-with">
+                        <span className="conflict-label">With:</span>
+                        <span className="conflict-callsign">{otherAircraft}</span>
+                      </div>
+                      <div className="conflict-separation">
+                        <span className="separation-item">
+                          <span className="sep-label">H:</span>
+                          <span className="sep-value">{conflict.horizontal_separation_nm} nm</span>
+                        </span>
+                        <span className="separation-item">
+                          <span className="sep-label">V:</span>
+                          <span className="sep-value">{conflict.vertical_separation_ft} ft</span>
+                        </span>
+                      </div>
+                      <span className={`severity-badge ${conflict.severity}`}>
+                        {conflict.severity.toUpperCase()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Commands for this aircraft (shown if aircraft has alerts) */}
             {commandsForSelectedAircraft.length > 0 && (
               <div className="aircraft-commands">
                 <h4>Required Actions</h4>
@@ -483,6 +497,73 @@ const ActionPanel = ({
                 </div>
               </div>
             )}
+
+            {/* Full Aircraft Information */}
+            <div className="aircraft-info-section">
+              <h4>Aircraft Information</h4>
+              <div className="aircraft-telemetry">
+                {/* Flight Data */}
+                <div className="telemetry-row">
+                  <span className="telemetry-label">Altitude:</span>
+                  <span className="telemetry-value">{Math.floor(selectedAircraftData.altitude || 0).toLocaleString()} ft</span>
+                  {selectedAircraftData.target_altitude && selectedAircraftData.target_altitude !== selectedAircraftData.altitude && (
+                    <span className="telemetry-target">
+                      {selectedAircraftData.target_altitude > selectedAircraftData.altitude ? '↑' : '↓'} {Math.floor(selectedAircraftData.target_altitude).toLocaleString()} ft
+                    </span>
+                  )}
+                </div>
+                {selectedAircraftData.vertical_rate && Math.abs(selectedAircraftData.vertical_rate) > 50 && (
+                  <div className="telemetry-row sub">
+                    <span className="telemetry-label">V/S:</span>
+                    <span className="telemetry-value vs">{selectedAircraftData.vertical_rate > 0 ? '+' : ''}{Math.floor(selectedAircraftData.vertical_rate)} fpm</span>
+                  </div>
+                )}
+                <div className="telemetry-row">
+                  <span className="telemetry-label">Speed:</span>
+                  <span className="telemetry-value">{Math.floor(selectedAircraftData.speed || 0)} kts</span>
+                </div>
+                <div className="telemetry-row">
+                  <span className="telemetry-label">Heading:</span>
+                  <span className="telemetry-value">{Math.floor(selectedAircraftData.heading || 0)}°</span>
+                </div>
+
+                {/* Extended Info - Destination, Route, Fuel */}
+                {selectedAircraftData.destination && (
+                  <div className="telemetry-row">
+                    <span className="telemetry-label">Destination:</span>
+                    <span className="telemetry-value destination">{selectedAircraftData.destination}</span>
+                  </div>
+                )}
+                {selectedAircraftData.route && (
+                  <div className="telemetry-row">
+                    <span className="telemetry-label">Route:</span>
+                    <span className="telemetry-value route">{selectedAircraftData.route}</span>
+                  </div>
+                )}
+                {selectedAircraftData.fuel_remaining && (
+                  <div className="telemetry-row">
+                    <span className="telemetry-label">Fuel:</span>
+                    <span className={`telemetry-value ${selectedAircraftData.fuel_remaining < 30 ? 'fuel-low' : ''}`}>
+                      {selectedAircraftData.fuel_remaining} min
+                    </span>
+                  </div>
+                )}
+
+                {/* Status */}
+                <div className="telemetry-row status">
+                  <span className="telemetry-label">Status:</span>
+                  {selectedAircraftData.emergency ? (
+                    <span className="telemetry-value emergency">
+                      EMERGENCY{selectedAircraftData.emergency_type ? ` (${selectedAircraftData.emergency_type})` : ''}
+                    </span>
+                  ) : selectedAircraftData.comm_status === 'lost' || selectedAircraftData.comm_loss ? (
+                    <span className="telemetry-value nordo">COMM LOSS</span>
+                  ) : (
+                    <span className="telemetry-value normal">NORMAL</span>
+                  )}
+                </div>
+              </div>
+            </div>
           </>
         ) : pendingAlerts.length > 0 ? (
           // NO SELECTION + PENDING ALERTS: Show alert-related commands

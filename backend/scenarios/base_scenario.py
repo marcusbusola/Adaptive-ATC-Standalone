@@ -108,6 +108,15 @@ class Aircraft:
     total_angry_time: float = 0.0  # Total seconds spent angry (for complaints)
     max_ignored_time: float = 0.0  # Maximum time ignored in a single stretch
 
+    # Per-aircraft safety score (0-100)
+    safety_score: int = 100  # Decreases with unresolved issues, increases when happy
+
+    # Issue tracking for mood system
+    has_issue: bool = False  # Does aircraft have an active issue?
+    issue_type: Optional[str] = None  # Type of issue (emergency, conflict, comm_loss, etc.)
+    issue_start_time: float = 0.0  # When the issue started
+    issue_resolved: bool = False  # Was the issue resolved?
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -130,7 +139,13 @@ class Aircraft:
             'last_contact_time': self.last_contact_time,
             'mood': self.mood,
             'total_angry_time': self.total_angry_time,
-            'max_ignored_time': self.max_ignored_time
+            'max_ignored_time': self.max_ignored_time,
+            'safety_score': self.safety_score,
+            # Issue tracking
+            'has_issue': self.has_issue,
+            'issue_type': self.issue_type,
+            'issue_start_time': self.issue_start_time,
+            'issue_resolved': self.issue_resolved
         }
 
 
@@ -486,8 +501,9 @@ class BaseScenario(ABC):
         # Detect conflicts using radar coordinates (matches frontend display)
         detected_conflicts = self.detect_conflicts()
 
-        # Update gamification state (moods and safety score)
+        # Update gamification state (moods, per-aircraft safety scores, and global safety score)
         self._update_pilot_moods(dt)
+        self._update_aircraft_safety_scores(dt)
         self._update_safety_score(dt)
 
         return {
@@ -552,6 +568,9 @@ class BaseScenario(ABC):
             if 'fuel' in aircraft.emergency_type.lower():
                 aircraft.fuel_remaining = event.data.get('fuel_remaining', 20)
 
+            # Trigger issue for mood/safety tracking
+            self.trigger_issue(event.target, f"emergency_{aircraft.emergency_type}")
+
             print(f"  {aircraft.callsign} declares {aircraft.emergency_type} emergency")
 
     def _handle_comm_loss_event(self, event: ScenarioEvent) -> None:
@@ -569,6 +588,9 @@ class BaseScenario(ABC):
                 'detection_delay': None,
                 'resolution_delay': None
             }
+
+            # Trigger issue for mood/safety tracking
+            self.trigger_issue(event.target, 'comm_loss')
 
             print(f"  {aircraft.callsign} lost communication")
 
@@ -635,6 +657,8 @@ class BaseScenario(ABC):
         aircraft = self.aircraft.get(target)
         if aircraft:
             aircraft.altitude = actual
+            # Trigger issue for mood/safety tracking
+            self.trigger_issue(target, 'altitude_deviation')
 
     def _handle_conflict_event(self, event: ScenarioEvent) -> None:
         """
@@ -660,6 +684,11 @@ class BaseScenario(ABC):
             'separation_at_detection': separation,
             'alert_delayed': data.get('alert_delayed', False)
         }
+
+        # Trigger issues for both aircraft involved in conflict
+        self.trigger_issue(aircraft1, 'conflict')
+        if aircraft2:
+            self.trigger_issue(aircraft2, 'conflict')
 
     def _handle_aircraft_spawn_event(self, event: ScenarioEvent) -> None:
         """
@@ -707,6 +736,9 @@ class BaseScenario(ABC):
             'position': data.get('position'),
             'altitude': data.get('altitude')
         })
+
+        # Trigger issue for the intruding aircraft
+        self.trigger_issue(target, 'vfr_intrusion')
 
     def _handle_comm_failure_event(self, event: ScenarioEvent) -> None:
         """
@@ -1053,21 +1085,29 @@ class BaseScenario(ABC):
 
     def _update_pilot_moods(self, dt: float) -> None:
         """
-        Update pilot moods based on time since last controller contact.
+        Update pilot moods based on unresolved issues.
 
-        Mood transitions:
-        - Happy (default): Controller has contacted recently
-        - Annoyed: 45+ seconds since last contact
-        - Angry: 90+ seconds since last contact (also triggers complaint)
+        Mood transitions (issue-based):
+        - Happy (default): No active issue OR issue has been resolved
+        - Annoyed: Has unresolved issue for 45+ seconds
+        - Angry: Has unresolved issue for 90+ seconds (also triggers complaint)
+
+        Pilots without issues are always happy.
         """
         for aircraft in self.aircraft.values():
-            time_since_contact = self.elapsed_time - aircraft.last_contact_time
-
-            # Update mood based on thresholds
             old_mood = aircraft.mood
-            if time_since_contact >= self.MOOD_ANGRY_THRESHOLD:
+
+            # No issue or issue resolved = always happy
+            if not aircraft.has_issue or aircraft.issue_resolved:
+                aircraft.mood = 'happy'
+                continue
+
+            # Has unresolved issue - mood degrades based on time since issue started
+            time_since_issue = self.elapsed_time - aircraft.issue_start_time
+
+            if time_since_issue >= self.MOOD_ANGRY_THRESHOLD:
                 aircraft.mood = 'angry'
-            elif time_since_contact >= self.MOOD_ANNOYED_THRESHOLD:
+            elif time_since_issue >= self.MOOD_ANNOYED_THRESHOLD:
                 aircraft.mood = 'annoyed'
             else:
                 aircraft.mood = 'happy'
@@ -1075,10 +1115,10 @@ class BaseScenario(ABC):
             # Track angry time for metrics
             if aircraft.mood == 'angry':
                 aircraft.total_angry_time += dt
-                aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_since_contact)
+                aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_since_issue)
 
                 # File complaint once when crossing threshold (not every update)
-                if old_mood != 'angry' and time_since_contact >= self.COMPLAINT_THRESHOLD:
+                if old_mood != 'angry' and time_since_issue >= self.COMPLAINT_THRESHOLD:
                     self._file_pilot_complaint(aircraft)
 
     def _update_safety_score(self, dt: float) -> None:
@@ -1145,11 +1185,72 @@ class BaseScenario(ABC):
             complaint = {
                 'callsign': aircraft.callsign,
                 'time': round(self.elapsed_time, 1),
-                'ignored_duration': round(self.elapsed_time - aircraft.last_contact_time, 1),
+                'ignored_duration': round(self.elapsed_time - aircraft.issue_start_time, 1) if aircraft.has_issue else 0,
+                'issue_type': aircraft.issue_type,
                 'message': f"{aircraft.callsign} is requesting immediate attention!"
             }
             self.pilot_complaints.append(complaint)
-            print(f"[COMPLAINT] {complaint['message']} (ignored for {complaint['ignored_duration']}s)")
+            print(f"[COMPLAINT] {complaint['message']} (unresolved issue for {complaint['ignored_duration']}s)")
+
+    def _update_aircraft_safety_scores(self, dt: float) -> None:
+        """
+        Update individual aircraft safety scores based on their issue status.
+
+        Scoring per aircraft:
+        - Decrease if aircraft has unresolved issue (-1 pt/sec)
+        - Increase if aircraft is happy with no issues (+0.5 pt/sec)
+        - Score range: 0-100
+        """
+        for aircraft in self.aircraft.values():
+            if aircraft.has_issue and not aircraft.issue_resolved:
+                # Decrease score for unresolved issues
+                aircraft.safety_score = max(0, aircraft.safety_score - 1 * dt)
+            elif aircraft.mood == 'happy' and not aircraft.has_issue:
+                # Slowly recover score when happy and no issues
+                aircraft.safety_score = min(100, aircraft.safety_score + 0.5 * dt)
+
+    def trigger_issue(self, callsign: str, issue_type: str) -> bool:
+        """
+        Mark an aircraft as having an active issue that needs resolution.
+
+        Args:
+            callsign: Aircraft callsign
+            issue_type: Type of issue (e.g., 'emergency', 'conflict', 'comm_loss', 'altitude_deviation')
+
+        Returns:
+            True if issue was triggered, False if aircraft not found
+        """
+        if callsign in self.aircraft:
+            aircraft = self.aircraft[callsign]
+            # Only set issue if not already having one
+            if not aircraft.has_issue:
+                aircraft.has_issue = True
+                aircraft.issue_type = issue_type
+                aircraft.issue_start_time = self.elapsed_time
+                aircraft.issue_resolved = False
+                print(f"[ISSUE] {callsign}: {issue_type} triggered at {self.elapsed_time:.1f}s")
+            return True
+        return False
+
+    def resolve_issue(self, callsign: str) -> bool:
+        """
+        Mark an aircraft's issue as resolved, resetting mood to happy.
+
+        Args:
+            callsign: Aircraft callsign
+
+        Returns:
+            True if issue was resolved, False if aircraft not found or no issue
+        """
+        if callsign in self.aircraft:
+            aircraft = self.aircraft[callsign]
+            if aircraft.has_issue:
+                aircraft.issue_resolved = True
+                aircraft.has_issue = False
+                aircraft.mood = 'happy'
+                print(f"[RESOLVED] {callsign}: issue resolved at {self.elapsed_time:.1f}s")
+                return True
+        return False
 
     # ==================== END GAMIFICATION METHODS ====================
 
@@ -1252,11 +1353,15 @@ class BaseScenario(ABC):
             aircraft = self.aircraft[target]
             aircraft.last_contact_time = self.elapsed_time
 
-            # Reset mood to happy on contact (pilot feels acknowledged)
-            if aircraft.mood in ['annoyed', 'angry']:
-                old_mood = aircraft.mood
-                aircraft.mood = 'happy'
-                print(f"[MOOD] {target} mood reset: {old_mood} → happy (controller contact)")
+            # Resolution interactions resolve the aircraft's issue
+            resolution_interactions = [
+                'command', 'clearance', 'frequency_change',
+                'altitude_command', 'heading_command', 'speed_command',
+                'vector', 'handoff', 'acknowledge', 'radio_contact',
+                'dismiss', 'clear', 'resolve'
+            ]
+            if interaction_type in resolution_interactions and aircraft.has_issue:
+                self.resolve_issue(target)
 
     def _check_measurement_resolution(self, interaction_type: str, target: str) -> None:
         """

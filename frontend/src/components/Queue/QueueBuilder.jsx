@@ -28,6 +28,7 @@ const QueueBuilder = ({ onQueueCreated }) => {
   const [randomizeOrder, setRandomizeOrder] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
   const toggleScenario = (scenarioId) => {
@@ -91,6 +92,7 @@ const QueueBuilder = ({ onQueueCreated }) => {
 
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const response = await axios.post(`${API_URL}/api/queues/create`, {
@@ -109,36 +111,16 @@ const QueueBuilder = ({ onQueueCreated }) => {
 
       if (response.data.status === 'success') {
         const queue = response.data.queue;
-        const firstItem = queue.items[0];
 
         // Call callback with queue info (for monitoring)
         if (onQueueCreated) {
           onQueueCreated(queue);
         }
 
-        // Auto-start first session immediately
-        try {
-          const sessionResponse = await axios.post(`${API_URL}/api/sessions/start`, {
-            scenario: firstItem.scenario_id,
-            condition: firstItem.condition,
-            participant_id: firstItem.participant_id,
-            queue_id: queue.queue_id,
-            queue_item_index: 0
-          }, {
-            headers: getAuthHeaders()
-          });
+        // Show success message - queue stays queued until participant starts it
+        setSuccessMessage(`Queue created successfully! Queue ID: ${queue.queue_id}. Participant can start via the Participant Lobby.`);
 
-          if (sessionResponse.data?.session_id) {
-            // Navigate directly to the session - it will handle multi-scenario flow
-            window.location.href = `/session/${sessionResponse.data.session_id}?queueId=${queue.queue_id}&itemIndex=0`;
-            return; // Don't reset form, we're navigating away
-          }
-        } catch (sessionErr) {
-          console.error('Error starting first session:', sessionErr);
-          setError('Queue created but failed to start first session. Go to Run Sessions tab to continue.');
-        }
-
-        // Reset form only if we didn't navigate away
+        // Reset form
         setParticipantId('');
         setSelectedScenarios([]);
         setSelectedCondition(null);
@@ -165,6 +147,12 @@ const QueueBuilder = ({ onQueueCreated }) => {
       {error && (
         <div className="error-message">
           {error}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="success-message">
+          {successMessage}
         </div>
       )}
 

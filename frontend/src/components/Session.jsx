@@ -65,6 +65,7 @@ function Session() {
     const [activeAlerts, setActiveAlerts] = useState([]);
     const [pendingAlerts, setPendingAlerts] = useState([]); // Acknowledged but not resolved
     const [successToasts, setSuccessToasts] = useState([]); // Success notifications
+    const [conflicts, setConflicts] = useState([]); // Aircraft separation conflicts
     const [alertHistory, setAlertHistory] = useState([]);
     const [sagatProbes, setSagatProbes] = useState([]);
     const [scenarioComplete, setScenarioComplete] = useState(false);
@@ -294,6 +295,11 @@ function Session() {
             }
             if (data.pilot_complaints) {
                 setPilotComplaints(data.pilot_complaints);
+            }
+
+            // Update conflicts (separation violations)
+            if (data.detected_conflicts) {
+                setConflicts(data.detected_conflicts);
             }
 
             // Handle triggered events (convert to alerts)
@@ -967,6 +973,7 @@ function Session() {
                     onActionLogged={handleActionLogged}
                     selectedAircraft={selectedAircraft}
                     onAircraftSelect={handleAircraftSelect}
+                    conflicts={conflicts}
                     // Gamification props
                     safetyScore={safetyScore}
                     scoreChanges={scoreChanges}

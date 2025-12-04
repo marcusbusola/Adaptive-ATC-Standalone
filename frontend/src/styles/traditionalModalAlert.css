@@ -27,6 +27,7 @@
 
 .traditional-modal-overlay.visible {
   opacity: 1;
+  pointer-events: auto;  /* Enable clicks when modal is visible */
 }
 
 /* ============================================================================

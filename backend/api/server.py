@@ -338,6 +338,7 @@ class QueueItemInfo(BaseModel):
     """Queue item info for participant view (no sensitive data)"""
     scenario_id: str
     condition: int
+    participant_id: Optional[str] = None
     status: str
 
 class SessionStartResponse(BaseModel):
@@ -601,6 +602,7 @@ async def start_session(body: SessionStartRequest, request: Request):
                     QueueItemInfo(
                         scenario_id=item.scenario_id,
                         condition=item.condition,
+                        participant_id=item.participant_id,
                         status=item.status.value if hasattr(item.status, 'value') else str(item.status)
                     )
                     for item in queue.items
@@ -856,6 +858,7 @@ async def get_session_details(session_id: str):
                 {
                     "scenario_id": item.scenario_id,
                     "condition": item.condition,
+                    "participant_id": item.participant_id,
                     "status": item.status.value if hasattr(item.status, 'value') else str(item.status)
                 }
                 for item in queue.items
