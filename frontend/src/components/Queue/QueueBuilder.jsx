@@ -108,12 +108,37 @@ const QueueBuilder = ({ onQueueCreated }) => {
       });
 
       if (response.data.status === 'success') {
-        // Call callback with queue info
+        const queue = response.data.queue;
+        const firstItem = queue.items[0];
+
+        // Call callback with queue info (for monitoring)
         if (onQueueCreated) {
-          onQueueCreated(response.data.queue);
+          onQueueCreated(queue);
         }
 
-        // Reset form
+        // Auto-start first session immediately
+        try {
+          const sessionResponse = await axios.post(`${API_URL}/api/sessions/start`, {
+            scenario: firstItem.scenario_id,
+            condition: firstItem.condition,
+            participant_id: firstItem.participant_id,
+            queue_id: queue.queue_id,
+            queue_item_index: 0
+          }, {
+            headers: getAuthHeaders()
+          });
+
+          if (sessionResponse.data?.session_id) {
+            // Navigate directly to the session - it will handle multi-scenario flow
+            window.location.href = `/session/${sessionResponse.data.session_id}?queueId=${queue.queue_id}&itemIndex=0`;
+            return; // Don't reset form, we're navigating away
+          }
+        } catch (sessionErr) {
+          console.error('Error starting first session:', sessionErr);
+          setError('Queue created but failed to start first session. Go to Run Sessions tab to continue.');
+        }
+
+        // Reset form only if we didn't navigate away
         setParticipantId('');
         setSelectedScenarios([]);
         setSelectedCondition(null);

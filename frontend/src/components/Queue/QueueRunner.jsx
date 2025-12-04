@@ -420,28 +420,24 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
         </div>
       )}
 
-      {/* Controls */}
+      {/* Status Message */}
       {!isComplete && (
-        <div className="queue-controls">
-          <div className="control-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={autoAdvance}
-                onChange={(e) => setAutoAdvance(e.target.checked)}
-                disabled={sessionActive}
-              />
-              <span>Auto-advance to next session</span>
-            </label>
-          </div>
-
-          <button
-            className="btn-start-next"
-            onClick={handleStartNext}
-            disabled={loading || sessionActive || !currentItem}
-          >
-            {loading ? 'Starting...' : sessionActive ? 'Session Active' : 'Start Next Session'}
-          </button>
+        <div className="queue-status-message">
+          {currentItem?.status === 'in_progress' && currentItem?.session_id ? (
+            <div className="resume-section">
+              <p className="status-info">A session is currently in progress.</p>
+              <button
+                className="btn-resume"
+                onClick={() => window.location.href = `/session/${currentItem.session_id}?queueId=${queueId}&itemIndex=${queue.items.findIndex(i => i.session_id === currentItem.session_id)}`}
+              >
+                Resume Session
+              </button>
+            </div>
+          ) : (
+            <p className="status-info">
+              Sessions run automatically. Create a new queue from Build Queue to start.
+            </p>
+          )}
         </div>
       )}
 

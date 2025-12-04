@@ -9,6 +9,7 @@ import MLPredictiveAlert from './MLPredictiveAlert';
 import SurveyManager from './Surveys/SurveyManager';
 import CommandPalette from './CommandPalette';
 import { SuccessToastContainer } from './SuccessToast';
+import ScenarioTransition from './ScenarioTransition';
 import { logBehavioralEvent, logAlertDisplay, logAlertAcknowledgment } from '../services/api';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { SCENARIO_ACTIONS } from '../config/scenarioActions';
@@ -19,6 +20,27 @@ const API_URL = getApiBaseUrl();
 
 // Polling interval in milliseconds
 const POLLING_INTERVAL = 2000;
+
+// Event types that should generate visible alerts to participants
+// Internal events (phase_transition, internal, aircraft_spawn) are excluded
+const ALERT_EVENT_TYPES = [
+    'emergency',
+    'comm_loss',
+    'conflict',
+    'weather',
+    'altitude_deviation',
+    'vfr_intrusion',
+    'comm_failure',
+    'system_crash',
+    'conflict_threshold',
+    'false_alarm',
+    'delayed_alert'
+];
+
+// Event types that are condition-specific
+const CONDITION_SPECIFIC_EVENTS = {
+    'ml_prediction': 3  // Only show ML predictions for Condition 3
+};
 
 // Time in milliseconds before acknowledged alert reappears if not resolved
 const ALERT_HIDE_DURATION = 15000;
@@ -49,6 +71,12 @@ function Session() {
     const [showSurvey, setShowSurvey] = useState(false);
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
+
+    // Multi-scenario queue state
+    const [queueScenarios, setQueueScenarios] = useState([]); // All scenarios in queue
+    const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
+    const [showTransition, setShowTransition] = useState(false);
+    const [isLoadingNextScenario, setIsLoadingNextScenario] = useState(false);
 
     const timerRef = useRef(null);
     const pollingRef = useRef(null);
@@ -85,6 +113,31 @@ function Session() {
         }
     }, [sessionId]);
 
+    // Load queue data for multi-scenario flow
+    const loadQueueData = useCallback(async () => {
+        if (!queueId) return;
+
+        try {
+            const response = await fetch(`${API_URL}/api/queues/${queueId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success' && data.queue?.items) {
+                    setQueueScenarios(data.queue.items);
+                    const idx = parseInt(itemIndex) || 0;
+                    setCurrentScenarioIndex(idx);
+                    console.log('[Session] Queue loaded:', {
+                        totalScenarios: data.queue.items.length,
+                        currentIndex: idx,
+                        scenarios: data.queue.items.map(i => i.scenario_id)
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('[Session] Failed to load queue data:', err);
+            // Non-fatal - continue with single scenario
+        }
+    }, [queueId, itemIndex]);
+
     const handleEndSession = useCallback(async (reason = 'completed') => {
         // Stop timers
         if (timerRef.current) {
@@ -120,20 +173,31 @@ function Session() {
                     });
                 } catch (err) {
                     console.error('Failed to update queue:', err);
-                    // Don't block survey flow if queue update fails
+                    // Don't block flow if queue update fails
                 }
             }
 
-            // Show brief completion message before surveys
-            setShowSurveyIntro(true);
-            setTimeout(() => setShowSurvey(true), 1000);
-            setScenarioComplete(true);
+            // Check if there are more scenarios in the queue
+            const hasMoreScenarios = queueScenarios.length > 0 && currentScenarioIndex < queueScenarios.length - 1;
+
+            if (hasMoreScenarios) {
+                // Show transition screen instead of surveys
+                console.log('[Session] More scenarios remaining, showing transition');
+                setScenarioComplete(true);
+                setShowTransition(true);
+            } else {
+                // Last scenario (or no queue) - show surveys
+                console.log('[Session] Last scenario or no queue, showing surveys');
+                setShowSurveyIntro(true);
+                setTimeout(() => setShowSurvey(true), 1000);
+                setScenarioComplete(true);
+            }
         } catch (err) {
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, queueId, itemIndex]);
+    }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex]);
 
     const handleSurveyComplete = useCallback((data) => {
         console.log('Surveys completed:', data);
@@ -149,6 +213,59 @@ function Session() {
             }
         }, 2000);
     }, [returnTo, navigate]);
+
+    // Handle transition countdown complete - start next scenario
+    const handleTransitionComplete = useCallback(async () => {
+        if (isLoadingNextScenario) return;
+
+        setIsLoadingNextScenario(true);
+        const nextIndex = currentScenarioIndex + 1;
+        const nextScenario = queueScenarios[nextIndex];
+
+        if (!nextScenario) {
+            console.error('[Session] No next scenario found');
+            setShowTransition(false);
+            setShowSurvey(true);
+            return;
+        }
+
+        console.log('[Session] Starting next scenario:', {
+            index: nextIndex,
+            scenarioId: nextScenario.scenario_id,
+            condition: nextScenario.condition
+        });
+
+        try {
+            // Start new session on backend
+            const response = await fetch(`${API_URL}/api/sessions/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scenario: nextScenario.scenario_id,
+                    condition: nextScenario.condition,
+                    participant_id: nextScenario.participant_id,
+                    queue_id: queueId,
+                    queue_item_index: nextIndex
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to start next scenario');
+            }
+
+            const data = await response.json();
+            const newSessionId = data.session_id;
+
+            // Navigate to new session
+            window.location.href = `/session/${newSessionId}?queueId=${queueId}&itemIndex=${nextIndex}`;
+
+        } catch (err) {
+            console.error('[Session] Failed to start next scenario:', err);
+            setError('Failed to start next scenario. Please try again.');
+            setShowTransition(false);
+            setIsLoadingNextScenario(false);
+        }
+    }, [currentScenarioIndex, queueScenarios, queueId, isLoadingNextScenario]);
 
     // CRITICAL: Polling loop to get triggered events from backend
     const pollScenarioUpdate = useCallback(async () => {
@@ -211,10 +328,29 @@ function Session() {
 
     // Convert scenario events to alerts based on condition
     // Uses stable alert IDs to deduplicate and enable proper escalation
+    // Filters out internal events (phase_transition, aircraft_spawn, internal)
+    // and condition-specific events (ml_prediction only for Condition 3)
     const processTriggeredEvents = async (events) => {
         const condition = sessionDetails?.condition || 1;
 
         for (const event of events) {
+            // Filter out internal/infrastructure events that shouldn't be shown to users
+            if (!ALERT_EVENT_TYPES.includes(event.event_type)) {
+                // Check if it's a condition-specific event
+                const requiredCondition = CONDITION_SPECIFIC_EVENTS[event.event_type];
+                if (requiredCondition !== undefined) {
+                    // Only show if we're in the correct condition
+                    if (condition !== requiredCondition) {
+                        console.log(`[Alert] Skipping ${event.event_type} - only for Condition ${requiredCondition}, current: ${condition}`);
+                        continue;
+                    }
+                } else {
+                    // Internal event (phase_transition, internal, aircraft_spawn) - skip entirely
+                    console.log(`[Alert] Skipping internal event: ${event.event_type}`);
+                    continue;
+                }
+            }
+
             // Stable alert ID based on event type + target (no timestamp)
             const alertId = `alert_${event.event_type}_${event.target}`;
             const newPriority = event.data?.priority || 'medium';
@@ -602,7 +738,8 @@ function Session() {
 
     useEffect(() => {
         fetchSessionDetails();
-    }, [sessionId, fetchSessionDetails]);
+        loadQueueData(); // Load queue for multi-scenario flow
+    }, [sessionId, fetchSessionDetails, loadQueueData]);
 
     // Log when aircraftConfig is available
     useEffect(() => {
@@ -732,6 +869,23 @@ function Session() {
 
     if (showInstructions) {
         return <Instructions onContinue={handleContinueToExperiment} condition={sessionDetails?.condition || 1} />;
+    }
+
+    // Show transition screen between scenarios
+    if (showTransition && queueScenarios.length > currentScenarioIndex + 1) {
+        const currentScenario = queueScenarios[currentScenarioIndex];
+        const nextScenario = queueScenarios[currentScenarioIndex + 1];
+        return (
+            <ScenarioTransition
+                completedScenarioId={currentScenario?.scenario_id || sessionDetails?.scenario}
+                nextScenarioId={nextScenario?.scenario_id}
+                scenarioNumber={currentScenarioIndex + 1}
+                totalScenarios={queueScenarios.length}
+                condition={nextScenario?.condition || sessionDetails?.condition}
+                countdownSeconds={5}
+                onCountdownComplete={handleTransitionComplete}
+            />
+        );
     }
 
     // Show surveys after session ends

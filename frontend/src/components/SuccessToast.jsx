@@ -5,7 +5,7 @@
  * Auto-dismisses after a configurable duration.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './SuccessToast.css';
 
 function SuccessToast({
@@ -19,6 +19,14 @@ function SuccessToast({
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  // Use ref to hold callback - prevents timer reset when parent re-renders
+  const onDismissRef = useRef(onDismiss);
+
+  // Keep ref updated with latest callback
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
   useEffect(() => {
     // Fade in
     requestAnimationFrame(() => setIsVisible(true));
@@ -28,16 +36,16 @@ function SuccessToast({
       setIsExiting(true);
     }, duration - 300);
 
-    // Auto-dismiss
+    // Auto-dismiss - use ref to avoid dependency on onDismiss
     const dismissTimer = setTimeout(() => {
-      onDismiss?.();
+      onDismissRef.current?.();
     }, duration);
 
     return () => {
       clearTimeout(exitTimer);
       clearTimeout(dismissTimer);
     };
-  }, [duration, onDismiss]);
+  }, [duration]); // Removed onDismiss from deps - using ref instead
 
   // Format alert type for display
   const formatAlertType = (type) => {
