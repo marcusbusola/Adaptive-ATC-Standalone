@@ -578,8 +578,16 @@ class ScenarioH6(BaseScenario):
                 }
             )
 
-        # Fallback
-        return {}
+        # Fallback - should not reach here if condition is 1, 2, or 3
+        logger.warning(f"Unexpected condition {self.condition} in generate_real_conflict_alert")
+        return self.generate_alert(
+            alert_type='conflict',
+            target='DAL300',
+            data={
+                'priority': 'critical',
+                'message': 'DAL300/AAL900 - Conflict Alert'
+            }
+        )
 
     def get_expected_detection_times(self) -> Dict[str, float]:
         """

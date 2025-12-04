@@ -5,19 +5,30 @@ Training Script for Complacency Detection Model
 Generates synthetic training data and trains the RandomForest classifier
 for complacency detection in Condition 3.
 
+Supports:
+- Synthetic data training (for initial bootstrap)
+- Real data training from database (continuous learning)
+
 Usage:
     python train_complacency_model.py
     python train_complacency_model.py --samples 1000 --output my_model.pkl
+    python train_complacency_model.py --from-db  # Train from real session data
 """
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import argparse
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 import json
+import asyncio
 from datetime import datetime
 from complacency_detector import ComplacencyDetector, BehavioralFeatureExtractor
+
+# Import for database training
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from data.db_utils import DatabaseManager, get_db_manager
 
 
 class SyntheticDataGenerator:
@@ -263,6 +274,283 @@ class SyntheticDataGenerator:
         return features_df, labels_array
 
 
+# ============================================================
+# CONTINUOUS LEARNING: Train from Real Database Data
+# ============================================================
+
+async def fetch_training_data_from_db(
+    db_manager: DatabaseManager,
+    min_performance_threshold: float = 50.0,
+    max_performance_threshold: float = 80.0
+) -> Tuple[List[Dict[str, float]], List[int]]:
+    """
+    Fetch training data from completed sessions in the database.
+
+    Auto-labeling heuristic:
+    - performance_score < min_threshold (50) → Complacent (1)
+    - performance_score > max_threshold (80) → Normal (0)
+    - Middle scores are ignored (too ambiguous)
+
+    Args:
+        db_manager: Database manager instance
+        min_performance_threshold: Below this = complacent
+        max_performance_threshold: Above this = normal
+
+    Returns:
+        Tuple of (features_list, labels_list)
+    """
+    extractor = BehavioralFeatureExtractor()
+    features_list = []
+    labels = []
+
+    # Query all completed sessions with performance scores
+    async with db_manager.get_connection() as conn:
+        query = """
+            SELECT session_id, participant_id, scenario, condition, performance_score
+            FROM sessions
+            WHERE status = 'completed'
+            AND performance_score IS NOT NULL
+        """
+        sessions = await conn.fetch_all(query)
+
+    print(f"\nFound {len(sessions)} completed sessions with performance scores")
+
+    labeled_count = 0
+    skipped_count = 0
+
+    for session in sessions:
+        session_id = session['session_id']
+        score = session['performance_score']
+
+        # Auto-label based on performance score
+        if score < min_performance_threshold:
+            label = 1  # Complacent
+        elif score > max_performance_threshold:
+            label = 0  # Normal
+        else:
+            # Ambiguous score - skip this session
+            skipped_count += 1
+            continue
+
+        # Fetch behavioral events for this session
+        events = await db_manager.get_behavioral_events(session_id)
+
+        if len(events) < 10:
+            # Not enough events to extract meaningful features
+            skipped_count += 1
+            continue
+
+        # Convert event_data from JSON string if needed
+        processed_events = []
+        for event in events:
+            processed_event = {
+                'timestamp': event.get('timestamp', 0),
+                'event_type': event.get('event_type', 'unknown'),
+                'data': event.get('event_data', {})
+            }
+            # Parse event_data if it's a string
+            if isinstance(processed_event['data'], str):
+                try:
+                    processed_event['data'] = json.loads(processed_event['data'])
+                except json.JSONDecodeError:
+                    processed_event['data'] = {}
+            processed_events.append(processed_event)
+
+        # Extract features
+        try:
+            features = extractor.extract_features(processed_events)
+            features_list.append(features)
+            labels.append(label)
+            labeled_count += 1
+        except Exception as e:
+            print(f"  Warning: Could not extract features for session {session_id}: {e}")
+            skipped_count += 1
+            continue
+
+    print(f"  Labeled: {labeled_count} sessions")
+    print(f"  Skipped: {skipped_count} sessions (ambiguous score or insufficient events)")
+    print(f"  Normal (0): {labels.count(0)}")
+    print(f"  Complacent (1): {labels.count(1)}")
+
+    return features_list, labels
+
+
+async def train_from_db(
+    db_manager: Optional[DatabaseManager] = None,
+    output_path: Optional[str] = None,
+    min_samples: int = 10,
+    augment_with_synthetic: bool = True,
+    synthetic_samples: int = 100
+) -> Dict[str, Any]:
+    """
+    Train the complacency model using real data from the database.
+
+    This function implements continuous learning - it queries all completed
+    sessions, auto-labels them based on performance score, and retrains
+    the model with the cumulative dataset.
+
+    Args:
+        db_manager: Database manager instance (will create one if not provided)
+        output_path: Path to save the trained model
+        min_samples: Minimum samples required to train (will augment if below)
+        augment_with_synthetic: If True, add synthetic data when real data is sparse
+        synthetic_samples: Number of synthetic samples to add if augmenting
+
+    Returns:
+        Dictionary with training results:
+        - status: 'success' or 'insufficient_data'
+        - samples: Number of samples used
+        - accuracy: Model accuracy
+        - message: Human-readable result
+    """
+    print(f"\n{'='*60}")
+    print("Continuous Learning: Training from Database")
+    print(f"{'='*60}\n")
+
+    # Initialize database manager if not provided
+    if db_manager is None:
+        db_manager = get_db_manager()
+        await db_manager.connect()
+        should_disconnect = True
+    else:
+        should_disconnect = False
+
+    try:
+        # Fetch training data from database
+        features_list, labels = await fetch_training_data_from_db(db_manager)
+
+        # Check if we have enough data
+        if len(features_list) < min_samples:
+            print(f"\nInsufficient real data ({len(features_list)} samples, need {min_samples})")
+
+            if augment_with_synthetic:
+                print(f"Augmenting with {synthetic_samples} synthetic samples...")
+                generator = SyntheticDataGenerator()
+
+                # Generate balanced synthetic data
+                synthetic_X, synthetic_y = generator.generate_training_dataset(
+                    n_samples=synthetic_samples,
+                    balance_classes=True
+                )
+
+                # Merge real and synthetic data
+                if features_list:
+                    real_df = pd.DataFrame(features_list)
+                    combined_X = pd.concat([real_df, synthetic_X], ignore_index=True)
+                    combined_y = np.concatenate([np.array(labels), synthetic_y])
+                else:
+                    combined_X = synthetic_X
+                    combined_y = synthetic_y
+
+                print(f"Total training samples: {len(combined_X)} (real: {len(features_list)}, synthetic: {len(synthetic_X)})")
+            else:
+                return {
+                    'status': 'insufficient_data',
+                    'samples': len(features_list),
+                    'accuracy': None,
+                    'message': f'Need at least {min_samples} labeled sessions to train. Current: {len(features_list)}'
+                }
+        else:
+            # Enough real data - use it directly
+            combined_X = pd.DataFrame(features_list)
+            combined_y = np.array(labels)
+            print(f"\nUsing {len(combined_X)} real samples for training")
+
+        # Ensure we have both classes represented
+        unique_labels = np.unique(combined_y)
+        if len(unique_labels) < 2:
+            print("Warning: Only one class present in data. Adding synthetic samples for balance...")
+            generator = SyntheticDataGenerator()
+
+            # Generate samples for missing class
+            if 0 not in unique_labels:
+                normal_events = [generator.generate_normal_behavior() for _ in range(20)]
+                extractor = BehavioralFeatureExtractor()
+                normal_features = [extractor.extract_features(e) for e in normal_events]
+                normal_df = pd.DataFrame(normal_features)
+                combined_X = pd.concat([combined_X, normal_df], ignore_index=True)
+                combined_y = np.concatenate([combined_y, np.zeros(20)])
+
+            if 1 not in unique_labels:
+                complacent_events = [generator.generate_complacent_behavior() for _ in range(20)]
+                extractor = BehavioralFeatureExtractor()
+                complacent_features = [extractor.extract_features(e) for e in complacent_events]
+                complacent_df = pd.DataFrame(complacent_features)
+                combined_X = pd.concat([combined_X, complacent_df], ignore_index=True)
+                combined_y = np.concatenate([combined_y, np.ones(20)])
+
+        # Train the model
+        detector = ComplacencyDetector()
+        metrics = detector.train(
+            combined_X, combined_y,
+            validation_split=0.2,
+            cross_validate=len(combined_X) >= 20  # Only CV if enough samples
+        )
+
+        # Determine output path
+        if output_path is None:
+            output_path = Path(__file__).parent / "trained_models" / "complacency_detector.pkl"
+        else:
+            output_path = Path(output_path)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save model
+        detector.save_model(str(output_path))
+
+        # Save training metadata
+        metadata = {
+            'training_date': datetime.now().isoformat(),
+            'training_type': 'continuous_learning',
+            'total_samples': len(combined_X),
+            'real_samples': len(features_list),
+            'synthetic_samples': len(combined_X) - len(features_list),
+            'class_distribution': {
+                'normal': int(np.sum(combined_y == 0)),
+                'complacent': int(np.sum(combined_y == 1))
+            },
+            'metrics': {k: float(v) for k, v in metrics.items()},
+            'model_path': str(output_path)
+        }
+
+        metadata_path = output_path.parent / "training_metadata.json"
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        print(f"\n{'='*60}")
+        print("Continuous Learning Complete!")
+        print(f"{'='*60}")
+        print(f"Model saved to: {output_path}")
+        print(f"Total samples: {len(combined_X)}")
+        print(f"Accuracy: {metrics['accuracy']:.4f}")
+
+        return {
+            'status': 'success',
+            'samples': len(combined_X),
+            'real_samples': len(features_list),
+            'accuracy': metrics['accuracy'],
+            'f1_score': metrics.get('f1_score', 0),
+            'message': f"Model updated with {len(combined_X)} samples. Accuracy: {metrics['accuracy']:.2%}"
+        }
+
+    finally:
+        if should_disconnect:
+            await db_manager.disconnect()
+
+
+def train_from_db_sync(db_manager: Optional[DatabaseManager] = None) -> Dict[str, Any]:
+    """
+    Synchronous wrapper for train_from_db for use in background tasks.
+
+    Args:
+        db_manager: Optional database manager instance
+
+    Returns:
+        Training results dictionary
+    """
+    return asyncio.run(train_from_db(db_manager))
+
+
 def main():
     """Main training script"""
     parser = argparse.ArgumentParser(
@@ -302,7 +590,36 @@ def main():
         help='Balance classes (50/50 normal/complacent)'
     )
 
+    parser.add_argument(
+        '--from-db',
+        action='store_true',
+        help='Train from real session data in database (continuous learning)'
+    )
+
+    parser.add_argument(
+        '--augment',
+        action='store_true',
+        default=True,
+        help='Augment with synthetic data if real data is sparse (default: True)'
+    )
+
     args = parser.parse_args()
+
+    # If training from database, use continuous learning
+    if args.from_db:
+        print(f"\n{'='*60}")
+        print("Training from Database (Continuous Learning Mode)")
+        print(f"{'='*60}")
+
+        output_path = Path(__file__).parent / args.output
+        result = asyncio.run(train_from_db(
+            output_path=str(output_path),
+            augment_with_synthetic=args.augment,
+            synthetic_samples=args.samples
+        ))
+
+        print(f"\nResult: {result['message']}")
+        return
 
     print(f"\n{'='*60}")
     print("Complacency Detection Model Training")

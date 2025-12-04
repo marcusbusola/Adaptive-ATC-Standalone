@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../utils/apiConfig';
@@ -15,6 +15,15 @@ const ResultsDashboard = () => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, completed, active
   const [sortBy, setSortBy] = useState('date'); // date, participant, progress
+
+  // Learning status state
+  const [learningStatus, setLearningStatus] = useState({
+    isLearning: false,
+    lastTrainedAt: null,
+    totalSamples: 0,
+    lastResult: null,
+    mlAvailable: false
+  });
 
   // Load all queues
   const loadQueues = async () => {
@@ -35,9 +44,52 @@ const ResultsDashboard = () => {
     }
   };
 
+  // Fetch ML learning status
+  const fetchLearningStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/ml/learning-status`);
+      if (response.data.status === 'success') {
+        const learning = response.data.learning;
+        setLearningStatus({
+          isLearning: learning.is_learning,
+          lastTrainedAt: learning.last_trained_at,
+          totalSamples: learning.total_samples,
+          lastResult: learning.last_result,
+          mlAvailable: response.data.ml_available,
+          error: learning.error
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching learning status:', err);
+    }
+  }, []);
+
+  // Trigger manual training
+  const triggerManualTraining = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/api/ml/trigger-training`, {}, {
+        headers: getAuthHeaders()
+      });
+      if (response.data.status === 'triggered') {
+        setLearningStatus(prev => ({ ...prev, isLearning: true }));
+      }
+    } catch (err) {
+      console.error('Error triggering training:', err);
+      alert('Failed to trigger training: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   useEffect(() => {
     loadQueues();
-  }, []);
+    fetchLearningStatus();
+
+    // Poll learning status every 5 seconds while learning is in progress
+    const interval = setInterval(() => {
+      fetchLearningStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchLearningStatus]);
 
   // Filter queues
   const getFilteredQueues = () => {
@@ -226,6 +278,61 @@ const ResultsDashboard = () => {
           <div className="stat-label">Errors</div>
         </div>
       </div>
+
+      {/* ML Learning Status */}
+      {learningStatus.mlAvailable && (
+        <div className="ml-learning-status">
+          <div className="learning-header">
+            <h3>🧠 ML Model Status</h3>
+            {learningStatus.isLearning ? (
+              <span className="learning-badge learning">
+                <span className="pulse-dot"></span>
+                System Learning...
+              </span>
+            ) : learningStatus.lastResult?.status === 'success' ? (
+              <span className="learning-badge updated">
+                ✓ Model Updated
+              </span>
+            ) : (
+              <span className="learning-badge idle">
+                Ready
+              </span>
+            )}
+          </div>
+
+          <div className="learning-details">
+            <div className="learning-stat">
+              <span className="label">Training Samples:</span>
+              <span className="value">{learningStatus.totalSamples || 0}</span>
+            </div>
+            {learningStatus.lastResult?.accuracy && (
+              <div className="learning-stat">
+                <span className="label">Model Accuracy:</span>
+                <span className="value">{(learningStatus.lastResult.accuracy * 100).toFixed(1)}%</span>
+              </div>
+            )}
+            {learningStatus.lastTrainedAt && (
+              <div className="learning-stat">
+                <span className="label">Last Trained:</span>
+                <span className="value">{new Date(learningStatus.lastTrainedAt).toLocaleString()}</span>
+              </div>
+            )}
+            {learningStatus.error && (
+              <div className="learning-error">
+                ⚠️ {learningStatus.error}
+              </div>
+            )}
+          </div>
+
+          <button
+            className="btn-train"
+            onClick={triggerManualTraining}
+            disabled={learningStatus.isLearning}
+          >
+            {learningStatus.isLearning ? 'Training...' : 'Trigger Retraining'}
+          </button>
+        </div>
+      )}
 
       {/* Filters and Controls */}
       <div className="controls-bar">

@@ -3,7 +3,7 @@ ATC Adaptive Alert Research System - Main Server
 FastAPI server with comprehensive session management, WebSocket support, and data collection
 """
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status, Request, Depends
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status, Request, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -15,6 +15,7 @@ import uuid
 import sys
 import json
 import asyncio
+import threading
 from pathlib import Path
 from enum import Enum
 from loguru import logger
@@ -39,10 +40,12 @@ from scenarios.base_scenario import BaseScenario
 # Import ML models (optional - may fail if dependencies not installed)
 try:
     from ml_models.predictor import AlertPredictor, predict_presentation
+    from ml_models.train_complacency_model import train_from_db
     ML_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"ML models not available: {e}")
     AlertPredictor = None
+    train_from_db = None
     ML_AVAILABLE = False
 
     def predict_presentation(events, scenario_state=None):
@@ -150,6 +153,78 @@ websocket_connections: Dict[str, WebSocket] = {}
 
 # ML Predictor instance
 ml_predictor: Optional[AlertPredictor] = None
+
+# Continuous Learning Status Tracking
+learning_status: Dict[str, Any] = {
+    "is_learning": False,
+    "last_trained_at": None,
+    "last_session_id": None,
+    "last_result": None,
+    "total_samples": 0,
+    "error": None
+}
+learning_lock = threading.Lock()
+
+
+async def retrain_model_background(session_id: str):
+    """
+    Background task to retrain the ML model after a session ends.
+
+    This implements continuous learning - the model gets smarter with each session.
+    """
+    global ml_predictor, learning_status
+
+    if not ML_AVAILABLE or train_from_db is None:
+        logger.warning("ML models not available - skipping model retraining")
+        return
+
+    with learning_lock:
+        if learning_status["is_learning"]:
+            logger.info(f"Skipping retraining for session {session_id} - another training in progress")
+            return
+        learning_status["is_learning"] = True
+        learning_status["last_session_id"] = session_id
+        learning_status["error"] = None
+
+    try:
+        logger.info(f"Starting model retraining triggered by session {session_id}")
+
+        # Run the async training function
+        result = await train_from_db(
+            db_manager=db_manager,
+            augment_with_synthetic=True,
+            synthetic_samples=100
+        )
+
+        with learning_lock:
+            learning_status["last_result"] = result
+            learning_status["last_trained_at"] = datetime.utcnow().isoformat()
+            learning_status["total_samples"] = result.get("samples", 0)
+
+        if result["status"] == "success":
+            logger.info(f"Model retraining complete: {result['message']}")
+
+            # Reload the ML predictor with the new model
+            try:
+                new_predictor = AlertPredictor()
+                ml_predictor = new_predictor
+                logger.info("ML Predictor reloaded with updated model")
+            except Exception as e:
+                logger.error(f"Failed to reload ML predictor: {e}")
+                with learning_lock:
+                    learning_status["error"] = f"Model trained but reload failed: {e}"
+        else:
+            logger.warning(f"Model retraining returned: {result['message']}")
+
+    except Exception as e:
+        logger.error(f"Error during model retraining: {e}")
+        with learning_lock:
+            learning_status["error"] = str(e)
+            learning_status["last_result"] = {"status": "error", "message": str(e)}
+    finally:
+        with learning_lock:
+            learning_status["is_learning"] = False
+
 
 # Researcher API token (optional)
 RESEARCHER_TOKEN = (os.getenv("RESEARCHER_TOKEN") or "").strip() or None
@@ -275,6 +350,7 @@ class SessionEndResponse(BaseModel):
     session_id: str
     summary: Dict[str, Any]
     ended_at: Optional[datetime] = None  # Optional for safety
+    learning_triggered: bool = False  # True if ML model retraining was triggered
 
 class ScenarioUpdateRequest(BaseModel):
     elapsed_time: float
@@ -791,8 +867,8 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
         if session_id in websocket_connections:
             try:
                 await websocket_connections[session_id].close()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket for session {session_id}: {e}")
             del websocket_connections[session_id]
 
         # 4. End session in database
@@ -820,10 +896,16 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
             "end_reason": session.get("end_reason")
         }
 
+        # 6. Trigger continuous learning - retrain ML model in background
+        if ML_AVAILABLE and train_from_db is not None:
+            asyncio.create_task(retrain_model_background(session_id))
+            logger.info(f"Triggered background model retraining for session {session_id}")
+
         return SessionEndResponse(
             session_id=session_id,
             summary=summary,
-            ended_at=session.get("ended_at")  # Use .get() for safety
+            ended_at=session.get("ended_at"),  # Use .get() for safety
+            learning_triggered=ML_AVAILABLE and train_from_db is not None
         )
 
     except HTTPException:
@@ -1358,6 +1440,65 @@ async def get_ml_prediction_history(session_id: str):
     except Exception as e:
         logger.error(f"Error getting ML prediction history: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/ml/learning-status")
+async def get_learning_status():
+    """
+    Get the current status of continuous learning.
+
+    Returns the status of background model retraining:
+    - is_learning: True if a training job is currently running
+    - last_trained_at: Timestamp of last successful training
+    - last_session_id: Session that triggered the last training
+    - last_result: Result of the last training (success/error, samples, accuracy)
+    - total_samples: Total samples in the current model
+    - error: Any error from the last training attempt
+    """
+    with learning_lock:
+        return {
+            "status": "success",
+            "ml_available": ML_AVAILABLE,
+            "learning": {
+                "is_learning": learning_status["is_learning"],
+                "last_trained_at": learning_status["last_trained_at"],
+                "last_session_id": learning_status["last_session_id"],
+                "last_result": learning_status["last_result"],
+                "total_samples": learning_status["total_samples"],
+                "error": learning_status["error"]
+            }
+        }
+
+
+@app.post("/api/ml/trigger-training", dependencies=[Depends(require_researcher_token)])
+async def trigger_manual_training():
+    """
+    Manually trigger model retraining (researcher only).
+
+    This allows researchers to force a model update without waiting
+    for a session to end.
+    """
+    if not ML_AVAILABLE or train_from_db is None:
+        raise HTTPException(
+            status_code=503,
+            detail="ML models not available - cannot train"
+        )
+
+    with learning_lock:
+        if learning_status["is_learning"]:
+            return {
+                "status": "already_running",
+                "message": "A training job is already in progress"
+            }
+
+    # Trigger training in background
+    asyncio.create_task(retrain_model_background("manual-trigger"))
+    logger.info("Manual model retraining triggered by researcher")
+
+    return {
+        "status": "triggered",
+        "message": "Model retraining started in background"
+    }
 
 
 # ===== SCENARIO AND CONDITION DATA =====
@@ -1986,8 +2127,8 @@ async def simulation_live(ws: WebSocket):
                         heading=msg.get("heading"),
                         speed=msg.get("speed"),
                     )
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.warning(f"Invalid JSON received on simulation WebSocket ({conn_id}): {e}")
     except WebSocketDisconnect:
         logger.info(f"Simulation live WS disconnected: {conn_id}")
     except Exception as e:

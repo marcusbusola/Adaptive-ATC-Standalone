@@ -91,6 +91,12 @@ class Aircraft:
     destination: Optional[str] = None
     fuel_remaining: Optional[int] = None  # Minutes
 
+    # Gamification: Pilot mood tracking
+    last_contact_time: float = 0.0  # Elapsed time when controller last clicked/interacted
+    mood: str = 'happy'  # 'happy', 'annoyed', 'angry'
+    total_angry_time: float = 0.0  # Total seconds spent angry (for complaints)
+    max_ignored_time: float = 0.0  # Maximum time ignored in a single stretch
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -108,7 +114,12 @@ class Aircraft:
             'datalink_status': self.datalink_status,
             'route': self.route,
             'destination': self.destination,
-            'fuel_remaining': self.fuel_remaining
+            'fuel_remaining': self.fuel_remaining,
+            # Gamification fields
+            'last_contact_time': self.last_contact_time,
+            'mood': self.mood,
+            'total_angry_time': self.total_angry_time,
+            'max_ignored_time': self.max_ignored_time
         }
 
 
@@ -223,6 +234,22 @@ class BaseScenario(ABC):
         # ML Prediction tracking (for Condition 3)
         self.resolved_predictions: set = set()  # Track which predictions user resolved
         self.pending_predictions: Dict[str, Dict[str, Any]] = {}  # prediction_id -> prediction data
+
+        # ===== GAMIFICATION STATE =====
+        self.safety_score: int = 1000  # Starting score
+        self.score_changes: List[Dict[str, Any]] = []  # History of score changes
+        self.pilot_complaints: List[Dict[str, Any]] = []  # Pilots who got angry
+        self.active_conflicts: set = set()  # Track active conflict pairs for penalty
+
+        # Mood thresholds (seconds since last contact)
+        self.MOOD_ANNOYED_THRESHOLD = 45.0  # Becomes annoyed after 45s
+        self.MOOD_ANGRY_THRESHOLD = 90.0    # Becomes angry after 90s
+
+        # Score penalties and rewards
+        self.ANGRY_PENALTY_PER_SECOND = 2   # Points lost per second while angry
+        self.CONFLICT_PENALTY_PER_SECOND = 5  # Points lost per second during conflict
+        self.HAPPY_BONUS_PER_SECOND = 1     # Points gained per second when all happy
+        self.COMPLAINT_THRESHOLD = 90.0     # Seconds ignored to file complaint
 
         # Event handler registry
         self._event_handlers: Dict[str, Callable[[ScenarioEvent], None]] = {

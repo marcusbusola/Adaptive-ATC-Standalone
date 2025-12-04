@@ -5,7 +5,7 @@
  * Uses built-in simulation engine (no external simulator required)
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import useSimulation from '../hooks/useSimulation';
 import simulationApi from '../services/simulation-api';
 import ErrorNotification from './ErrorNotification';
@@ -25,7 +25,10 @@ function RadarViewer({
   onConflict = null,
   showControls = true,
   aircraftConfig = null,
+  liveAircraft = null,
   pendingAlerts = [],
+  selectedAircraft: externalSelectedAircraft = null, // External selection control
+  onAircraftSelect = null, // Callback when aircraft is selected
 }) {
   // Canvas refs
   const canvasRef = useRef(null);
@@ -35,11 +38,35 @@ function RadarViewer({
 
   // State
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedAircraft, setSelectedAircraft] = useState(null);
+  const [internalSelectedAircraft, setInternalSelectedAircraft] = useState(null);
   const [localError, setLocalError] = useState(null);
 
-  // Simulation connection via SSE
-  const { connected, state, aircraft, conflicts, error: simError } = useSimulation();
+  // Use external selection if provided, otherwise use internal state
+  const selectedAircraft = externalSelectedAircraft !== null ? externalSelectedAircraft : internalSelectedAircraft;
+
+  // Handle selection change - update internal state and notify parent
+  const handleAircraftSelection = useCallback((aircraft) => {
+    setInternalSelectedAircraft(aircraft);
+    if (onAircraftSelect) {
+      onAircraftSelect(aircraft);
+    }
+  }, [onAircraftSelect]);
+
+  // Simulation connection via SSE (fallback if no liveAircraft)
+  const { connected, state, aircraft: sseAircraft, conflicts, error: simError } = useSimulation();
+
+  // Convert liveAircraft object to array for rendering
+  // Prefer liveAircraft from Session polling over SSE aircraft
+  const aircraft = useMemo(() => {
+    if (liveAircraft && Object.keys(liveAircraft).length > 0) {
+      return Object.values(liveAircraft);
+    }
+    // Fallback to SSE aircraft if no liveAircraft
+    if (sseAircraft && sseAircraft.length > 0) {
+      return sseAircraft;
+    }
+    return [];
+  }, [liveAircraft, sseAircraft]);
 
   // Radar settings
   const CANVAS_SIZE = 800;
@@ -139,11 +166,8 @@ function RadarViewer({
    * Load scenario with aircraft
    */
   const loadScenario = async (config) => {
-    console.log(`[RadarViewer] Loading scenario ${scenario} with ${config.length} aircraft`);
-
     try {
       await simulationApi.start(config, 1.0);
-      console.log('[RadarViewer] Scenario loaded successfully');
     } catch (err) {
       console.error('[RadarViewer] Failed to load scenario:', err);
       setLocalError(`Failed to load scenario: ${err.message}`);
@@ -467,30 +491,38 @@ function RadarViewer({
 
   /**
    * Handle canvas click
+   * Accounts for CSS scaling by converting click coordinates to internal canvas coordinates
    */
   const handleCanvasClick = (event) => {
     const canvas = canvasRef.current;
-    if (!canvas || !aircraft) return;
+    if (!canvas || !aircraft || aircraft.length === 0) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+
+    // Scale click coordinates to internal canvas coordinates
+    // This is necessary because CSS may scale the canvas display size differently from its internal size
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
 
     let closestAircraft = null;
     let closestDistance = Infinity;
+    // Scale the click radius based on display scaling (use larger of the two scales)
+    const clickRadius = 25 * Math.max(scaleX, scaleY);
 
     aircraft.forEach(ac => {
       const pos = getAircraftScreenPos(ac);
       if (!pos) return;
 
       const distance = Math.sqrt((pos.x - x) ** 2 + (pos.y - y) ** 2);
-      if (distance < 20 && distance < closestDistance) {
+      if (distance < clickRadius && distance < closestDistance) {
         closestAircraft = ac;
         closestDistance = distance;
       }
     });
 
-    setSelectedAircraft(closestAircraft);
+    handleAircraftSelection(closestAircraft);
   };
 
   /**
@@ -618,7 +650,7 @@ function RadarViewer({
                 <span>COMM LOSS</span>
               </div>
             )}
-            <button onClick={() => setSelectedAircraft(null)}>Close</button>
+            <button onClick={() => handleAircraftSelection(null)}>Close</button>
           </div>
         )}
 

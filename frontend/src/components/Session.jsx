@@ -93,16 +93,8 @@ function Session() {
                 throw new Error('Failed to fetch session details.');
             }
             const data = await response.json();
-            console.log('[Session] Fetched session details:', {
-                scenario: data.scenario,
-                condition: data.condition,
-                aircraftConfigLength: data.aircraft_config?.length || 0,
-                aircraftConfig: data.aircraft_config
-            });
-            if (data.aircraft_config && data.aircraft_config.length > 0) {
-                console.log('[Session] First aircraft in config:', data.aircraft_config[0]);
-            } else {
-                console.warn('[Session] ⚠️ No aircraft_config in session details!');
+            if (!data.aircraft_config || data.aircraft_config.length === 0) {
+                console.warn('[Session] No aircraft_config in session details');
             }
             setSessionDetails(data);
         } catch (err) {
@@ -115,30 +107,19 @@ function Session() {
 
     // Load queue data for multi-scenario flow
     const loadQueueData = useCallback(async () => {
-        console.log('[Session] loadQueueData called with:', { queueId, itemIndex });
-
         if (!queueId) {
-            console.log('[Session] No queueId, skipping queue load');
             return;
         }
 
         try {
-            console.log('[Session] Fetching queue from:', `${API_URL}/api/queues/${queueId}`);
             const response = await fetch(`${API_URL}/api/queues/${queueId}`);
-            console.log('[Session] Queue API response status:', response.status);
 
             if (response.ok) {
                 const data = await response.json();
-                console.log('[Session] Queue API response data:', data);
                 if (data.status === 'success' && data.queue?.items) {
                     setQueueScenarios(data.queue.items);
                     const idx = parseInt(itemIndex) || 0;
                     setCurrentScenarioIndex(idx);
-                    console.log('[Session] Queue loaded successfully:', {
-                        totalScenarios: data.queue.items.length,
-                        currentIndex: idx,
-                        scenarios: data.queue.items.map(i => i.scenario_id)
-                    });
                 } else {
                     console.warn('[Session] Queue API returned unexpected data format:', data);
                 }
@@ -195,12 +176,10 @@ function Session() {
 
             if (hasMoreScenarios) {
                 // Show transition screen instead of surveys
-                console.log('[Session] More scenarios remaining, showing transition');
                 setScenarioComplete(true);
                 setShowTransition(true);
             } else {
                 // Last scenario (or no queue) - show surveys
-                console.log('[Session] Last scenario or no queue, showing surveys');
                 setShowSurveyIntro(true);
                 setTimeout(() => setShowSurvey(true), 1000);
                 setScenarioComplete(true);
@@ -213,8 +192,6 @@ function Session() {
     }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex]);
 
     const handleSurveyComplete = useCallback((data) => {
-        console.log('Surveys completed:', data);
-
         // Show brief completion message, then redirect
         setTimeout(() => {
             if (returnTo) {
@@ -289,8 +266,6 @@ function Session() {
             ? (Date.now() - startTimeRef.current) / 1000
             : elapsedTime;
 
-        console.log('[Polling] Sending update request, elapsed:', currentElapsedTime.toFixed(1) + 's');
-
         try {
             const response = await fetch(`${API_URL}/api/sessions/${sessionId}/update`, {
                 method: 'POST',
@@ -304,12 +279,6 @@ function Session() {
             }
 
             const data = await response.json();
-            console.log('[Polling] Response received:', {
-                elapsed: data.elapsed_time,
-                phase: data.current_phase,
-                aircraft: Object.keys(data.aircraft || {}).length,
-                events: data.triggered_events?.length || 0
-            });
 
             // Update scenario state
             setElapsedTime(data.elapsed_time);
@@ -319,7 +288,6 @@ function Session() {
 
             // Handle triggered events (convert to alerts)
             if (data.triggered_events && data.triggered_events.length > 0) {
-                console.log('[Polling] TRIGGERED EVENTS:', data.triggered_events);
                 await processTriggeredEvents(data.triggered_events);
             }
 
@@ -684,9 +652,18 @@ function Session() {
         }
     }, [sessionId, pollScenarioUpdate]);
 
-    const handleAircraftSelect = (callsign) => {
-        setSelectedAircraftCallsign(callsign);
-    };
+    // Handle aircraft selection - syncs between RadarViewer and ActionPanel
+    const handleAircraftSelect = useCallback((aircraftOrCallsign) => {
+        if (aircraftOrCallsign === null) {
+            setSelectedAircraftCallsign(null);
+        } else if (typeof aircraftOrCallsign === 'string') {
+            // Callsign passed (from ActionPanel)
+            setSelectedAircraftCallsign(aircraftOrCallsign);
+        } else {
+            // Full aircraft object passed (from RadarViewer)
+            setSelectedAircraftCallsign(aircraftOrCallsign?.callsign || null);
+        }
+    }, []);
 
     const handleCommand = async (commandString) => {
         console.log(`Issuing command: ${commandString}`);
@@ -961,7 +938,10 @@ function Session() {
                         condition={sessionDetails.condition}
                         showControls={false}
                         aircraftConfig={sessionDetails.aircraft_config}
+                        liveAircraft={aircraft}
                         pendingAlerts={pendingAlerts}
+                        selectedAircraft={selectedAircraft}
+                        onAircraftSelect={handleAircraftSelect}
                     />
                 </div>
 
@@ -975,6 +955,8 @@ function Session() {
                     elapsedTime={elapsedTime}
                     pendingAlerts={pendingAlerts}
                     onActionLogged={handleActionLogged}
+                    selectedAircraft={selectedAircraft}
+                    onAircraftSelect={handleAircraftSelect}
                 />
             </div>
 

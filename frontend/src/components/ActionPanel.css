@@ -523,6 +523,279 @@
   padding: 20px;
 }
 
+/* Aircraft Info Panel */
+.aircraft-info {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 4px;
+  margin-top: -1px;
+}
+
+.aircraft-info h3 {
+  color: #00ff00;
+  margin-bottom: 8px;
+}
+
+.aircraft-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.telemetry-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.telemetry-row.sub {
+  padding-left: 16px;
+  font-size: 11px;
+  color: #888;
+}
+
+.telemetry-row.status {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.telemetry-label {
+  color: #888;
+  min-width: 70px;
+}
+
+.telemetry-value {
+  color: #00ff00;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.telemetry-value.vs {
+  color: #4a90e2;
+}
+
+.telemetry-value.emergency {
+  color: #ff9800;
+  animation: blink 0.5s ease-in-out infinite;
+}
+
+.telemetry-value.nordo {
+  color: #f44336;
+}
+
+.telemetry-target {
+  color: #4a90e2;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Dynamic Content Area */
+.dynamic-content {
+  min-height: 120px;
+}
+
+.dynamic-content h3 {
+  color: #00ff00;
+  margin-bottom: 8px;
+}
+
+.dynamic-content h4 {
+  margin: 16px 0 8px 0;
+  font-size: 11px;
+  color: #ff9800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-top: 1px solid rgba(255, 152, 0, 0.3);
+  padding-top: 12px;
+}
+
+.aircraft-commands {
+  margin-top: 8px;
+}
+
+.aircraft-commands .command-list {
+  gap: 6px;
+}
+
+.alert-hint {
+  font-size: 11px;
+  color: #888;
+  margin: 0 0 12px 0;
+  font-style: italic;
+}
+
+.all-clear-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: #4caf50;
+}
+
+.all-clear-status .status-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  animation: pulse-success 2s ease-in-out infinite;
+}
+
+@keyframes pulse-success {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.all-clear-status span:not(.status-icon) {
+  font-size: 13px;
+  color: #888;
+}
+
+/* Command Input Panel */
+.command-input-panel {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #4a90e2;
+  border-radius: 6px;
+}
+
+.input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.input-title {
+  color: #4a90e2;
+  font-weight: bold;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.input-target {
+  color: #00ff00;
+  font-size: 12px;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.command-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: #1a1f3a;
+  border: 1px solid rgba(74, 144, 226, 0.5);
+  border-radius: 4px;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  outline: none;
+}
+
+.command-input:focus {
+  border-color: #4a90e2;
+  box-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+}
+
+.command-input::placeholder {
+  color: #555;
+  font-size: 12px;
+}
+
+.input-unit {
+  color: #888;
+  font-size: 14px;
+  min-width: 30px;
+}
+
+.input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-execute {
+  flex: 1;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-execute:hover:not(:disabled) {
+  background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+}
+
+.btn-execute:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid #666;
+  border-radius: 4px;
+  color: #888;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  border-color: #f44336;
+  color: #f44336;
+}
+
+.btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-hint {
+  margin: 8px 0 0 0;
+  font-size: 10px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Active command button */
+.command-btn.common.active {
+  background: #4a90e2;
+  border-color: #4a90e2;
+  color: white;
+}
+
+.command-btn.common.active .command-label {
+  color: white;
+}
+
 /* Scrollbar styling */
 .action-panel::-webkit-scrollbar,
 .history-list::-webkit-scrollbar {

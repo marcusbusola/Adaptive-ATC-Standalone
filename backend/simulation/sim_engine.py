@@ -1,21 +1,99 @@
 """
 Main simulation engine for ATC aircraft simulation.
+
+Uses simple kinematic physics for reliable aircraft movement.
 """
 
 import asyncio
+import math
 from datetime import datetime
 from typing import Dict, List, Optional, Callable, Any
 from loguru import logger
 
 from .aircraft import Aircraft, Conflict
-from .physics import update_aircraft_position, detect_all_conflicts
+
+
+# Constants
+EARTH_RADIUS_NM = 3440.065  # Nautical miles
+KNOTS_TO_NM_PER_SEC = 1 / 3600  # 1 knot = 1 NM/hour
+
+# Separation standards
+MIN_HORIZONTAL_SEPARATION_NM = 3.0  # 3 nautical miles
+MIN_VERTICAL_SEPARATION_FT = 1000  # 1000 feet
+
+# Altitude change rate
+ALTITUDE_CHANGE_RATE = 2000  # feet per second
+
+
+def calculate_distance_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate distance between two points in nautical miles.
+    Uses haversine formula for accuracy.
+    """
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return EARTH_RADIUS_NM * c
+
+
+def check_conflict(ac1: Aircraft, ac2: Aircraft) -> Optional[Conflict]:
+    """
+    Check if two aircraft are in conflict.
+
+    Returns Conflict object if separation is violated, None otherwise.
+    """
+    # Calculate horizontal separation
+    horizontal_sep = calculate_distance_nm(ac1.lat, ac1.lon, ac2.lat, ac2.lon)
+
+    # Calculate vertical separation
+    vertical_sep = abs(ac1.altitude - ac2.altitude)
+
+    # Check if in conflict
+    if horizontal_sep < MIN_HORIZONTAL_SEPARATION_NM and vertical_sep < MIN_VERTICAL_SEPARATION_FT:
+        # Determine severity
+        if horizontal_sep < 1.0 and vertical_sep < 500:
+            severity = "critical"
+        elif horizontal_sep < 2.0 and vertical_sep < 750:
+            severity = "alert"
+        else:
+            severity = "warning"
+
+        return Conflict(
+            callsign1=ac1.callsign,
+            callsign2=ac2.callsign,
+            horizontal_separation_nm=round(horizontal_sep, 2),
+            vertical_separation_ft=round(vertical_sep, 0),
+            time_to_closest=0,
+            severity=severity,
+        )
+
+    return None
+
+
+def detect_all_conflicts(aircraft_list: List[Aircraft]) -> List[Conflict]:
+    """Check all aircraft pairs for conflicts."""
+    conflicts = []
+
+    for i, ac1 in enumerate(aircraft_list):
+        for ac2 in aircraft_list[i + 1:]:
+            conflict = check_conflict(ac1, ac2)
+            if conflict:
+                conflicts.append(conflict)
+
+    return conflicts
 
 
 class SimulationEngine:
     """
-    Aircraft simulation engine.
+    Aircraft simulation engine with simple kinematic physics.
 
-    Manages aircraft state, runs physics updates, and detects conflicts.
+    Manages aircraft state, runs position updates, and detects conflicts.
+    Uses instant response for heading/speed commands and gradual altitude changes.
     """
 
     def __init__(self, tick_rate: float = 1.0):
@@ -180,6 +258,73 @@ class SimulationEngine:
             ac.emergency = False
             ac.comm_loss = False
 
+    def _update_aircraft_position(self, aircraft: Aircraft, dt: float):
+        """
+        Update a single aircraft's position using simple kinematics.
+
+        - Heading: Instant snap to target
+        - Speed: Instant snap to target
+        - Altitude: Gradual change at 2000 ft/s
+        - Position: Simple distance = speed * time
+
+        Args:
+            aircraft: The aircraft to update
+            dt: Time delta in seconds
+        """
+        # INSTANT HEADING - snap immediately to target
+        if aircraft.target_heading is not None:
+            aircraft.heading = aircraft.target_heading
+            aircraft.target_heading = None
+
+        # INSTANT SPEED - snap immediately to target
+        if aircraft.target_speed is not None:
+            aircraft.speed = aircraft.target_speed
+            aircraft.target_speed = None
+
+        # GRADUAL ALTITUDE - change at 2000 ft/s
+        if aircraft.target_altitude is not None:
+            alt_diff = aircraft.target_altitude - aircraft.altitude
+            max_change = ALTITUDE_CHANGE_RATE * dt
+
+            if abs(alt_diff) <= max_change:
+                # Close enough - snap to target
+                aircraft.altitude = aircraft.target_altitude
+                aircraft.target_altitude = None
+                aircraft.vertical_rate = 0
+            else:
+                # Move toward target
+                if alt_diff > 0:
+                    aircraft.altitude += max_change
+                    aircraft.vertical_rate = ALTITUDE_CHANGE_RATE * 60  # Convert to fpm for display
+                else:
+                    aircraft.altitude -= max_change
+                    aircraft.vertical_rate = -ALTITUDE_CHANGE_RATE * 60
+        else:
+            aircraft.vertical_rate = 0
+
+        # UPDATE POSITION using simple kinematics
+        # Distance traveled in nautical miles
+        distance_nm = aircraft.speed * KNOTS_TO_NM_PER_SEC * dt
+
+        # Convert heading to radians (0 = North, 90 = East)
+        heading_rad = math.radians(aircraft.heading)
+
+        # Flat-earth approximation for position change
+        # 1 degree of latitude = 60 NM
+        # Longitude degrees vary with latitude
+        lat_change = distance_nm * math.cos(heading_rad) / 60.0
+
+        # Protect against division by zero near poles
+        cos_lat = math.cos(math.radians(aircraft.lat))
+        if abs(cos_lat) > 0.001:
+            lon_change = distance_nm * math.sin(heading_rad) / (60.0 * cos_lat)
+        else:
+            lon_change = 0
+
+        aircraft.lat += lat_change
+        aircraft.lon += lon_change
+        aircraft.updated_at = datetime.utcnow()
+
     def tick(self, dt: float):
         """
         Advance simulation by one tick.
@@ -189,7 +334,7 @@ class SimulationEngine:
         """
         # Update all aircraft positions
         for ac in self.aircraft.values():
-            update_aircraft_position(ac, dt)
+            self._update_aircraft_position(ac, dt)
 
         # Detect conflicts
         self.conflicts = detect_all_conflicts(list(self.aircraft.values()))
