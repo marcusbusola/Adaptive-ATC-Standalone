@@ -412,6 +412,11 @@ class QueueItemCompleteRequest(BaseModel):
     results: Optional[Dict[str, Any]] = None
 
 
+class QueueItemSessionCompleteRequest(QueueItemCompleteRequest):
+    # Session-scoped completion requires the queue item to already be bound to this session
+    session_id: str
+
+
 # ===== V1 API CONTRACT MODELS =====
 
 class V1CommandRequest(BaseModel):
@@ -1708,7 +1713,7 @@ async def get_next_queue_item(queue_id: str):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/api/queues/{queue_id}/items/{item_index}/complete")
+@app.post("/api/queues/{queue_id}/items/{item_index}/complete", dependencies=[Depends(require_researcher_token)])
 async def complete_queue_item(queue_id: str, item_index: int, request: Optional[QueueItemCompleteRequest] = None):
     """Mark a queue item as completed and persist the update."""
     try:
@@ -1734,6 +1739,43 @@ async def complete_queue_item(queue_id: str, item_index: int, request: Optional[
         raise
     except Exception as e:
         logger.error(f"Error completing queue item {item_index} for queue {queue_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/queues/{queue_id}/items/{item_index}/complete-from-session")
+async def complete_queue_item_from_session(queue_id: str, item_index: int, request: QueueItemSessionCompleteRequest):
+    """
+    Session-scoped completion endpoint used by participant flow.
+    Ensures the queue item is bound to the same session before updating.
+    """
+    try:
+        qm = get_queue_manager()
+        queue = qm.get_queue(queue_id)
+        if not queue:
+            raise HTTPException(status_code=404, detail=f"Queue {queue_id} not found")
+
+        if item_index < 0 or item_index >= len(queue.items):
+            raise HTTPException(status_code=404, detail=f"Queue item {item_index} not found")
+
+        item = queue.items[item_index]
+        if not item.session_id:
+            raise HTTPException(status_code=400, detail="Queue item is not associated with any session")
+
+        if item.session_id != request.session_id:
+            raise HTTPException(status_code=403, detail="Session does not match queue item")
+
+        queue.mark_item_completed(item_index, request.results or {})
+
+        if queue.is_complete():
+            queue.status = "completed"
+
+        qm.update_queue(queue)
+
+        return {"status": "success", "queue": queue.to_dict()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error completing queue item {item_index} for queue {queue_id} from session: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/queues/{queue_id}/items/{item_index}/error", dependencies=[Depends(require_researcher_token)])
@@ -1763,7 +1805,7 @@ async def error_queue_item(queue_id: str, item_index: int, request: Optional[Que
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/api/queues/{queue_id}/items/{item_index}/reset")
+@app.post("/api/queues/{queue_id}/items/{item_index}/reset", dependencies=[Depends(require_researcher_token)])
 async def reset_queue_item(queue_id: str, item_index: int):
     """Reset a queue item to pending so it can be rerun (participant-safe)."""
     try:

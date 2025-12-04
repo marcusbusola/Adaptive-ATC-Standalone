@@ -156,18 +156,24 @@ function Session() {
                 throw new Error('Failed to end session.');
             }
 
-            // If part of queue, mark item as complete
+            // If part of queue, mark item as complete (session-scoped endpoint to prevent spoofing)
             if (queueId && itemIndex !== null) {
-                try {
-                    const responseData = await response.json();
-                    await fetch(`${API_URL}/api/queues/${queueId}/items/${itemIndex}/complete`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ results: responseData })
-                    });
-                } catch (err) {
-                    console.error('Failed to update queue:', err);
-                    // Don't block flow if queue update fails
+                const parsedItemIndex = Number(itemIndex);
+                if (!Number.isNaN(parsedItemIndex)) {
+                    try {
+                        const responseData = await response.json();
+                        await fetch(`${API_URL}/api/queues/${queueId}/items/${parsedItemIndex}/complete-from-session`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                session_id: sessionId,
+                                results: responseData
+                            })
+                        });
+                    } catch (err) {
+                        console.error('Failed to update queue:', err);
+                        // Don't block flow if queue update fails
+                    }
                 }
             }
 

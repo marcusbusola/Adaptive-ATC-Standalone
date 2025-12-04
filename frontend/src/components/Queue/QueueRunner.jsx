@@ -19,6 +19,25 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
   const [sessionActionError, setSessionActionError] = useState('');
   const navigate = useNavigate();
 
+  const syncCurrentItemFromQueue = useCallback((loadedQueue) => {
+    if (!loadedQueue || !Array.isArray(loadedQueue.items)) {
+      return;
+    }
+
+    const inProgress = loadedQueue.items.find(item => item.status === 'in_progress');
+    if (inProgress) {
+      setCurrentItem(inProgress);
+      if (inProgress.session_id) {
+        setSessionActive(true);
+        setSessionId(inProgress.session_id);
+      }
+      return;
+    }
+
+    const nextPending = loadedQueue.items.find(item => item.status === 'pending');
+    setCurrentItem(nextPending || null);
+  }, []);
+
   // Load queue data
   const loadQueue = useCallback(async () => {
     try {
@@ -26,7 +45,9 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
         headers: getAuthHeaders()
       });
       if (response.data.status === 'success') {
-        setQueue(response.data.queue);
+        const loadedQueue = response.data.queue;
+        setQueue(loadedQueue);
+        syncCurrentItemFromQueue(loadedQueue);
         setError(null);
       }
     } catch (err) {
@@ -35,7 +56,7 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
     } finally {
       setLoading(false);
     }
-  }, [queueId]);
+  }, [queueId, syncCurrentItemFromQueue]);
 
   // Get next pending item
   const loadNextItem = useCallback(async () => {
@@ -43,22 +64,40 @@ const QueueRunner = ({ queueId, onSessionStart, onQueueComplete }) => {
       const response = await axios.get(`${API_URL}/api/queues/${queueId}/next`, {
         headers: getAuthHeaders()
       });
-      if (response.data.status === 'success') {
+      if (response.data.status === 'success' && response.data.item) {
         setCurrentItem(response.data.item);
         return response.data.item;
       }
+
+      // If API returns empty (likely because an item is already in_progress), fall back to queue state
+      if (queue && Array.isArray(queue.items)) {
+        const inProgress = queue.items.find(item => item.status === 'in_progress');
+        if (inProgress) {
+          setCurrentItem(inProgress);
+          if (inProgress.session_id) {
+            setSessionActive(true);
+            setSessionId(inProgress.session_id);
+          }
+          return inProgress;
+        }
+      }
+
+      setCurrentItem(null);
       return null;
     } catch (err) {
       console.error('Error loading next item:', err);
       setError(err.response?.data?.detail || 'Failed to load next item');
       return null;
     }
-  }, [queueId]);
+  }, [queueId, queue]);
 
   // Initial load
   useEffect(() => {
-    loadQueue();
-    loadNextItem();
+    const init = async () => {
+      await loadQueue();
+      await loadNextItem();
+    };
+    init();
   }, [loadQueue, loadNextItem]);
 
   // Poll for queue updates every 5 seconds when session active
