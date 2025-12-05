@@ -1,5 +1,42 @@
 /* Session-specific Styles */
 
+/* ============================================================================
+   CSS CUSTOM PROPERTIES - Centralized design tokens
+   ============================================================================ */
+:root {
+  /* Z-index hierarchy - organized layers */
+  --z-base: 0;
+  --z-radar-overlay: 10;
+  --z-header: 100;
+  --z-alert-layer: 150;
+  --z-panel: 200;
+  --z-banner-alert: 500;       /* Adaptive/ML non-blocking banners */
+  --z-modal-alert: 1000;       /* Traditional blocking modal */
+  --z-connection-status: 5000;
+  --z-error-banner: 6000;
+  --z-loading: 9999;
+
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Layout dimensions */
+  --header-height: 60px;
+  --header-height-tablet: 50px;
+  --panel-width-desktop: 320px;
+  --panel-width-tablet: 100%;
+  --body-padding: 10px;
+
+  /* Responsive breakpoints (for reference in media queries) */
+  /* Desktop Large: 1920px+ */
+  /* Desktop: 1200-1919px */
+  /* Tablet: 768-1199px */
+  /* Mobile: <768px */
+}
+
 .app {
   position: relative;
   min-height: 100vh;
@@ -16,7 +53,7 @@
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 9998;
+  z-index: var(--z-connection-status);
   padding: 0.5rem 1rem;
   border-radius: 6px;
   display: flex;
@@ -133,7 +170,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  z-index: 9999;
+  z-index: var(--z-error-banner);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   animation: slideDown 0.3s ease;
 }
@@ -188,7 +225,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 99999;
+  z-index: var(--z-loading);
   backdrop-filter: blur(4px);
 }
 
@@ -272,11 +309,16 @@
 }
 
 .session-header {
-  padding: 10px 20px;
+  padding: var(--space-sm) var(--space-md);
   background-color: #fff;
   border-bottom: 1px solid #ddd;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  z-index: 10;
+  z-index: var(--z-header);
+  flex-shrink: 0;
+  min-height: var(--header-height);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .session-header h1 {
@@ -301,11 +343,11 @@
 }
 
 .alert-layer {
-  position: absolute;
-  top: 80px; /* Below header */
-  left: 20px;
-  right: 20px;
-  z-index: 100;
+  position: fixed;
+  top: var(--header-height);
+  left: var(--space-md);
+  right: var(--space-md);
+  z-index: var(--z-alert-layer);
   pointer-events: none; /* Allow clicks to pass through */
 }
 
@@ -316,9 +358,10 @@
 .session-body {
   display: flex;
   flex-grow: 1;
-  padding: 10px;
-  gap: 10px;
+  padding: var(--body-padding);
+  gap: var(--body-padding);
   overflow: hidden; /* Prevent overflow */
+  height: calc(100vh - var(--header-height));
 }
 
 .session-bluesky-wrapper,
@@ -347,7 +390,9 @@
   border-radius: 5px;
   overflow-y: auto;  /* Allow scrolling when content overflows */
   overflow-x: hidden;
-  height: calc(100vh - 120px); /* Fixed height to enable scrolling */
+  height: calc(100vh - var(--header-height) - var(--body-padding) * 2);
+  width: var(--panel-width-desktop);
+  min-width: var(--panel-width-desktop);
 }
 
 /* Custom scrollbar for action panel */
@@ -377,13 +422,101 @@
 }
 
 
-/* Responsive Design */
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+/* Tablet Layout (768px - 1199px) */
+@media (max-width: 1199px) {
+  :root {
+    --header-height: var(--header-height-tablet);
+    --body-padding: 8px;
+  }
+
+  .session-container {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .session-header {
+    min-height: var(--header-height-tablet);
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .session-header h1 {
+    font-size: 1.2em;
+  }
+
+  .session-info {
+    gap: 12px;
+    font-size: 0.8em;
+    flex-wrap: wrap;
+  }
+
+  .session-body {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+
+  .session-radar-wrapper,
+  .session-bluesky-wrapper {
+    flex-grow: 0;
+    height: 55vh;
+    min-height: 400px;
+    max-height: 600px;
+  }
+
+  .session-body > .action-panel {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    max-height: 45vh;
+    min-height: 300px;
+    border-radius: 5px 5px 0 0;
+    border-left: none;
+    border-top: 2px solid rgba(74, 144, 226, 0.3);
+  }
+
+  .alert-layer {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    top: var(--header-height-tablet);
+  }
+}
+
+/* Mobile Layout (<768px) */
 @media (max-width: 768px) {
+  :root {
+    --header-height: 45px;
+    --body-padding: 6px;
+  }
+
   .connection-status {
     top: 0.5rem;
     right: 0.5rem;
     padding: 0.4rem 0.8rem;
     font-size: 0.75rem;
+  }
+
+  .session-header h1 {
+    font-size: 1em;
+  }
+
+  .session-info {
+    gap: 8px;
+    font-size: 0.75em;
+  }
+
+  .session-radar-wrapper,
+  .session-bluesky-wrapper {
+    height: 50vh;
+    min-height: 300px;
+  }
+
+  .session-body > .action-panel {
+    max-height: 50vh;
+    min-height: 250px;
   }
 
   .completion-content {
@@ -397,6 +530,11 @@
   .completion-stats {
     flex-direction: column;
     gap: 1.5rem;
+  }
+
+  .alert-layer {
+    left: var(--space-xs);
+    right: var(--space-xs);
   }
 }
 

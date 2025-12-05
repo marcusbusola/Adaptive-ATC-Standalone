@@ -108,6 +108,177 @@
   transform: scale(1.1);
 }
 
+/* Share Link Modal */
+.share-link-modal {
+  max-width: 1400px;
+  margin: 20px auto;
+  padding: 0 40px;
+}
+
+.share-link-content {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+  border: 2px solid #667eea;
+  animation: slideDown 0.3s ease;
+}
+
+.share-link-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.share-link-header .success-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.share-link-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 22px;
+}
+
+.share-link-details {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.share-link-details .detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.share-link-details .detail-item:first-child {
+  margin-top: 0;
+}
+
+.share-link-details .detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.share-link-details .detail-label {
+  color: #666;
+  font-size: 14px;
+  min-width: 100px;
+}
+
+.share-link-details .detail-value {
+  color: #333;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.share-link-details .detail-value.queue-id {
+  font-family: monospace;
+  background: #e9ecef;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.share-link-section {
+  margin-bottom: 24px;
+}
+
+.share-link-section label {
+  display: block;
+  color: #333;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.share-link-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.share-link-input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-family: monospace;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  background: #f8f9fa;
+  color: #333;
+}
+
+.share-link-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.copy-btn {
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.copy-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+}
+
+.copy-btn.copied {
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+}
+
+.share-link-hint {
+  margin: 10px 0 0 0;
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.share-link-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.btn-secondary {
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #ccc;
+}
+
 /* Tab Navigation */
 .tab-navigation {
   max-width: 1400px;

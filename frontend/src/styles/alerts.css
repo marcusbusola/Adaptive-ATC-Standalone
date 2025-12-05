@@ -9,7 +9,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: var(--z-modal-alert, 1000);
   animation: fadeIn 0.2s ease-in;
 }
 
@@ -139,7 +139,7 @@
   padding: 1rem 1.5rem;
   min-width: 500px;
   max-width: 800px;
-  z-index: 900;
+  z-index: var(--z-banner-alert, 500);
   animation: slideDown 0.3s ease-out;
 }
 
@@ -179,7 +179,7 @@
   padding: 1rem;
   min-width: 300px;
   max-width: 400px;
-  z-index: 800;
+  z-index: calc(var(--z-banner-alert, 500) - 100);
   animation: slideInRight 0.3s ease-out;
 }
 

@@ -15,6 +15,8 @@ const QueueManagementPanel = () => {
   const [activeTab, setActiveTab] = useState('builder'); // builder, runner, results
   const [activeQueueId, setActiveQueueId] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [createdQueue, setCreatedQueue] = useState(null); // For showing share link
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Load queue from URL on mount
   useEffect(() => {
@@ -51,23 +53,37 @@ const QueueManagementPanel = () => {
     }
   };
 
-  // Handle queue creation
+  // Handle queue creation - show share link instead of auto-switching
   const handleQueueCreated = (queue) => {
     setActiveQueueId(queue.queue_id);
-    setNotification({
-      type: 'success',
-      message: `Queue created successfully! ${queue.items.length} sessions ready.`
-    });
+    setCreatedQueue(queue); // Show share link modal
+    setLinkCopied(false);
+    // Don't auto-switch to runner tab - let participant start from lobby
+  };
 
-    // Auto-switch to runner tab
-    setTimeout(() => {
-      setActiveTab('runner');
-    }, 1500);
+  // Get the participant share link
+  const getShareLink = () => {
+    if (!createdQueue) return '';
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/participant?id=${encodeURIComponent(createdQueue.participant_id)}`;
+  };
 
-    // Clear notification after 5 seconds
-    setTimeout(() => {
-      setNotification(null);
-    }, 5000);
+  // Copy share link to clipboard
+  const handleCopyLink = async () => {
+    const link = getShareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
+  // Dismiss share link modal
+  const handleDismissShareLink = () => {
+    setCreatedQueue(null);
+    setLinkCopied(false);
   };
 
   // Handle session start
@@ -130,6 +146,63 @@ const QueueManagementPanel = () => {
           >
             &times;
           </button>
+        </div>
+      )}
+
+      {/* Share Link Modal - shown after queue creation */}
+      {createdQueue && (
+        <div className="share-link-modal">
+          <div className="share-link-content">
+            <div className="share-link-header">
+              <span className="success-icon">&#10003;</span>
+              <h3>Queue Created Successfully!</h3>
+            </div>
+
+            <div className="share-link-details">
+              <div className="detail-item">
+                <span className="detail-label">Participant:</span>
+                <span className="detail-value">{createdQueue.participant_id}</span>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Sessions:</span>
+                <span className="detail-value">{createdQueue.items?.length || 0} scenarios queued</span>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Queue ID:</span>
+                <span className="detail-value queue-id">{createdQueue.queue_id}</span>
+              </div>
+            </div>
+
+            <div className="share-link-section">
+              <label>Share this link with the participant:</label>
+              <div className="share-link-input-row">
+                <input
+                  type="text"
+                  value={getShareLink()}
+                  readOnly
+                  className="share-link-input"
+                />
+                <button
+                  className={`copy-btn ${linkCopied ? 'copied' : ''}`}
+                  onClick={handleCopyLink}
+                >
+                  {linkCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="share-link-hint">
+                The participant will use this link to access the Participant Lobby and start their session.
+              </p>
+            </div>
+
+            <div className="share-link-actions">
+              <button className="btn-secondary" onClick={handleDismissShareLink}>
+                Create Another Queue
+              </button>
+              <button className="btn-primary" onClick={() => { handleDismissShareLink(); setActiveTab('runner'); }}>
+                View Queue Runner
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

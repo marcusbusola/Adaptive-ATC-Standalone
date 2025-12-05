@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import './ParticipantLobby.css';
 
@@ -13,14 +13,21 @@ function ParticipantLobby() {
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
-    // Prefill participant ID from localStorage
+    // Prefill participant ID from URL param (?id=) or localStorage
     useEffect(() => {
-        const saved = localStorage.getItem('participantId');
-        if (saved) {
-            setParticipantId(saved);
+        const urlId = searchParams.get('id');
+        if (urlId) {
+            setParticipantId(urlId);
+            localStorage.setItem('participantId', urlId);
+        } else {
+            const saved = localStorage.getItem('participantId');
+            if (saved) {
+                setParticipantId(saved);
+            }
         }
-    }, []);
+    }, [searchParams]);
 
     const saveParticipantId = (value) => {
         setParticipantId(value);

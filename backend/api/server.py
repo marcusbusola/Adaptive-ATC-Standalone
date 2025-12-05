@@ -1142,12 +1142,18 @@ async def acknowledge_alert(session_id: str, alert_id: str, request: AlertAcknow
 
         # Record interaction in scenario if active
         if session_id in active_scenarios:
+            # Extract aircraft callsign from alert_id format: "alert_{event_type}_{callsign}"
+            # This allows resolve_issue() to find and reset the pilot's mood
+            alert_parts = alert_id.split('_')
+            aircraft_callsign = alert_parts[-1] if len(alert_parts) >= 3 else alert_id
+
             active_scenarios[session_id].record_interaction(
                 interaction_type='alert_acknowledged',
-                target=alert_id,
+                target=aircraft_callsign,
                 data={
                     'response_time_ms': request.response_time_ms,
-                    'action_taken': request.action_taken
+                    'action_taken': request.action_taken,
+                    'original_alert_id': alert_id
                 }
             )
 
@@ -1302,7 +1308,16 @@ async def submit_survey(session_id: str, request: SurveyRequest):
             logger.warning(f"Survey submission failed: session {session_id} not found")
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-        survey_id = f"survey_{session_id}_{request.survey_type}_{uuid.uuid4().hex[:8]}"
+        # Use abbreviated survey types to keep survey_id under VARCHAR(50) limit
+        survey_type_abbrev = {
+            'NASA-TLX': 'tlx',
+            'Trust in Automation': 'trust',
+            'Alert Effectiveness': 'effect',
+            'Manipulation Check': 'manip',
+            'Demographics': 'demo',
+        }
+        abbrev = survey_type_abbrev.get(request.survey_type, request.survey_type[:8])
+        survey_id = f"survey_{session_id}_{abbrev}_{uuid.uuid4().hex[:8]}"
 
         # Normalize survey_phase to match database CHECK constraint
         # Frontend sends: 'pre-session', 'post-session', 'post-phase-1'

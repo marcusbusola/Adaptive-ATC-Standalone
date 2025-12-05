@@ -1123,3 +1123,129 @@
 .aircraft-btn {
   position: relative;
 }
+
+/* ============================================================================
+   RESPONSIVE DESIGN - Action Panel
+   ============================================================================ */
+
+/* Tablet Layout - Panel stacks below radar */
+@media (max-width: 1199px) {
+  .action-panel {
+    width: 100%;
+    min-width: 100%;
+    border-left: none;
+    border-top: 2px solid rgba(74, 144, 226, 0.3);
+  }
+
+  .action-panel-header {
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+  }
+
+  .action-panel-header h2 {
+    font-size: 14px;
+  }
+
+  .panel-section {
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+  }
+
+  .panel-section h3 {
+    font-size: 11px;
+  }
+
+  /* Horizontal layout for aircraft buttons on tablet */
+  .aircraft-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .aircraft-btn {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  /* Compact command grid */
+  .command-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .command-btn.common {
+    padding: 8px 6px;
+  }
+
+  .command-icon {
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+
+  .command-btn.common .command-label {
+    font-size: 9px;
+  }
+
+  /* Compact history */
+  .history-list {
+    max-height: 100px;
+  }
+
+  .history-item {
+    font-size: 10px;
+    padding: 4px 0;
+  }
+}
+
+/* Mobile Layout */
+@media (max-width: 768px) {
+  .action-panel-header {
+    padding: var(--space-xs, 4px) var(--space-sm, 8px);
+  }
+
+  .action-panel-header h2 {
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .elapsed-time {
+    font-size: 14px;
+  }
+
+  .panel-section {
+    padding: var(--space-xs, 4px) var(--space-sm, 8px);
+  }
+
+  .situation-context .scenario-name {
+    font-size: 12px;
+  }
+
+  .context-description {
+    font-size: 11px;
+    padding: 8px;
+  }
+
+  .command-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .conflict-warning-box {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+
+  .conflict-warning-header {
+    font-size: 10px;
+  }
+
+  .conflict-separation {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .safety-score-section {
+    padding: 8px !important;
+  }
+
+  .safety-score-display .score-value {
+    font-size: 24px;
+  }
+}
