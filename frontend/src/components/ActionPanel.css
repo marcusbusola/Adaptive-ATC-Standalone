@@ -304,13 +304,15 @@
 }
 
 .command-btn.expected {
-  border-color: #4caf50;
-  background: rgba(76, 175, 80, 0.1);
+  border: 2px solid #4caf50;
+  background: transparent;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
 }
 
 .command-btn.expected:hover:not(:disabled) {
-  background: rgba(76, 175, 80, 0.2);
-  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.15);
+  border-color: #66bb6a;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.6);
 }
 
 .command-btn.completed {

@@ -177,35 +177,35 @@ NEED_TYPES = [
      "description": "Confirm next waypoint or routing"},
 ]
 
-# Emergency resolution options - multiple choice for gameplay
+# Emergency resolution options - single correct answer per emergency type
 EMERGENCY_RESOLUTION_OPTIONS = {
     "fuel_emergency": [
-        {"id": "divert_nearest", "label": "Divert to Nearest Airport", "correct": True, "points": 10},
         {"id": "emergency_descent", "label": "Emergency Descent + Priority Landing", "correct": True, "points": 15},
+        {"id": "divert_nearest", "label": "Divert to Nearest Airport", "correct": False, "points": -3},
         {"id": "continue_destination", "label": "Continue to Destination", "correct": False, "points": -5},
         {"id": "hold_pattern", "label": "Enter Holding Pattern", "correct": False, "points": -10}
     ],
     "medical_emergency": [
-        {"id": "priority_landing", "label": "Priority Landing Clearance", "correct": True, "points": 10},
-        {"id": "alert_medical_ground", "label": "Alert Ground Medical Services", "correct": True, "points": 5},
-        {"id": "continue_flight", "label": "Continue Normal Operations", "correct": False, "points": -10},
-        {"id": "divert_hospital", "label": "Divert to Airport with Hospital", "correct": True, "points": 12}
+        {"id": "divert_hospital", "label": "Divert to Airport with Hospital", "correct": True, "points": 12},
+        {"id": "priority_landing", "label": "Priority Landing Clearance", "correct": False, "points": -3},
+        {"id": "alert_medical_ground", "label": "Alert Ground Medical Services", "correct": False, "points": -3},
+        {"id": "continue_flight", "label": "Continue Normal Operations", "correct": False, "points": -10}
     ],
     "comm_loss": [
         {"id": "contact_guard", "label": "Contact on Guard 121.5", "correct": True, "points": 10},
-        {"id": "squawk_ident", "label": "Request Squawk Ident", "correct": True, "points": 5},
+        {"id": "squawk_ident", "label": "Request Squawk Ident", "correct": False, "points": -3},
         {"id": "assume_glitch", "label": "Assume Temporary Glitch", "correct": False, "points": -5},
-        {"id": "relay_traffic", "label": "Relay via Other Traffic", "correct": True, "points": 8}
+        {"id": "relay_traffic", "label": "Relay via Other Traffic", "correct": False, "points": -3}
     ],
     "conflict": [
-        {"id": "vector_away", "label": "Vector Aircraft Away", "correct": True, "points": 10},
-        {"id": "altitude_change", "label": "Issue Altitude Change", "correct": True, "points": 10},
-        {"id": "monitor_only", "label": "Monitor Situation Only", "correct": False, "points": -10},
-        {"id": "both_separate", "label": "Separate Both Aircraft", "correct": True, "points": 15}
+        {"id": "both_separate", "label": "Separate Both Aircraft", "correct": True, "points": 15},
+        {"id": "vector_away", "label": "Vector Aircraft Away", "correct": False, "points": -3},
+        {"id": "altitude_change", "label": "Issue Altitude Change", "correct": False, "points": -3},
+        {"id": "monitor_only", "label": "Monitor Situation Only", "correct": False, "points": -10}
     ],
     "engine_failure": [
         {"id": "declare_emergency", "label": "Declare Emergency + Clear Path", "correct": True, "points": 15},
-        {"id": "immediate_vectors", "label": "Immediate Vectors to Nearest", "correct": True, "points": 12},
+        {"id": "immediate_vectors", "label": "Immediate Vectors to Nearest", "correct": False, "points": -3},
         {"id": "maintain_altitude", "label": "Maintain Current Altitude", "correct": False, "points": -5},
         {"id": "standard_approach", "label": "Continue Standard Approach", "correct": False, "points": -8}
     ]
@@ -342,7 +342,7 @@ class BaseScenario(ABC):
         self.ANGRY_PENALTY_PER_SECOND = 0.2     # Points lost per second while angry
         self.CONFLICT_PENALTY_PER_SECOND = 0.5  # Points lost per second during conflict
         self.UNMET_NEED_PENALTY_PER_SECOND = 0.1  # Points lost per second per unmet need
-        self.HAPPY_BONUS_PER_SECOND = 0.05      # Points gained per second when all happy
+        self.HAPPY_BONUS_PER_SECOND = 0.15      # Points gained per second when all happy (3x faster recovery)
         self.COMPLAINT_THRESHOLD = 90.0         # Seconds ignored to file complaint
 
         # Needs generation settings (spaced out to reduce overwhelm in low workload scenarios)

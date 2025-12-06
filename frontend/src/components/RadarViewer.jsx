@@ -239,6 +239,17 @@ function RadarViewer({
     }
 
     const render = () => {
+      // Track previous angle to detect north crossing
+      const prevAngle = sweepAngleRef.current;
+
+      // Update sweep angle
+      sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (2 * Math.PI);
+
+      // Play beep when sweep crosses north (angle wraps from ~2π back to ~0)
+      if (prevAngle > sweepAngleRef.current) {
+        playRadarBeep();
+      }
+
       drawRadar();
       animationRef.current = requestAnimationFrame(render);
     };
@@ -251,7 +262,7 @@ function RadarViewer({
         animationRef.current = null;
       }
     };
-  }, [drawRadar]);
+  }, [drawRadar, playRadarBeep]);
 
   /**
    * Draw subtle rectangular grid pattern (lowest layer)
