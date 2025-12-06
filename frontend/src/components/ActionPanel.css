@@ -5,8 +5,8 @@
  */
 
 .action-panel {
-  width: 460px;
-  min-width: 460px;
+  width: 520px;
+  min-width: 520px;
   background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
   border-left: 2px solid rgba(74, 144, 226, 0.3);
   display: flex;
@@ -63,6 +63,33 @@
 }
 
 /* Situation Context */
+.situation-context .collapsible-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.situation-context .collapsible-header:hover {
+  color: #4a90e2;
+}
+
+.situation-context .collapse-icon {
+  font-size: 10px;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.situation-context .collapsible-header:hover .collapse-icon {
+  color: #4a90e2;
+}
+
+.situation-context.collapsed {
+  padding-bottom: 8px;
+}
+
 .situation-context .scenario-name {
   font-size: 14px;
   font-weight: bold;
@@ -1396,9 +1423,10 @@
   align-items: center;
   gap: 10px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.6);
   border-radius: 8px;
   border-left: 3px solid;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .need-item.priority-high {
@@ -1424,11 +1452,13 @@
   font-size: 13px;
   font-weight: 600;
   color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .need-description {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .resolve-need-btn {
