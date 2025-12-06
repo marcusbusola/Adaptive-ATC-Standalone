@@ -115,34 +115,6 @@ function RadarViewer({
     }
   }, []);
 
-  /**
-   * Initialize and start render loop.
-   * Dependency on drawRadar ensures the loop gets the latest aircraft data
-   * instead of capturing the initial empty state.
-   */
-  useEffect(() => {
-    setIsLoading(false);
-
-    // Cancel any existing loop before starting a new one (e.g., after dependency changes)
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-
-    const render = () => {
-      drawRadar();
-      animationRef.current = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-    };
-  }, [drawRadar]);
-
   // Clean up audio context on unmount
   useEffect(() => {
     return () => {
@@ -252,6 +224,34 @@ function RadarViewer({
       });
     }
   }, [aircraft, conflicts, selectedAircraft, scenarioCenter]);
+
+  /**
+   * Initialize and start render loop.
+   * Dependency on drawRadar ensures the loop gets the latest aircraft data
+   * instead of capturing the initial empty state.
+   */
+  useEffect(() => {
+    setIsLoading(false);
+
+    // Cancel any existing loop before starting a new one (e.g., after dependency changes)
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    const render = () => {
+      drawRadar();
+      animationRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [drawRadar]);
 
   /**
    * Draw subtle rectangular grid pattern (lowest layer)
