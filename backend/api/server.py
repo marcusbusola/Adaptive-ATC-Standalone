@@ -1147,7 +1147,7 @@ async def acknowledge_alert(session_id: str, alert_id: str, request: AlertAcknow
             aircraft_callsign = alert_parts[-1] if len(alert_parts) >= 3 else alert_id
 
             active_scenarios[session_id].record_interaction(
-                interaction_type='alert_acknowledged',
+                interaction_type='acknowledge',
                 target=aircraft_callsign,
                 data={
                     'response_time_ms': request.response_time_ms,

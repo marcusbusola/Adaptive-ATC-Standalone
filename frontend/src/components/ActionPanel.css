@@ -11,9 +11,31 @@
   border-left: 2px solid rgba(74, 144, 226, 0.3);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden; /* Panel itself doesn't scroll - children do */
   font-family: 'Courier New', Consolas, monospace;
   color: #e0e0e0;
+  height: 100%;
+}
+
+/* Fixed top sections - never shrink */
+.panel-fixed-top {
+  flex-shrink: 0;
+}
+
+/* Scrollable middle section - takes remaining space */
+.panel-scrollable-middle {
+  flex-grow: 1;
+  overflow-y: auto;
+  min-height: 0; /* Required for flex child scrolling */
+  border-top: 1px solid rgba(74, 144, 226, 0.2);
+  border-bottom: 1px solid rgba(74, 144, 226, 0.2);
+}
+
+/* Fixed bottom sections - never shrink */
+.panel-fixed-bottom {
+  flex-shrink: 0;
+  max-height: 45%; /* Prevent bottom from taking too much space */
+  overflow-y: auto;
 }
 
 /* Header */
@@ -804,6 +826,46 @@
   margin-top: 8px;
 }
 
+/* Individual Aircraft Safety Score Progress Bar */
+.aircraft-safety-score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+.aircraft-safety-score .score-label {
+  font-size: 11px;
+  color: #888;
+  min-width: 45px;
+}
+
+.score-bar-container {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(74, 144, 226, 0.2);
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.aircraft-safety-score .score-percentage {
+  font-size: 12px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  min-width: 35px;
+  text-align: right;
+  color: inherit;
+}
+
 .aircraft-info-section h4 {
   margin: 8px 0;
   font-size: 11px;
@@ -967,23 +1029,31 @@
 
 /* Scrollbar styling */
 .action-panel::-webkit-scrollbar,
-.history-list::-webkit-scrollbar {
+.history-list::-webkit-scrollbar,
+.panel-scrollable-middle::-webkit-scrollbar,
+.panel-fixed-bottom::-webkit-scrollbar {
   width: 6px;
 }
 
 .action-panel::-webkit-scrollbar-track,
-.history-list::-webkit-scrollbar-track {
+.history-list::-webkit-scrollbar-track,
+.panel-scrollable-middle::-webkit-scrollbar-track,
+.panel-fixed-bottom::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
 }
 
 .action-panel::-webkit-scrollbar-thumb,
-.history-list::-webkit-scrollbar-thumb {
+.history-list::-webkit-scrollbar-thumb,
+.panel-scrollable-middle::-webkit-scrollbar-thumb,
+.panel-fixed-bottom::-webkit-scrollbar-thumb {
   background: rgba(74, 144, 226, 0.5);
   border-radius: 3px;
 }
 
 .action-panel::-webkit-scrollbar-thumb:hover,
-.history-list::-webkit-scrollbar-thumb:hover {
+.history-list::-webkit-scrollbar-thumb:hover,
+.panel-scrollable-middle::-webkit-scrollbar-thumb:hover,
+.panel-fixed-bottom::-webkit-scrollbar-thumb:hover {
   background: rgba(74, 144, 226, 0.7);
 }
 

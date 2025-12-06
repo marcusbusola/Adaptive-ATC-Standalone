@@ -335,16 +335,27 @@ const ActionPanel = ({
     );
   }
 
+  // Get color for safety score progress bar (red to green gradient)
+  const getScoreColor = (score) => {
+    if (score >= 80) return '#4caf50'; // Green
+    if (score >= 60) return '#8bc34a'; // Light green
+    if (score >= 40) return '#ffeb3b'; // Yellow
+    if (score >= 20) return '#ff9800'; // Orange
+    return '#f44336'; // Red
+  };
+
   return (
     <div className="action-panel">
-      {/* Header */}
+      {/* Header - Fixed */}
       <div className="action-panel-header">
         <h2>Action Panel</h2>
         <div className="elapsed-time">{formatTime(elapsedTime)}</div>
       </div>
 
-      {/* Safety Score Display */}
-      <section className="panel-section safety-score-section">
+      {/* Fixed Top Sections */}
+      <div className="panel-fixed-top">
+        {/* Safety Score Display */}
+        <section className="panel-section safety-score-section">
         <h3>Safety Score</h3>
         <div className="safety-score-display">
           <span className={`score-value ${safetyScore > 800 ? 'good' : safetyScore > 400 ? 'warning' : 'danger'}`}>
@@ -423,9 +434,12 @@ const ActionPanel = ({
           )}
         </div>
       </section>
+      </div>
 
-      {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
-      <section className="panel-section dynamic-content">
+      {/* Scrollable Middle Section */}
+      <div className="panel-scrollable-middle">
+        {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
+        <section className="panel-section dynamic-content">
         {selectedAircraftData ? (
           // AIRCRAFT SELECTED: Show conflicts, commands, and full info
           <>
@@ -501,6 +515,24 @@ const ActionPanel = ({
             {/* Full Aircraft Information */}
             <div className="aircraft-info-section">
               <h4>Aircraft Information</h4>
+
+              {/* Individual Aircraft Safety Score */}
+              {selectedAircraftData.safety_score !== undefined && (
+                <div className="aircraft-safety-score">
+                  <span className="score-label">Safety</span>
+                  <div className="score-bar-container">
+                    <div
+                      className="score-bar-fill"
+                      style={{
+                        width: `${selectedAircraftData.safety_score}%`,
+                        backgroundColor: getScoreColor(selectedAircraftData.safety_score)
+                      }}
+                    />
+                  </div>
+                  <span className="score-percentage">{Math.round(selectedAircraftData.safety_score)}%</span>
+                </div>
+              )}
+
               <div className="aircraft-telemetry">
                 {/* Flight Data */}
                 <div className="telemetry-row">
@@ -602,10 +634,13 @@ const ActionPanel = ({
             <span>All situations resolved</span>
           </div>
         )}
-      </section>
+        </section>
+      </div>
 
-      {/* Common ATC Commands */}
-      <section className="panel-section common-commands">
+      {/* Fixed Bottom Sections */}
+      <div className="panel-fixed-bottom">
+        {/* Common ATC Commands */}
+        <section className="panel-section common-commands">
         {/* Only show header if no Required Actions are displayed */}
         {commandsForSelectedAircraft.length === 0 && (
           <h3>ATC Commands</h3>
@@ -725,6 +760,7 @@ const ActionPanel = ({
           )}
         </div>
       </section>
+      </div>
     </div>
   );
 };

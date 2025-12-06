@@ -137,6 +137,13 @@ function Session() {
             pollingRef.current = null;
         }
 
+        // Clear cached session state
+        try {
+            sessionStorage.removeItem(`session_${sessionId}`);
+        } catch (e) {
+            // Ignore storage errors
+        }
+
         setIsLoading(true);
         setError('');
         try {
@@ -316,6 +323,20 @@ function Session() {
             if (data.scenario_complete) {
                 setScenarioComplete(true);
                 handleEndSession('scenario_completed');
+            }
+
+            // Cache session state for recovery on navigation back
+            try {
+                sessionStorage.setItem(`session_${sessionId}`, JSON.stringify({
+                    elapsed_time: data.elapsed_time,
+                    current_phase: data.current_phase,
+                    phase_description: data.phase_description,
+                    safety_score: data.safety_score,
+                    scenario_started: true,
+                    cached_at: Date.now()
+                }));
+            } catch (e) {
+                // Ignore storage errors
             }
 
         } catch (err) {
@@ -747,6 +768,35 @@ function Session() {
         // Queue data is now loaded automatically via useEffect when sessionDetails arrives
     }, [sessionId, fetchSessionDetails]);
 
+    // Check for cached session state on mount (for recovery after back navigation)
+    useEffect(() => {
+        if (!sessionDetails || scenarioStarted) return;
+
+        try {
+            const cached = sessionStorage.getItem(`session_${sessionId}`);
+            if (cached) {
+                const cachedState = JSON.parse(cached);
+                // Only restore if cached recently (within 30 minutes) and scenario was started
+                const cacheAge = Date.now() - cachedState.cached_at;
+                if (cachedState.scenario_started && cacheAge < 30 * 60 * 1000) {
+                    console.log('[Session] Restoring cached state from navigation');
+                    setShowInstructions(false);
+                    setScenarioStarted(true);
+                    scenarioStartedRef.current = true;
+                    startTimeRef.current = Date.now() - (cachedState.elapsed_time * 1000);
+                    setElapsedTime(cachedState.elapsed_time);
+                    setCurrentPhase(cachedState.current_phase);
+                    setPhaseDescription(cachedState.phase_description || '');
+                    if (cachedState.safety_score !== undefined) {
+                        setSafetyScore(cachedState.safety_score);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[Session] Failed to restore cached state:', e);
+        }
+    }, [sessionId, sessionDetails, scenarioStarted]);
+
     // Log when aircraftConfig is available
     useEffect(() => {
         if (sessionDetails?.aircraft_config) {
@@ -780,6 +830,19 @@ function Session() {
             pendingAlertTimers.current = {};
         };
     }, []);
+
+    // Warn user before leaving during active session
+    useEffect(() => {
+        if (scenarioStarted && !scenarioComplete) {
+            const handleBeforeUnload = (e) => {
+                e.preventDefault();
+                e.returnValue = ''; // Required for Chrome
+                return ''; // For older browsers
+            };
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+        }
+    }, [scenarioStarted, scenarioComplete]);
 
     // Render alerts based on condition
     const renderAlerts = () => {
