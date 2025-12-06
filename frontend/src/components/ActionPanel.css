@@ -11,31 +11,9 @@
   border-left: 2px solid rgba(74, 144, 226, 0.3);
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Panel itself doesn't scroll - children do */
+  overflow-y: auto;
   font-family: 'Courier New', Consolas, monospace;
   color: #e0e0e0;
-  height: 100%;
-}
-
-/* Fixed top sections - never shrink */
-.panel-fixed-top {
-  flex-shrink: 0;
-}
-
-/* Scrollable middle section - takes remaining space */
-.panel-scrollable-middle {
-  flex-grow: 1;
-  overflow-y: auto;
-  min-height: 0; /* Required for flex child scrolling */
-  border-top: 1px solid rgba(74, 144, 226, 0.2);
-  border-bottom: 1px solid rgba(74, 144, 226, 0.2);
-}
-
-/* Fixed bottom sections - never shrink */
-.panel-fixed-bottom {
-  flex-shrink: 0;
-  max-height: 45%; /* Prevent bottom from taking too much space */
-  overflow-y: auto;
 }
 
 /* Header */
@@ -622,6 +600,8 @@
 /* Dynamic Content Area */
 .dynamic-content {
   min-height: 120px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .dynamic-content h3 {
@@ -1030,30 +1010,26 @@
 /* Scrollbar styling */
 .action-panel::-webkit-scrollbar,
 .history-list::-webkit-scrollbar,
-.panel-scrollable-middle::-webkit-scrollbar,
-.panel-fixed-bottom::-webkit-scrollbar {
+.dynamic-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .action-panel::-webkit-scrollbar-track,
 .history-list::-webkit-scrollbar-track,
-.panel-scrollable-middle::-webkit-scrollbar-track,
-.panel-fixed-bottom::-webkit-scrollbar-track {
+.dynamic-content::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
 }
 
 .action-panel::-webkit-scrollbar-thumb,
 .history-list::-webkit-scrollbar-thumb,
-.panel-scrollable-middle::-webkit-scrollbar-thumb,
-.panel-fixed-bottom::-webkit-scrollbar-thumb {
+.dynamic-content::-webkit-scrollbar-thumb {
   background: rgba(74, 144, 226, 0.5);
   border-radius: 3px;
 }
 
 .action-panel::-webkit-scrollbar-thumb:hover,
 .history-list::-webkit-scrollbar-thumb:hover,
-.panel-scrollable-middle::-webkit-scrollbar-thumb:hover,
-.panel-fixed-bottom::-webkit-scrollbar-thumb:hover {
+.dynamic-content::-webkit-scrollbar-thumb:hover {
   background: rgba(74, 144, 226, 0.7);
 }
 

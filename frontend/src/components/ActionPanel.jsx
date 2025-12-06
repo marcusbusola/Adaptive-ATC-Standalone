@@ -352,9 +352,7 @@ const ActionPanel = ({
         <div className="elapsed-time">{formatTime(elapsedTime)}</div>
       </div>
 
-      {/* Fixed Top Sections */}
-      <div className="panel-fixed-top">
-        {/* Safety Score Display */}
+      {/* Safety Score Display */}
         <section className="panel-section safety-score-section">
         <h3>Safety Score</h3>
         <div className="safety-score-display">
@@ -434,11 +432,8 @@ const ActionPanel = ({
           )}
         </div>
       </section>
-      </div>
 
-      {/* Scrollable Middle Section */}
-      <div className="panel-scrollable-middle">
-        {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
+      {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
         <section className="panel-section dynamic-content">
         {selectedAircraftData ? (
           // AIRCRAFT SELECTED: Show conflicts, commands, and full info
@@ -634,12 +629,9 @@ const ActionPanel = ({
             <span>All situations resolved</span>
           </div>
         )}
-        </section>
-      </div>
+      </section>
 
-      {/* Fixed Bottom Sections */}
-      <div className="panel-fixed-bottom">
-        {/* Common ATC Commands */}
+      {/* Common ATC Commands */}
         <section className="panel-section common-commands">
         {/* Only show header if no Required Actions are displayed */}
         {commandsForSelectedAircraft.length === 0 && (
@@ -760,7 +752,6 @@ const ActionPanel = ({
           )}
         </div>
       </section>
-      </div>
     </div>
   );
 };
