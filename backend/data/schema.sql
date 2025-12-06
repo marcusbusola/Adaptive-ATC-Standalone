@@ -524,3 +524,39 @@ GROUP BY s.scenario;
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
+
+-- ============================================================================
+-- TABLE: schema_version
+-- ============================================================================
+-- Stores the current version of the database schema
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS schema_version (
+    version VARCHAR(20) PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert initial version
+INSERT INTO schema_version (version) VALUES ('1.0.0');
+
+
+-- ============================================================================
+-- TABLE: metric_categories
+-- ============================================================================
+-- Defines the categories for metrics
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS metric_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT
+);
+
+-- Insert default metric categories
+INSERT INTO metric_categories (name, description) VALUES
+('performance', 'Metrics related to task performance'),
+('workload', 'Metrics related to user workload'),
+('attention', 'Metrics related to user attention'),
+('accuracy', 'Metrics related to accuracy of actions'),
+('efficiency', 'Metrics related to efficiency of actions'),
+('safety', 'Metrics related to safety of the system');

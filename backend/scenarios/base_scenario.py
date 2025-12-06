@@ -1699,7 +1699,7 @@ class BaseScenario(ABC):
 
             # Resolution interactions resolve the aircraft's issue
             resolution_interactions = [
-                'command', 'clearance', 'frequency_change',
+                'command', 'user_command', 'clearance', 'frequency_change',
                 'altitude_command', 'heading_command', 'speed_command',
                 'vector', 'handoff', 'acknowledge', 'radio_contact',
                 'dismiss', 'clear', 'resolve'
@@ -1719,7 +1719,7 @@ class BaseScenario(ABC):
 
         # Interaction types that count as resolution
         resolution_interactions = [
-            'command', 'clearance', 'frequency_change',
+            'command', 'user_command', 'clearance', 'frequency_change',
             'altitude_command', 'heading_command', 'speed_command',
             'vector', 'handoff', 'acknowledge', 'radio_contact',
             'dismiss', 'clear', 'resolve'
