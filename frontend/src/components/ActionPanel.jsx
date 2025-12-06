@@ -531,7 +531,7 @@ const ActionPanel = ({
         <section className="panel-section safety-score-section">
         <h3>Safety Score</h3>
         <div className="safety-score-display">
-          <span className={`score-value ${safetyScore > 800 ? 'good' : safetyScore > 400 ? 'warning' : 'danger'}`}>
+          <span className={`score-value ${safetyScore >= 80 ? 'good' : safetyScore >= 40 ? 'warning' : 'danger'}`}>
             {safetyScore}
           </span>
           <span className="score-trend">
@@ -643,12 +643,13 @@ const ActionPanel = ({
                   {selectedAircraftInspection.emergency_options.map((option, idx) => (
                     <button
                       key={option.id}
-                      className="emergency-option-btn"
+                      className={`emergency-option-btn ${option.correct ? 'correct-option' : ''}`}
                       onClick={() => submitEmergencyResolution(selectedAircraftCallsign, option.id, option.label)}
                       disabled={isResolvingEmergency}
                     >
                       <span className="option-number">{idx + 1}</span>
                       <span className="option-label">{option.label}</span>
+                      {option.correct && <span className="resolve-tag">RESOLVES</span>}
                     </button>
                   ))}
                 </div>

@@ -1542,6 +1542,9 @@ class BaseScenario(ABC):
                 aircraft.issue_resolved = True
                 aircraft.has_issue = False
                 aircraft.mood = 'happy'
+                # Clear emergency flags to prevent alerts from reappearing
+                aircraft.emergency = False
+                aircraft.emergency_type = None
                 print(f"[RESOLVED] {callsign}: issue resolved at {self.elapsed_time:.1f}s")
                 return True
         return False

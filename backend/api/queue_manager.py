@@ -197,6 +197,9 @@ class QueueManager:
         # In-memory cache
         self.queues: Dict[str, SessionQueue] = {}
 
+        # Track file modification times for cache invalidation
+        self._file_mtimes: Dict[str, float] = {}
+
         # Load existing queues
         self._load_queues()
 
@@ -208,8 +211,59 @@ class QueueManager:
                     data = json.load(f)
                     queue = SessionQueue.from_dict(data)
                     self.queues[queue.queue_id] = queue
+                    # Track file mtime for cache invalidation
+                    self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
             except Exception as e:
                 print(f"Error loading queue {queue_file}: {e}")
+
+    def _refresh_queue_if_stale(self, queue_id: str) -> None:
+        """
+        Refresh a queue from disk if the file has been modified.
+
+        This handles the case where files are modified externally or
+        by another process (though multi-worker is not fully supported).
+        """
+        queue_file = self.storage_path / f"{queue_id}.json"
+        if not queue_file.exists():
+            # File deleted - remove from cache
+            self.queues.pop(queue_id, None)
+            self._file_mtimes.pop(queue_id, None)
+            return
+
+        try:
+            current_mtime = queue_file.stat().st_mtime
+            cached_mtime = self._file_mtimes.get(queue_id, 0)
+
+            if current_mtime > cached_mtime:
+                # File has been modified - reload
+                with open(queue_file, 'r') as f:
+                    data = json.load(f)
+                    queue = SessionQueue.from_dict(data)
+                    self.queues[queue_id] = queue
+                    self._file_mtimes[queue_id] = current_mtime
+        except Exception as e:
+            print(f"Error refreshing queue {queue_id}: {e}")
+
+    def _refresh_all_queues(self) -> None:
+        """Refresh all queues and discover new queue files."""
+        # Check for new files
+        for queue_file in self.storage_path.glob('*.json'):
+            queue_id = queue_file.stem  # filename without .json
+            if queue_id.startswith('.'):
+                continue  # Skip temp files
+            if queue_id not in self.queues:
+                # New file discovered
+                try:
+                    with open(queue_file, 'r') as f:
+                        data = json.load(f)
+                        queue = SessionQueue.from_dict(data)
+                        self.queues[queue.queue_id] = queue
+                        self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
+                except Exception as e:
+                    print(f"Error loading new queue {queue_file}: {e}")
+            else:
+                # Existing file - check for updates
+                self._refresh_queue_if_stale(queue_id)
 
     def _save_queue(self, queue: SessionQueue) -> None:
         """Save queue to storage"""
@@ -219,6 +273,8 @@ class QueueManager:
             with open(tmp_file, 'w') as f:
                 json.dump(queue.to_dict(), f, indent=2)
             tmp_file.replace(queue_file)
+            # Update mtime tracking after successful save
+            self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
         except Exception as e:
             print(f"Error saving queue {queue.queue_id}: {e}")
 
@@ -286,18 +342,21 @@ class QueueManager:
         return queue
 
     def get_queue(self, queue_id: str) -> Optional[SessionQueue]:
-        """Get queue by ID"""
+        """Get queue by ID (refreshes from disk if file was modified)"""
+        self._refresh_queue_if_stale(queue_id)
         return self.queues.get(queue_id)
 
     def get_participant_queues(self, participant_id: str) -> List[SessionQueue]:
-        """Get all queues for a participant"""
+        """Get all queues for a participant (refreshes from disk)"""
+        self._refresh_all_queues()
         return [
             queue for queue in self.queues.values()
             if queue.participant_id == participant_id
         ]
 
     def get_all_queues(self) -> List[SessionQueue]:
-        """Get all queues"""
+        """Get all queues (refreshes from disk)"""
+        self._refresh_all_queues()
         return list(self.queues.values())
 
     def update_queue(self, queue: SessionQueue) -> None:
@@ -310,6 +369,7 @@ class QueueManager:
         if queue_id in self.queues:
             # Delete from memory
             del self.queues[queue_id]
+            self._file_mtimes.pop(queue_id, None)
 
             # Delete from storage
             queue_file = self.storage_path / f"{queue_id}.json"

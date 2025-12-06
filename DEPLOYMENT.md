@@ -104,7 +104,23 @@ git push origin main
 - **Database**: Starter → Standard for more connections
 
 ### Multiple Workers (Standard+ plans)
-Update start command:
+
+> **⚠️ WARNING: State Compatibility**
+>
+> The current implementation uses **in-memory state** for active sessions (`active_scenarios`,
+> `websocket_connections`, `sim_live_connections`) and queue caching. Running multiple workers
+> will cause **split-brain issues** where:
+> - A session started on Worker A won't be found by Worker B
+> - WebSocket connections will fail to route correctly
+> - Queue updates won't be visible across workers
+>
+> **Before enabling multiple workers**, you must either:
+> 1. Use an external state store (Redis) for session state, OR
+> 2. Configure sticky sessions in your load balancer
+>
+> For most deployments, **a single worker with vertical scaling** (more RAM/CPU) is recommended.
+
+If you understand the limitations and have implemented external state management:
 ```bash
 cd backend && gunicorn api.server:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
 ```

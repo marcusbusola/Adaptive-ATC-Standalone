@@ -15,7 +15,6 @@ import uuid
 import sys
 import json
 import asyncio
-import threading
 from pathlib import Path
 from enum import Enum
 from loguru import logger
@@ -23,7 +22,7 @@ from dotenv import load_dotenv
 from sse_starlette.sse import EventSourceResponse
 
 # Import simulation engine (replaces BlueSky)
-from simulation import SimulationEngine, Aircraft
+from simulation import SimulationEngine
 
 # Add parent directory to path to allow imports from data, scenarios, etc.
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -147,6 +146,9 @@ SCENARIO_CLASSES = {
 # Active scenarios tracking
 active_scenarios: Dict[str, BaseScenario] = {}
 
+# Track last activity time for each session (for cleanup of abandoned sessions)
+session_last_activity: Dict[str, datetime] = {}
+
 # WebSocket connections tracking
 websocket_connections: Dict[str, WebSocket] = {}
 
@@ -162,7 +164,8 @@ learning_status: Dict[str, Any] = {
     "total_samples": 0,
     "error": None
 }
-learning_lock = threading.Lock()
+# Use asyncio.Lock for async context (threading.Lock blocks the event loop)
+learning_lock = asyncio.Lock()
 
 
 async def retrain_model_background(session_id: str):
@@ -177,7 +180,7 @@ async def retrain_model_background(session_id: str):
         logger.warning("ML models not available - skipping model retraining")
         return
 
-    with learning_lock:
+    async with learning_lock:
         if learning_status["is_learning"]:
             logger.info(f"Skipping retraining for session {session_id} - another training in progress")
             return
@@ -195,7 +198,7 @@ async def retrain_model_background(session_id: str):
             synthetic_samples=100
         )
 
-        with learning_lock:
+        async with learning_lock:
             learning_status["last_result"] = result
             learning_status["last_trained_at"] = datetime.utcnow().isoformat()
             learning_status["total_samples"] = result.get("samples", 0)
@@ -210,18 +213,18 @@ async def retrain_model_background(session_id: str):
                 logger.info("ML Predictor reloaded with updated model")
             except Exception as e:
                 logger.error(f"Failed to reload ML predictor: {e}")
-                with learning_lock:
+                async with learning_lock:
                     learning_status["error"] = f"Model trained but reload failed: {e}"
         else:
             logger.warning(f"Model retraining returned: {result['message']}")
 
     except Exception as e:
         logger.error(f"Error during model retraining: {e}")
-        with learning_lock:
+        async with learning_lock:
             learning_status["error"] = str(e)
             learning_status["last_result"] = {"status": "error", "message": str(e)}
     finally:
-        with learning_lock:
+        async with learning_lock:
             learning_status["is_learning"] = False
 
 
@@ -249,6 +252,86 @@ def require_researcher_token(request: Request):
 
     if token != RESEARCHER_TOKEN:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+
+# ===== Session Cleanup Task =====
+# Cleanup interval and timeout for abandoned sessions
+SESSION_CLEANUP_INTERVAL = 60  # Check every 60 seconds
+SESSION_INACTIVITY_TIMEOUT = 600  # 10 minutes without activity = stale
+
+_cleanup_task: Optional[asyncio.Task] = None
+
+
+async def cleanup_stale_sessions():
+    """
+    Background task to periodically clean up abandoned sessions.
+
+    Sessions that haven't been polled in SESSION_INACTIVITY_TIMEOUT seconds
+    are considered abandoned and will be removed from memory.
+    """
+    while True:
+        try:
+            await asyncio.sleep(SESSION_CLEANUP_INTERVAL)
+
+            now = datetime.utcnow()
+            stale_sessions = []
+
+            for session_id, last_activity in list(session_last_activity.items()):
+                inactive_seconds = (now - last_activity).total_seconds()
+                if inactive_seconds > SESSION_INACTIVITY_TIMEOUT:
+                    stale_sessions.append(session_id)
+                    logger.info(
+                        f"Session {session_id} marked stale "
+                        f"(inactive for {inactive_seconds:.0f}s)"
+                    )
+
+            for session_id in stale_sessions:
+                # Remove from active scenarios
+                if session_id in active_scenarios:
+                    scenario = active_scenarios[session_id]
+                    # Try to save final state before cleanup
+                    try:
+                        checkpoint_data = {
+                            'measurements': getattr(scenario, 'measurements', {}),
+                            'interactions': getattr(scenario, 'interactions', []),
+                            'elapsed_time': scenario.elapsed_time,
+                            'cleanup_reason': 'stale_session_cleanup'
+                        }
+                        await db_manager.save_session_checkpoint(session_id, checkpoint_data)
+                        logger.info(f"Saved checkpoint for stale session {session_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save checkpoint for stale session {session_id}: {e}")
+
+                    del active_scenarios[session_id]
+
+                # Remove from activity tracking
+                session_last_activity.pop(session_id, None)
+
+                # Close WebSocket if connected
+                if session_id in websocket_connections:
+                    try:
+                        await websocket_connections[session_id].close(
+                            code=1000, reason="Session timed out due to inactivity"
+                        )
+                    except Exception:
+                        pass
+                    websocket_connections.pop(session_id, None)
+
+                logger.info(f"Cleaned up stale session {session_id}")
+
+            if stale_sessions:
+                logger.info(f"Cleanup complete: removed {len(stale_sessions)} stale session(s)")
+
+        except asyncio.CancelledError:
+            logger.info("Session cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in session cleanup task: {e}")
+
+
+def update_session_activity(session_id: str):
+    """Update the last activity timestamp for a session."""
+    session_last_activity[session_id] = datetime.utcnow()
 
 
 # ===== Startup and Shutdown Events =====
@@ -292,9 +375,25 @@ async def startup_event():
     sim_engine.add_event_handler("tick", _sim_fan_out)
     logger.info("Simulation engine initialized (standalone mode)")
 
+    # Start background cleanup task for abandoned sessions
+    global _cleanup_task
+    _cleanup_task = asyncio.create_task(cleanup_stale_sessions())
+    logger.info("Session cleanup task started")
+
 @app.on_event("shutdown")
 async def shutdown_event():
+    global _cleanup_task
     logger.info("Server shutting down...")
+
+    # Cancel cleanup task
+    if _cleanup_task:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Session cleanup task stopped.")
+
     await sim_engine.stop()
     logger.info("Simulation engine stopped.")
     await db_manager.disconnect()
@@ -373,6 +472,10 @@ class ScenarioUpdateResponse(BaseModel):
     triggered_events: List[Dict[str, Any]]
     triggered_probes: List[Dict[str, Any]]
     scenario_complete: bool
+    # Safety score and gamification data
+    safety_score: float = 100.0
+    score_changes: List[Dict[str, Any]] = []
+    pilot_complaints: List[Dict[str, Any]] = []
 
 class BehavioralEventRequest(BaseModel):
     events: List[Dict[str, Any]]
@@ -677,6 +780,7 @@ async def start_scenario(session_id: str):
 
         # Store active scenario
         active_scenarios[session_id] = scenario
+        update_session_activity(session_id)
 
         logger.info(f"Scenario {scenario_type} started for session {session_id}")
 
@@ -715,9 +819,11 @@ async def update_scenario(session_id: str, request: ScenarioUpdateRequest):
             scenario = scenario_class(session_id=session_id, condition=condition)
             scenario.start()
             active_scenarios[session_id] = scenario
+            update_session_activity(session_id)
             logger.info(f"Auto-started scenario {scenario_type} for session {session_id}")
 
         scenario = active_scenarios[session_id]
+        update_session_activity(session_id)  # Track activity on every poll
 
         # Update scenario state
         update_result = scenario.update()
@@ -776,7 +882,10 @@ async def update_scenario(session_id: str, request: ScenarioUpdateRequest):
             aircraft=update_result.get('aircraft', {}),
             triggered_events=update_result.get('triggered_events', []),
             triggered_probes=update_result.get('triggered_probes', []),
-            scenario_complete=scenario_complete
+            scenario_complete=scenario_complete,
+            safety_score=getattr(scenario, 'safety_score', 100.0),
+            score_changes=getattr(scenario, 'score_changes', [])[-5:],  # Last 5 changes
+            pilot_complaints=getattr(scenario, 'pilot_complaints', [])
         )
 
     except HTTPException:
