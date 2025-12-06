@@ -96,12 +96,14 @@ All scenarios inherit from `BaseScenario` in `backend/scenarios/base_scenario.py
 
 ### Key Frontend Components
 - **App.jsx**: Main router with participant/researcher views
-- **SessionRunner.jsx**: Manages active session lifecycle, polls `/api/sessions/{id}/update` for triggered events
-- **RadarViewer.jsx**: ATC radar display visualization
+- **Session.jsx**: Main session orchestrator - manages scenario lifecycle, alert display, conflicts, and polls `/api/sessions/{id}/update` for triggered events
+- **RadarViewer.jsx**: ATC radar display visualization with canvas rendering
+- **ActionPanel.jsx**: Control panel with aircraft selection, commands, safety score, and conflict warnings
 - **useBehavioralTracking.js** (`hooks/`): Tracks mouse, clicks, hovers, dwell times - batches events every 5s or 50 events for ML feature extraction
 - **Alert Components**: `TraditionalModalAlert.jsx`, `AdaptiveBannerAlert.jsx`, `MLPredictiveAlert.jsx`
 - **Survey Components**: NASA-TLX, Trust, Demographics, Effectiveness, ManipulationCheck in `components/Surveys/`
 - **Queue Components**: `QueueBuilder.jsx`, `QueueRunner.jsx`, `ResultsDashboard.jsx` in `components/Queue/`
+- **ParticipantLobby.jsx**: Entry point for participants - loads session from queue via participant ID URL param
 
 ### Real-Time Communication
 - WebSocket endpoint: `/ws/session/{session_id}` for behavioral events and scenario updates
@@ -185,3 +187,31 @@ Frontend scenario config is generated from the backend manifest:
 1. `frontend/scripts/generate-scenario-config.js` reads `backend/scenarios/scenario_manifest.json`
 2. Outputs to `frontend/src/scenarios/scenarioConfig.generated.js`
 3. Runs automatically via `npm run prestart` and `npm run prebuild`
+
+## Participant/Researcher Workflow
+
+### Researcher Flow
+1. Create batch queue via `QueueManagementPanel` → `QueueBuilder`
+2. Share participant link: `/participant?id={participant_id}`
+3. Monitor progress via `QueueRunner` and `ResultsDashboard`
+
+### Participant Flow
+1. Enter via `/participant?id={participant_id}` or `/participant` (manual ID entry)
+2. `ParticipantLobby` loads next session from queue
+3. Session runs in `Session.jsx` with condition-specific alerts
+4. Post-session surveys collected via `SurveyManager`
+5. Returns to lobby for next queued session
+
+## Important Implementation Notes
+
+### Alert ID Format
+Alert IDs follow format: `alert_{event_type}_{aircraft_callsign}` (e.g., `alert_emergency_UAL238`). When acknowledging alerts, the callsign is extracted to resolve pilot mood state.
+
+### Survey ID Length Constraint
+The `survey_id` column is `VARCHAR(50)`. Survey IDs use abbreviated type names to fit: `tlx`, `trust`, `effect`, `manip`, `demo`.
+
+### CSS Z-Index Hierarchy
+Defined in `frontend/src/styles/session.css`:
+- `--z-banner-alert: 500` (non-blocking adaptive/ML banners)
+- `--z-modal-alert: 1000` (traditional blocking modal)
+- `--z-loading: 9999` (loading overlays)

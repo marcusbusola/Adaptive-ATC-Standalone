@@ -5,7 +5,6 @@ import './styles/session.css';
 
 // Components
 import ResearcherControlPanel from './components/ResearcherControlPanel';
-import SessionRunner from './components/SessionRunner'; // Keep for researcher view if needed
 import QueueManagementPanel from './components/QueueManagementPanel';
 import ParticipantLobby from './components/ParticipantLobby';
 import Session from './components/Session';

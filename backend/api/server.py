@@ -3,7 +3,7 @@ ATC Adaptive Alert Research System - Main Server
 FastAPI server with comprehensive session management, WebSocket support, and data collection
 """
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status, Request, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -65,7 +65,6 @@ except ImportError as e:
 
 # Import database utilities and schema setup
 from data.db_utils import get_db_manager, DatabaseManager
-from data.setup_database import DatabaseSetup
 from api.queue_manager import get_queue_manager, QueueItemStatus
 
 # Load environment variables
@@ -1175,10 +1174,10 @@ async def dismiss_alert(session_id: str, alert_id: str, request: AlertDismissReq
         # Update alert in database (mark as dismissed)
         async with db_manager.get_connection() as conn:
             await conn.execute(
-                "UPDATE alerts SET was_dismissed = 1, dismissed_at = :dismissed_at, time_to_dismiss = :time_displayed WHERE alert_id = :alert_id",
+                "UPDATE alerts SET was_dismissed = 1, dismissed_at = :dismissed_at, time_to_dismiss = :time_to_dismiss WHERE alert_id = :alert_id",
                 {
                     "dismissed_at": request.dismissed_at or datetime.utcnow().isoformat(),
-                    "time_displayed": request.time_displayed_ms,
+                    "time_to_dismiss": request.time_displayed_ms,
                     "alert_id": alert_id
                 }
             )
@@ -1976,6 +1975,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             if message_type == "ping":
                 await websocket.send_json({"type": "pong", "timestamp": datetime.utcnow().isoformat()})
+
+            elif message_type == "connect":
+                # Acknowledge initial connection from client
+                logger.info(f"WebSocket connect message received for session {session_id}")
+                await websocket.send_json({
+                    "type": "ack",
+                    "message_type": "connect",
+                    "session_id": session_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+
+            elif message_type == "heartbeat":
+                # Respond to heartbeat keep-alive messages
+                await websocket.send_json({
+                    "type": "heartbeat_ack",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
 
             elif message_type == "behavioral_event":
                 # Log behavioral event

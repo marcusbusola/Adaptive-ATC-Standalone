@@ -130,13 +130,6 @@ export async function logBehavioralEvent(sessionId, events) {
   });
 }
 
-/**
- * Get behavioral events for a session
- */
-export async function getBehavioralEvents(sessionId, limit = 100) {
-  return await apiFetch(`/api/sessions/${sessionId}/behavioral-events?limit=${limit}`);
-}
-
 // ============ ALERTS ============
 
 /**
@@ -162,26 +155,6 @@ export async function logAlertAcknowledgment(sessionId, alertId, data) {
       ...(data.action_correct !== undefined ? { action_correct: data.action_correct } : {})
     })
   });
-}
-
-/**
- * Log alert dismissal
- */
-export async function logAlertDismissal(sessionId, alertId, data) {
-  return await apiFetch(`/api/sessions/${sessionId}/alerts/${alertId}/dismiss`, {
-    method: 'POST',
-    body: JSON.stringify({
-      dismissed_at: data.dismissed_at,
-      time_displayed_ms: data.time_displayed_ms
-    })
-  });
-}
-
-/**
- * Get alerts for a session
- */
-export async function getAlerts(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/alerts`);
 }
 
 // ============ SURVEYS ============
@@ -241,45 +214,6 @@ export async function submitSurvey(sessionId, surveyData) {
   return await submitSurveyResponse(sessionId, surveyData);
 }
 
-/**
- * Get all survey responses for a session
- */
-export async function getSurveyResponses(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/surveys`);
-}
-
-// ============ METRICS ============
-
-/**
- * Get session metrics
- */
-export async function getSessionMetrics(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/metrics`);
-}
-
-/**
- * Get performance summary
- */
-export async function getPerformanceSummary(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/performance`);
-}
-
-// ============ ML PREDICTIONS (Condition 3) ============
-
-/**
- * Get ML complacency prediction
- */
-export async function getMLPrediction(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/ml-prediction`);
-}
-
-/**
- * Get ML prediction history
- */
-export async function getMLPredictionHistory(sessionId) {
-  return await apiFetch(`/api/sessions/${sessionId}/ml-predictions`);
-}
-
 // ============ QUEUE MANAGEMENT ============
 
 /**
@@ -311,16 +245,9 @@ export default {
   fetchScenarios,
   fetchConditions,
   logBehavioralEvent,
-  getBehavioralEvents,
   logAlertDisplay,
   logAlertAcknowledgment,
-  logAlertDismissal,
-  getAlerts,
   submitSurvey,
-  getSessionMetrics,
-  getPerformanceSummary,
-  getMLPrediction,
-  getMLPredictionHistory,
   completeQueueItem,
   healthCheck
 };
