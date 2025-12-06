@@ -86,6 +86,7 @@ function Session() {
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
     const [showShiftOver, setShowShiftOver] = useState(false); // End-of-shift summary screen
+    const [showCompletion, setShowCompletion] = useState(false); // Final completion/thank you screen
     const [alertsHandledCount, setAlertsHandledCount] = useState(0); // Track alerts handled
     const [needsResolvedCount, setNeedsResolvedCount] = useState(0); // Track needs resolved
 
@@ -221,17 +222,21 @@ function Session() {
         }
     }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex]);
 
-    const handleSurveyComplete = useCallback((data) => {
-        // Show brief completion message, then redirect
-        setTimeout(() => {
-            if (returnTo) {
-                // Return to queue if launched from queue
-                window.location.href = returnTo;
-            } else {
-                // Return to participant lobby
-                navigate('/participant');
-            }
-        }, 2000);
+    const handleSurveyComplete = useCallback(() => {
+        // Show completion screen instead of immediately redirecting
+        setShowSurvey(false);
+        setShowCompletion(true);
+    }, []);
+
+    // Handle continue from completion screen
+    const handleCompletionContinue = useCallback(() => {
+        if (returnTo) {
+            // Return to queue if launched from queue
+            window.location.href = returnTo;
+        } else {
+            // Return to participant lobby
+            navigate('/participant');
+        }
     }, [returnTo, navigate]);
 
     // Handler for ShiftOverScreen continue button
@@ -1149,6 +1154,41 @@ function Session() {
                 phase="post-session"
                 onComplete={handleSurveyComplete}
             />
+        );
+    }
+
+    // Completion/Thank You screen after surveys
+    if (showCompletion) {
+        return (
+            <div className="completion-screen">
+                <div className="completion-content">
+                    <h1>Thank You!</h1>
+                    <p>You have successfully completed this session.</p>
+                    <p>Your responses have been recorded and will contribute to important research on air traffic control systems.</p>
+
+                    <div className="completion-stats">
+                        <div className="stat">
+                            <span className="stat-label">Alerts Handled</span>
+                            <span className="stat-value">{alertsHandledCount}</span>
+                        </div>
+                        <div className="stat">
+                            <span className="stat-label">Safety Score</span>
+                            <span className="stat-value">{safetyScore}%</span>
+                        </div>
+                        <div className="stat">
+                            <span className="stat-label">Issues Resolved</span>
+                            <span className="stat-value">{needsResolvedCount}</span>
+                        </div>
+                    </div>
+
+                    <button
+                        className="btn btn-primary btn-lg"
+                        onClick={handleCompletionContinue}
+                    >
+                        Continue
+                    </button>
+                </div>
+            </div>
         );
     }
 

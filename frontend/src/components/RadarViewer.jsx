@@ -254,13 +254,233 @@ function RadarViewer({
   }, [aircraft, conflicts, selectedAircraft, scenarioCenter]);
 
   /**
-   * Draw base layer (range rings, labels)
+   * Draw subtle rectangular grid pattern (lowest layer)
+   */
+  const drawSectorGrid = (ctx, center, scale) => {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.05)';
+    ctx.lineWidth = 0.5;
+
+    const gridSpacingNM = 25;
+    const gridSpacingPx = gridSpacingNM * scale;
+
+    // Vertical lines
+    for (let x = 0; x <= CANVAS_SIZE; x += gridSpacingPx) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, CANVAS_SIZE);
+      ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = 0; y <= CANVAS_SIZE; y += gridSpacingPx) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(CANVAS_SIZE, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  };
+
+  /**
+   * Draw radial tick marks around outer ring
+   */
+  const drawRadialTicks = (ctx, center, scale) => {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.15)';
+    ctx.lineWidth = 1;
+
+    const outerRadius = RADAR_RANGE_NM * scale;
+    const majorTickLength = 8;  // every 30 degrees
+    const minorTickLength = 4;  // every 10 degrees
+
+    for (let deg = 0; deg < 360; deg += 10) {
+      const isMajor = deg % 30 === 0;
+      const tickLength = isMajor ? majorTickLength : minorTickLength;
+      const angleRad = (deg - 90) * Math.PI / 180;
+
+      const innerRadius = outerRadius - tickLength;
+
+      ctx.beginPath();
+      ctx.moveTo(
+        center.x + innerRadius * Math.cos(angleRad),
+        center.y + innerRadius * Math.sin(angleRad)
+      );
+      ctx.lineTo(
+        center.x + outerRadius * Math.cos(angleRad),
+        center.y + outerRadius * Math.sin(angleRad)
+      );
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  };
+
+  /**
+   * Draw bearing labels (degrees) around outer ring
+   */
+  const drawBearingLabels = (ctx, center, scale) => {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.25)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const labelRadius = RADAR_RANGE_NM * scale + 12;
+    const skipAngles = [0, 90, 180, 270]; // N/E/S/W labels exist here
+
+    for (let deg = 0; deg < 360; deg += 30) {
+      if (skipAngles.includes(deg)) continue;
+
+      const angleRad = (deg - 90) * Math.PI / 180;
+      const x = center.x + labelRadius * Math.cos(angleRad);
+      const y = center.y + labelRadius * Math.sin(angleRad);
+
+      ctx.fillText(`${deg}°`, x, y);
+    }
+
+    ctx.restore();
+  };
+
+  /**
+   * Draw ruler bar at top of radar
+   */
+  const drawRulerBar = (ctx, scale) => {
+    ctx.save();
+
+    const barHeight = 20;
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 40, 0, 0.6)';
+    ctx.fillRect(0, 0, CANVAS_SIZE, barHeight);
+
+    // Border line
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, barHeight);
+    ctx.lineTo(CANVAS_SIZE, barHeight);
+    ctx.stroke();
+
+    // Text styling
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+    ctx.font = '9px monospace';
+    ctx.textBaseline = 'middle';
+
+    // Left: "RNG"
+    ctx.textAlign = 'left';
+    ctx.fillText('RNG 250NM', 8, barHeight / 2);
+
+    // Center: scale tick marks
+    ctx.textAlign = 'center';
+    const center = CANVAS_SIZE / 2;
+    [-200, -100, 0, 100, 200].forEach(nm => {
+      const x = center + nm * scale;
+      if (x > 80 && x < CANVAS_SIZE - 80) {
+        // Tick mark
+        ctx.beginPath();
+        ctx.moveTo(x, barHeight - 4);
+        ctx.lineTo(x, barHeight);
+        ctx.stroke();
+        // Label
+        if (nm !== 0) {
+          ctx.fillText(`${Math.abs(nm)}`, x, barHeight / 2);
+        }
+      }
+    });
+
+    // Right: Sector ID
+    ctx.textAlign = 'right';
+    ctx.fillText('KSFO TRACON', CANVAS_SIZE - 8, barHeight / 2);
+
+    ctx.restore();
+  };
+
+  /**
+   * Draw decorative info blocks at bottom corners
+   */
+  const drawInfoBlocks = (ctx, aircraftCount, simTime) => {
+    ctx.save();
+
+    const blockWidth = 75;
+    const blockHeight = 40;
+    const padding = 5;
+    const cornerRadius = 3;
+
+    // Helper for rounded rect (fallback for older browsers)
+    const roundRect = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    // === LEFT BLOCK: Traffic Count ===
+    const leftX = 10;
+    const leftY = CANVAS_SIZE - blockHeight - 10;
+
+    roundRect(leftX, leftY, blockWidth, blockHeight, cornerRadius);
+    ctx.fillStyle = 'rgba(0, 40, 0, 0.5)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.6)';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('TRAFFIC', leftX + padding, leftY + padding);
+
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText(`${aircraftCount}`, leftX + padding, leftY + 18);
+
+    // === RIGHT BLOCK: Sim Time ===
+    const rightX = CANVAS_SIZE - blockWidth - 10;
+    const rightY = CANVAS_SIZE - blockHeight - 10;
+
+    roundRect(rightX, rightY, blockWidth, blockHeight, cornerRadius);
+    ctx.fillStyle = 'rgba(0, 40, 0, 0.5)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.6)';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('SIM TIME', rightX + padding, rightY + padding);
+
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+    ctx.font = 'bold 16px monospace';
+    const mins = Math.floor(simTime / 60);
+    const secs = Math.floor(simTime % 60);
+    ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, rightX + padding, rightY + 18);
+
+    ctx.restore();
+  };
+
+  /**
+   * Draw base layer (range rings, labels, visual enhancements)
    */
   const drawBaseLayer = (ctx) => {
     const center = { x: CANVAS_SIZE / 2, y: CANVAS_SIZE / 2 };
     const scale = CANVAS_SIZE / (2 * RADAR_RANGE_NM);
 
-    // Range rings (adjusted for 250 NM range)
+    // === BACKGROUND ELEMENTS (lowest opacity, drawn first) ===
+    drawSectorGrid(ctx, center, scale);
+    drawRadialTicks(ctx, center, scale);
+    drawBearingLabels(ctx, center, scale);
+
+    // === RANGE RINGS (existing, 0.30 opacity) ===
     const rings = [50, 100, 150, 200, 250];
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
     ctx.lineWidth = 1;
@@ -278,34 +498,35 @@ function RadarViewer({
       }
     });
 
-    // Cardinal directions
+    // === CARDINAL DIRECTIONS (existing, 0.70 opacity) ===
     ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
     ctx.font = '14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('N', center.x, 20);
+    ctx.fillText('N', center.x, 35); // Adjusted for ruler bar
     ctx.fillText('S', center.x, CANVAS_SIZE - 10);
     ctx.textAlign = 'left';
     ctx.fillText('E', CANVAS_SIZE - 20, center.y + 5);
     ctx.fillText('W', 10, center.y + 5);
 
-    // Center mark
+    // === CENTER MARK (existing, 0.80 opacity) ===
     ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
     ctx.beginPath();
     ctx.arc(center.x, center.y, 3, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Scenario info
-    ctx.textAlign = 'left';
-    ctx.font = '12px monospace';
-    ctx.fillStyle = '#00ff00';
-    ctx.fillText(`Scenario: ${scenario || 'N/A'}`, 10, 20);
-    ctx.fillText(`Center: ${scenarioCenter.name}`, 10, 35);
-    ctx.fillText(`Range: ${RADAR_RANGE_NM} NM`, 10, 50);
+    // === RULER BAR (top of screen) ===
+    drawRulerBar(ctx, scale);
 
-    // Simulation time
-    if (state) {
-      ctx.fillText(`Sim Time: ${Math.floor(state.sim_time)}s`, 10, 65);
-    }
+    // === INFO BLOCKS (bottom corners) ===
+    const aircraftCount = aircraft ? Object.keys(aircraft).length : 0;
+    const simTime = state?.sim_time || 0;
+    drawInfoBlocks(ctx, aircraftCount, simTime);
+
+    // === SCENARIO INFO (moved below ruler bar) ===
+    ctx.textAlign = 'left';
+    ctx.font = '10px monospace';
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.6)';
+    ctx.fillText(`${scenario || 'N/A'} | ${scenarioCenter.name}`, 10, CANVAS_SIZE - 60);
   };
 
   /**
