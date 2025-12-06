@@ -10,13 +10,18 @@ import './ShiftOverScreen.css';
 
 const ShiftOverScreen = ({
   safetyScore = 100,
+  minSafetyScore = 100,
   elapsedTime = 360,
   aircraft = {},
   needsResolved = 0,
   alertsHandled = 0,
   pilotComplaints = [],
+  totalAngryIncidents = 0,
+  emergenciesResolved = 0,
   onContinue
 }) => {
+  // Use minimum score for grading (reflects worst performance during session)
+  const displayScore = minSafetyScore;
   // Calculate letter grade based on score
   const getGrade = (score) => {
     if (score >= 90) return { letter: 'A', label: 'Excellent', color: '#4caf50' };
@@ -26,7 +31,7 @@ const ShiftOverScreen = ({
     return { letter: 'F', label: 'Unsatisfactory', color: '#f44336' };
   };
 
-  const grade = getGrade(safetyScore);
+  const grade = getGrade(displayScore);
 
   // Format time as mm:ss
   const formatTime = (seconds) => {
@@ -65,10 +70,10 @@ const ShiftOverScreen = ({
           <p className="shift-duration">Duration: {formatTime(elapsedTime)}</p>
         </div>
 
-        {/* Score Circle */}
+        {/* Score Circle - shows MINIMUM score reached (worst performance) */}
         <div className="score-circle-container">
           <div className="score-circle" style={{ borderColor: grade.color }}>
-            <div className="score-value">{Math.round(safetyScore)}</div>
+            <div className="score-value">{Math.round(displayScore)}</div>
             <div className="score-label">/ 100</div>
           </div>
           <div className="grade-display" style={{ color: grade.color }}>
@@ -77,12 +82,20 @@ const ShiftOverScreen = ({
           </div>
         </div>
 
+        {/* Score Context */}
+        {displayScore < safetyScore && (
+          <div className="score-context">
+            <span className="min-label">Lowest: {Math.round(displayScore)}</span>
+            <span className="recovered-label">Recovered to: {Math.round(safetyScore)}</span>
+          </div>
+        )}
+
         {/* Target Indicator */}
         <div className="target-indicator">
-          {safetyScore >= 90 ? (
+          {displayScore >= 90 ? (
             <span className="target-met">Target Met (90+)</span>
           ) : (
-            <span className="target-missed">Target: 90+ ({Math.round(90 - safetyScore)} points needed)</span>
+            <span className="target-missed">Target: 90+ ({Math.round(90 - displayScore)} points needed)</span>
           )}
         </div>
 
@@ -93,16 +106,28 @@ const ShiftOverScreen = ({
             <span className="stat-label">Aircraft Managed</span>
           </div>
           <div className="stat-item">
+            <span className="stat-value">{emergenciesResolved}</span>
+            <span className="stat-label">Emergencies Resolved</span>
+          </div>
+          <div className="stat-item">
             <span className="stat-value">{needsResolved}</span>
             <span className="stat-label">Needs Resolved</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value" style={{ color: totalAngryIncidents > 0 ? '#f44336' : '#4caf50' }}>
+              {totalAngryIncidents}
+            </span>
+            <span className="stat-label">Angry Incidents</span>
           </div>
           <div className="stat-item">
             <span className="stat-value">{alertsHandled}</span>
             <span className="stat-label">Alerts Handled</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value">{pilotComplaints.length}</span>
-            <span className="stat-label">Complaints</span>
+            <span className="stat-value" style={{ color: pilotComplaints.length > 0 ? '#f44336' : '#4caf50' }}>
+              {pilotComplaints.length}
+            </span>
+            <span className="stat-label">Complaints Filed</span>
           </div>
         </div>
 

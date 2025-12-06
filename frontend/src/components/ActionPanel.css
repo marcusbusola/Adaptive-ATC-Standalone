@@ -5,8 +5,8 @@
  */
 
 .action-panel {
-  width: 320px;
-  min-width: 320px;
+  width: 420px;
+  min-width: 420px;
   background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
   border-left: 2px solid rgba(74, 144, 226, 0.3);
   display: flex;
@@ -599,8 +599,8 @@
 
 /* Dynamic Content Area */
 .dynamic-content {
-  min-height: 120px;
-  max-height: 300px;
+  min-height: 150px;
+  max-height: 500px;
   overflow-y: auto;
 }
 

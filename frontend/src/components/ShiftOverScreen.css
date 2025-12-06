@@ -110,6 +110,29 @@
   opacity: 0.8;
 }
 
+/* Score Context - shows min vs recovered score */
+.score-context {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.score-context .min-label {
+  color: #f44336;
+  background: rgba(244, 67, 54, 0.1);
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+.score-context .recovered-label {
+  color: #4caf50;
+  background: rgba(76, 175, 80, 0.1);
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
 /* Target Indicator */
 .target-indicator {
   text-align: center;

@@ -77,8 +77,11 @@ function Session() {
 
     // Gamification state
     const [safetyScore, setSafetyScore] = useState(100); // 0-100 scale (target: 90+)
+    const [minSafetyScore, setMinSafetyScore] = useState(100); // Lowest score reached during session
     const [scoreChanges, setScoreChanges] = useState([]);
     const [pilotComplaints, setPilotComplaints] = useState([]);
+    const [totalAngryIncidents, setTotalAngryIncidents] = useState(0); // Times pilots became angry
+    const [emergenciesResolved, setEmergenciesResolved] = useState(0); // Successful resolutions
     const [showSurvey, setShowSurvey] = useState(false);
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
@@ -324,11 +327,20 @@ function Session() {
             if (data.safety_score !== undefined) {
                 setSafetyScore(data.safety_score);
             }
+            if (data.min_safety_score !== undefined) {
+                setMinSafetyScore(data.min_safety_score);
+            }
             if (data.score_changes) {
                 setScoreChanges(data.score_changes);
             }
             if (data.pilot_complaints) {
                 setPilotComplaints(data.pilot_complaints);
+            }
+            if (data.total_angry_incidents !== undefined) {
+                setTotalAngryIncidents(data.total_angry_incidents);
+            }
+            if (data.emergencies_resolved !== undefined) {
+                setEmergenciesResolved(data.emergencies_resolved);
             }
 
             // Update conflicts (separation violations)
@@ -1082,11 +1094,14 @@ function Session() {
         return (
             <ShiftOverScreen
                 safetyScore={safetyScore}
+                minSafetyScore={minSafetyScore}
                 elapsedTime={elapsedTime}
                 aircraft={aircraft}
                 needsResolved={needsResolvedCount}
                 alertsHandled={alertsHandledCount}
                 pilotComplaints={pilotComplaints}
+                totalAngryIncidents={totalAngryIncidents}
+                emergenciesResolved={emergenciesResolved}
                 onContinue={handleShiftOverContinue}
             />
         );

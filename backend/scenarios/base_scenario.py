@@ -326,8 +326,11 @@ class BaseScenario(ABC):
 
         # ===== GAMIFICATION STATE =====
         self.safety_score: int = 100  # Starting score (0-100 scale, target 90+)
+        self.min_safety_score: int = 100  # Track minimum score reached (for results display)
         self.score_changes: List[Dict[str, Any]] = []  # History of score changes
         self.pilot_complaints: List[Dict[str, Any]] = []  # Pilots who got angry
+        self.total_angry_incidents: int = 0  # Total times any pilot became angry
+        self.emergencies_resolved: int = 0  # Track successful emergency resolutions
         self.active_conflicts: set = set()  # Track active conflict pairs for penalty
         self.needs_resolved_count: int = 0  # Track resolved maintenance needs
 
@@ -342,9 +345,9 @@ class BaseScenario(ABC):
         self.HAPPY_BONUS_PER_SECOND = 0.05      # Points gained per second when all happy
         self.COMPLAINT_THRESHOLD = 90.0         # Seconds ignored to file complaint
 
-        # Needs generation settings
-        self.MIN_NEED_INTERVAL = 30.0  # Minimum seconds between needs per aircraft
-        self.MAX_NEED_INTERVAL = 60.0  # Maximum seconds between needs per aircraft
+        # Needs generation settings (spaced out to reduce overwhelm in low workload scenarios)
+        self.MIN_NEED_INTERVAL = 45.0  # Minimum seconds between needs per aircraft
+        self.MAX_NEED_INTERVAL = 90.0  # Maximum seconds between needs per aircraft
 
         # Event handler registry
         self._event_handlers: Dict[str, Callable[[ScenarioEvent], None]] = {
@@ -1243,6 +1246,11 @@ class BaseScenario(ABC):
                 aircraft.total_angry_time += dt
                 aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_for_mood)
 
+                # Track when pilot transitions TO angry (for results summary)
+                if old_mood != 'angry':
+                    self.total_angry_incidents += 1
+                    print(f"[ANGRY] {aircraft.callsign} became angry at {self.elapsed_time:.1f}s (incident #{self.total_angry_incidents})")
+
                 # File complaint once when crossing threshold (not every update)
                 if old_mood != 'angry' and time_for_mood >= self.COMPLAINT_THRESHOLD:
                     self._file_pilot_complaint(aircraft, mood_source)
@@ -1297,6 +1305,10 @@ class BaseScenario(ABC):
         # Apply score change (clamp to 0-100)
         old_score = self.safety_score
         self.safety_score = max(0, min(100, round(self.safety_score + score_delta, 1)))
+
+        # Track minimum score reached (for results display)
+        if self.safety_score < self.min_safety_score:
+            self.min_safety_score = self.safety_score
 
         # Track significant changes (at least 0.5 point difference for 0-100 scale)
         if abs(self.safety_score - old_score) >= 0.5 and reasons:
@@ -1393,11 +1405,24 @@ class BaseScenario(ABC):
         # Get unresolved needs
         unresolved_needs = [n for n in aircraft.pending_needs if not n.get('resolved')]
 
-        # Get emergency resolution options if in emergency
+        # Get emergency resolution options if in emergency (normalize type name)
         emergency_options = None
         if aircraft.emergency and aircraft.emergency_type:
+            raw_type = aircraft.emergency_type.lower()
+            # Map raw emergency types to option keys
+            if 'fuel' in raw_type:
+                mapped_type = 'fuel_emergency'
+            elif 'medical' in raw_type:
+                mapped_type = 'medical_emergency'
+            elif 'engine' in raw_type:
+                mapped_type = 'engine_failure'
+            elif 'comm' in raw_type:
+                mapped_type = 'comm_loss'
+            else:
+                mapped_type = 'conflict'
+
             emergency_options = EMERGENCY_RESOLUTION_OPTIONS.get(
-                aircraft.emergency_type,
+                mapped_type,
                 EMERGENCY_RESOLUTION_OPTIONS.get('conflict', [])  # Default fallback
             )
 
@@ -1460,12 +1485,26 @@ class BaseScenario(ABC):
         if not aircraft.emergency:
             return {"status": "error", "message": "Aircraft has no active emergency"}
 
-        # Get options for this emergency type
-        emergency_type = aircraft.emergency_type or 'conflict'
+        # Get options for this emergency type, normalizing the type name
+        raw_type = (aircraft.emergency_type or 'conflict').lower()
+
+        # Map raw emergency types to option keys
+        if 'fuel' in raw_type:
+            emergency_type = 'fuel_emergency'
+        elif 'medical' in raw_type:
+            emergency_type = 'medical_emergency'
+        elif 'engine' in raw_type:
+            emergency_type = 'engine_failure'
+        elif 'comm' in raw_type:
+            emergency_type = 'comm_loss'
+        else:
+            emergency_type = 'conflict'
+
         options = EMERGENCY_RESOLUTION_OPTIONS.get(
             emergency_type,
             EMERGENCY_RESOLUTION_OPTIONS.get('conflict', [])
         )
+        print(f"[EMERGENCY OPTIONS] {callsign}: raw_type={raw_type}, mapped_type={emergency_type}, options={len(options)}")
 
         # Find selected option
         selected_option = next((o for o in options if o["id"] == action_id), None)
@@ -1490,7 +1529,8 @@ class BaseScenario(ABC):
         # Resolve the emergency if correct
         if is_correct:
             self.resolve_issue(callsign)
-            print(f"[EMERGENCY RESOLVED] {callsign}: {action_id} (correct, +{points}pts)")
+            self.emergencies_resolved += 1
+            print(f"[EMERGENCY RESOLVED] {callsign}: {action_id} (correct, +{points}pts) - Total resolved: {self.emergencies_resolved}")
         else:
             print(f"[EMERGENCY WRONG] {callsign}: {action_id} (incorrect, {points}pts)")
 
@@ -1529,23 +1569,30 @@ class BaseScenario(ABC):
     def resolve_issue(self, callsign: str) -> bool:
         """
         Mark an aircraft's issue as resolved, resetting mood to happy.
+        Also clears all pending needs to prevent mood from being reset by _update_pilot_moods().
 
         Args:
             callsign: Aircraft callsign
 
         Returns:
-            True if issue was resolved, False if aircraft not found or no issue
+            True if issue was resolved, False if aircraft not found or no active issue/emergency
         """
         if callsign in self.aircraft:
             aircraft = self.aircraft[callsign]
-            if aircraft.has_issue:
+            # Check for EITHER has_issue OR emergency flag (they can be set independently)
+            if aircraft.has_issue or aircraft.emergency:
+                # Clear issue flags
                 aircraft.issue_resolved = True
                 aircraft.has_issue = False
-                aircraft.mood = 'happy'
-                # Clear emergency flags to prevent alerts from reappearing
+                # Clear emergency flags
                 aircraft.emergency = False
                 aircraft.emergency_type = None
-                print(f"[RESOLVED] {callsign}: issue resolved at {self.elapsed_time:.1f}s")
+                # Clear ALL pending needs so mood doesn't get reset by _update_pilot_moods()
+                for need in aircraft.pending_needs:
+                    need['resolved'] = True
+                # Reset mood to happy
+                aircraft.mood = 'happy'
+                print(f"[RESOLVED] {callsign}: issue/emergency resolved at {self.elapsed_time:.1f}s, mood set to happy, {len(aircraft.pending_needs)} needs cleared")
                 return True
         return False
 
@@ -2240,7 +2287,14 @@ class BaseScenario(ABC):
         }
 
     def get_results(self) -> Dict[str, Any]:
-        """Get final scenario results"""
+        """Get final scenario results including gamification metrics"""
+        # Calculate pilot mood summary
+        mood_summary = {'happy': 0, 'annoyed': 0, 'angry': 0}
+        total_angry_time = 0.0
+        for aircraft in self.aircraft.values():
+            mood_summary[aircraft.mood] = mood_summary.get(aircraft.mood, 0) + 1
+            total_angry_time += aircraft.total_angry_time
+
         return {
             'scenario_info': self.get_scenario_info(),
             'duration': self.elapsed_time,
@@ -2251,5 +2305,16 @@ class BaseScenario(ABC):
             # Alert data for research analysis
             'alert_history': self.alert_history,
             'alert_metrics': self.get_alert_metrics(),
-            'suppressed_alerts': self.suppressed_alerts
+            'suppressed_alerts': self.suppressed_alerts,
+            # Gamification metrics - CRITICAL for results display
+            'safety_score': self.safety_score,
+            'min_safety_score': self.min_safety_score,  # Lowest score reached during session
+            'score_changes': self.score_changes,  # Full history of score changes
+            'pilot_complaints': self.pilot_complaints,  # All complaints filed
+            'total_angry_incidents': self.total_angry_incidents,  # Times pilots became angry
+            'emergencies_resolved': self.emergencies_resolved,  # Successful emergency resolutions
+            'mood_summary': mood_summary,
+            'total_angry_time': total_angry_time,
+            'needs_generated': self.needs_generated_count,
+            'needs_resolved': self.needs_resolved_count
         }

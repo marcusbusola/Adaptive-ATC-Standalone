@@ -474,8 +474,11 @@ class ScenarioUpdateResponse(BaseModel):
     scenario_complete: bool
     # Safety score and gamification data
     safety_score: float = 100.0
+    min_safety_score: float = 100.0  # Lowest score reached
     score_changes: List[Dict[str, Any]] = []
     pilot_complaints: List[Dict[str, Any]] = []
+    total_angry_incidents: int = 0
+    emergencies_resolved: int = 0
 
 class BehavioralEventRequest(BaseModel):
     events: List[Dict[str, Any]]
@@ -884,8 +887,11 @@ async def update_scenario(session_id: str, request: ScenarioUpdateRequest):
             triggered_probes=update_result.get('triggered_probes', []),
             scenario_complete=scenario_complete,
             safety_score=getattr(scenario, 'safety_score', 100.0),
-            score_changes=getattr(scenario, 'score_changes', [])[-5:],  # Last 5 changes
-            pilot_complaints=getattr(scenario, 'pilot_complaints', [])
+            min_safety_score=getattr(scenario, 'min_safety_score', 100.0),
+            score_changes=getattr(scenario, 'score_changes', [])[-10:],  # Last 10 changes
+            pilot_complaints=getattr(scenario, 'pilot_complaints', []),  # All complaints
+            total_angry_incidents=getattr(scenario, 'total_angry_incidents', 0),
+            emergencies_resolved=getattr(scenario, 'emergencies_resolved', 0)
         )
 
     except HTTPException:
