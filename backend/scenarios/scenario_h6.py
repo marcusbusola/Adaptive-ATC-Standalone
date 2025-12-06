@@ -61,7 +61,7 @@ class ScenarioH6(BaseScenario):
             'name': 'Cry Wolf Effect / Alert Filtering',
             'workload': 'High',
             'aircraft_count': 9,
-            'duration_seconds': 360,  # 15 minutes
+            'duration_seconds': 360,  # 6 minutes
             'duration_minutes': 6,
             'complexity': 'High',
             'description': 'High-workload scenario testing trust calibration after false alarm',
