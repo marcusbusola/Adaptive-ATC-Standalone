@@ -5,8 +5,8 @@
  */
 
 .action-panel {
-  width: 420px;
-  min-width: 420px;
+  width: 460px;
+  min-width: 460px;
   background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
   border-left: 2px solid rgba(74, 144, 226, 0.3);
   display: flex;

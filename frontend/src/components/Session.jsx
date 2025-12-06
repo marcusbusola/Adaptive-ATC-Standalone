@@ -321,7 +321,32 @@ function Session() {
             setElapsedTime(data.elapsed_time);
             setCurrentPhase(data.current_phase);
             setPhaseDescription(data.phase_description);
-            setAircraft(data.aircraft || {});
+            const updatedAircraft = data.aircraft || {};
+            setAircraft(updatedAircraft);
+
+            // If an aircraft no longer has an issue/emergency, drop any lingering alerts/pulses for it
+            const clearedTargets = new Set(
+                Object.entries(updatedAircraft)
+                    .filter(([_, ac]) => ac && !ac.has_issue && !ac.emergency)
+                    .map(([callsign]) => callsign)
+            );
+
+            if (clearedTargets.size > 0) {
+                // Remove from active alerts
+                setActiveAlerts(prev => prev.filter(a => !clearedTargets.has(a.target)));
+
+                // Remove from pending alerts and clear their reappear timers
+                setPendingAlerts(prev => {
+                    const toRemove = prev.filter(a => clearedTargets.has(a.target));
+                    toRemove.forEach(a => {
+                        if (pendingAlertTimers.current[a.id]) {
+                            clearTimeout(pendingAlertTimers.current[a.id]);
+                            delete pendingAlertTimers.current[a.id];
+                        }
+                    });
+                    return prev.filter(a => !clearedTargets.has(a.target));
+                });
+            }
 
             // Update gamification state
             if (data.safety_score !== undefined) {

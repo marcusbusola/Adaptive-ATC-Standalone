@@ -1508,10 +1508,15 @@ class BaseScenario(ABC):
 
         # Find selected option
         selected_option = next((o for o in options if o["id"] == action_id), None)
+        
+        print(f"[DEBUG] Emergency resolution: callsign={callsign}, action_id={action_id}, raw_type={raw_type}, mapped_type={emergency_type}")
         if not selected_option:
+            print(f"[DEBUG] Selected option not found for action_id: {action_id}")
             return {"status": "error", "message": f"Unknown action: {action_id}"}
 
         is_correct = selected_option.get("correct", False)
+        print(f"[DEBUG] Selected option found: {selected_option['label']}, is_correct: {is_correct}")
+        
         points = selected_option.get("points", 0)
 
         # Apply score change (clamped to 0-100)

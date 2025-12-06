@@ -116,19 +116,39 @@ function RadarViewer({
   }, []);
 
   /**
-   * Initialize and start render loop
+   * Initialize and start render loop.
+   * Dependency on drawRadar ensures the loop gets the latest aircraft data
+   * instead of capturing the initial empty state.
    */
   useEffect(() => {
     setIsLoading(false);
-    startRenderLoop();
+
+    // Cancel any existing loop before starting a new one (e.g., after dependency changes)
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    const render = () => {
+      drawRadar();
+      animationRef.current = requestAnimationFrame(render);
+    };
+
+    render();
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
       }
-      // Clean up audio context
+    };
+  }, [drawRadar]);
+
+  // Clean up audio context on unmount
+  useEffect(() => {
+    return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
+        audioContextRef.current = null;
       }
     };
   }, []);
