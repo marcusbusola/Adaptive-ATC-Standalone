@@ -8,7 +8,7 @@ import SurveyScreen from './SurveyScreen';
 import DebugPanel from './DebugPanel';
 
 // Services
-import { endSession, getSessionData, completeQueueItem } from '../services/api';
+import { endSession, getSessionData, completeQueueItemFromSession } from '../services/api';
 import useWebSocket from '../hooks/useWebSocket';
 import useBehavioralTracking from '../hooks/useBehavioralTracking';
 import { buildWebSocketUrl } from '../utils/apiConfig';
@@ -128,7 +128,7 @@ const SessionRunner = () => {
       // If part of a queue, mark queue item as completed
       if (queueId && itemIndex !== null) {
         try {
-          await completeQueueItem(queueId, itemIndex, { results: response.summary });
+          await completeQueueItemFromSession(queueId, itemIndex, sessionId, { results: response.summary });
           console.log('Queue item marked as completed');
         } catch (err) {
           console.error('Failed to update queue status:', err);

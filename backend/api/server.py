@@ -537,6 +537,21 @@ async def start_session(body: SessionStartRequest, request: Request):
                 raise HTTPException(status_code=400, detail="queue_item_index missing or out of range")
 
             queue_item = queue.items[body.queue_item_index]
+            if queue_item.participant_id and queue_item.participant_id != body.participant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Queue item belongs to a different participant"
+                )
+            if queue_item.scenario_id and queue_item.scenario_id != body.scenario.value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Queue item scenario does not match requested scenario"
+                )
+            if queue_item.condition and queue_item.condition != body.condition.value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Queue item condition does not match requested condition"
+                )
             if queue_item.status == QueueItemStatus.COMPLETED:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Queue item already completed")
             if queue_item.status == QueueItemStatus.ERROR:
@@ -2086,6 +2101,13 @@ async def delete_queue(queue_id: str):
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """WebSocket connection for real-time session communication."""
     await websocket.accept()
+
+    # Validate that the session exists and is active before proceeding
+    session = await db_manager.get_session(session_id)
+    if not session or session.get("status") not in ("active", None):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     websocket_connections[session_id] = websocket
     logger.info(f"WebSocket connected for session {session_id}")
 
@@ -2330,6 +2352,8 @@ async def simulation_resume():
 @app.post("/api/simulation/speed")
 async def simulation_speed(multiplier: float):
     """Set simulation speed multiplier."""
+    if multiplier <= 0:
+        raise HTTPException(status_code=400, detail="speed_multiplier must be greater than 0")
     sim_engine.set_speed(multiplier)
     return {"status": "ok", "speed_multiplier": sim_engine.speed_multiplier}
 

@@ -226,6 +226,20 @@ export async function completeQueueItem(queueId, itemIndex, data = {}) {
   });
 }
 
+/**
+ * Mark a queue item as completed from the participant session context
+ * (uses session_id to avoid researcher auth requirement).
+ */
+export async function completeQueueItemFromSession(queueId, itemIndex, sessionId, data = {}) {
+  return await apiFetch(`/api/queues/${queueId}/items/${itemIndex}/complete-from-session`, {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      ...data
+    })
+  });
+}
+
 // ============ HEALTH CHECK ============
 
 /**
@@ -249,5 +263,6 @@ export default {
   logAlertAcknowledgment,
   submitSurvey,
   completeQueueItem,
+  completeQueueItemFromSession,
   healthCheck
 };
