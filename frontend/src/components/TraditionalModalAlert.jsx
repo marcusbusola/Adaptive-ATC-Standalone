@@ -33,7 +33,9 @@ function TraditionalModalAlert({
   zIndex = 0, // For stacking multiple alerts
   isEscalated = false, // Alert has reappeared after being acknowledged but not resolved
   reappearCount = 0, // Number of times alert has reappeared
-  escalationLevel = 1 // Progressive urgency level (1 = normal, 2+ = escalated)
+  escalationLevel = 1, // Progressive urgency level (1 = normal, 2+ = escalated)
+  visualIntensity = 4, // Visual intensity (1-5 scale)
+  audioIntensity = 3 // Audio intensity (0-4 scale, 0=silent)
 }) {
   const [responseTime, setResponseTime] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -44,11 +46,13 @@ function TraditionalModalAlert({
   useEffect(() => {
     setIsVisible(true);
 
-    // Play audio alert if enabled
-    if (enableAudio) {
+    // Play audio alert if enabled and audioIntensity > 0
+    if (enableAudio && audioIntensity > 0) {
       // Play escalated sound for reappearing alerts, otherwise normal severity sound
       const soundSeverity = isEscalated ? 'escalated' : severity;
-      playAlertSound(soundSeverity);
+      // Calculate volume based on audioIntensity (0.2 base + 0.15 per level)
+      const volume = 0.2 + (audioIntensity * 0.15);
+      playAlertSound(soundSeverity, { volume: Math.min(volume, 1.0) });
     }
 
     // Auto-focus acknowledge button for keyboard accessibility
@@ -58,7 +62,7 @@ function TraditionalModalAlert({
 
     // Track time from prop timestamp (actual alert time) not mount time
     mountTimeRef.current = Date.now();
-  }, [severity, enableAudio, isEscalated]);
+  }, [severity, enableAudio, isEscalated, audioIntensity]);
 
   /**
    * Handle acknowledgment
@@ -128,6 +132,9 @@ function TraditionalModalAlert({
     } else if (escalationLevel >= 2) {
       classes.push('escalation-level-2');
     }
+
+    // Visual intensity class
+    classes.push(`modal-intensity-${Math.max(1, Math.min(5, visualIntensity))}`);
 
     return classes.join(' ');
   };

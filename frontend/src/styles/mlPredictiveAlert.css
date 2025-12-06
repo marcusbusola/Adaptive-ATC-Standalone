@@ -541,3 +541,107 @@
     display: none;
   }
 }
+
+/* ============================================================================
+   INTENSITY VARIANTS - Visual intensity levels (1-5)
+   ============================================================================ */
+
+/* Low intensity - subtle, reduced opacity */
+.ml-banner-intensity-1 {
+  opacity: 0.85;
+  border-bottom-width: 2px;
+}
+
+/* Medium-low intensity */
+.ml-banner-intensity-2 {
+  opacity: 0.9;
+}
+
+/* Normal intensity (default) */
+.ml-banner-intensity-3 {
+  opacity: 0.95;
+}
+
+/* High intensity - attention pulse */
+.ml-banner-intensity-4 {
+  animation: mlPulseAttention 1.5s infinite;
+}
+
+/* Maximum intensity - urgent pulse with enhanced shadow */
+.ml-banner-intensity-5 {
+  animation: mlPulseUrgent 0.8s infinite;
+  box-shadow: 0 8px 24px rgba(126, 87, 194, 0.7);
+}
+
+/* ============================================================================
+   NUDGE STATES - For idle nudging (Condition 3 ML)
+   ============================================================================ */
+
+/* Active nudge - moderate attention seeking */
+.ml-banner-nudge-active {
+  animation: mlNudgePulse 2s infinite;
+  border-left: 4px solid #ff9800;
+}
+
+/* Urgent nudge - more insistent after multiple nudges */
+.ml-banner-nudge-urgent {
+  animation: mlNudgeUrgent 0.8s infinite;
+  border-left: 6px solid #ff5722;
+  box-shadow: 0 8px 24px rgba(255, 87, 34, 0.5);
+}
+
+/* ============================================================================
+   INTENSITY KEYFRAMES
+   ============================================================================ */
+
+@keyframes mlPulseAttention {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 4px 20px rgba(126, 87, 194, 0.4);
+  }
+  50% {
+    transform: translateY(1px);
+    box-shadow: 0 6px 24px rgba(126, 87, 194, 0.5);
+  }
+}
+
+@keyframes mlPulseUrgent {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 8px 24px rgba(126, 87, 194, 0.7);
+    border-bottom-color: #7c4dff;
+  }
+  50% {
+    transform: translateY(2px);
+    box-shadow: 0 12px 32px rgba(126, 87, 194, 0.9);
+    border-bottom-color: #651fff;
+  }
+}
+
+@keyframes mlNudgePulse {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(2px);
+    opacity: 0.95;
+  }
+  75% {
+    transform: translateY(-1px);
+    opacity: 1;
+  }
+}
+
+@keyframes mlNudgeUrgent {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 8px 24px rgba(255, 87, 34, 0.5);
+    border-left-color: #ff5722;
+  }
+  50% {
+    transform: translateY(2px);
+    box-shadow: 0 12px 32px rgba(255, 87, 34, 0.7);
+    border-left-color: #ff3d00;
+  }
+}

@@ -350,3 +350,6 @@ export async function preloadAudioFiles(audioFiles) {
 //
 // // Test in console
 // testAlertSound('warning');
+
+// Export internal helpers for use by alertAudio.js
+export { getAudioContext, playTone };

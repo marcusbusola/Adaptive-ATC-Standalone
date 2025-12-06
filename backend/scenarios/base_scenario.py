@@ -8,11 +8,12 @@ All scenarios inherit from this base class.
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Optional, Any, Callable
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import math
 import json
 import os
+import random
 
 
 # Load scenario manifest (single source of truth)
@@ -117,6 +118,13 @@ class Aircraft:
     issue_start_time: float = 0.0  # When the issue started
     issue_resolved: bool = False  # Was the issue resolved?
 
+    # Maintenance needs tracking (for active monitoring gameplay)
+    pending_needs: List[Dict[str, Any]] = field(default_factory=list)
+    last_need_generated: float = 0.0  # Elapsed time when last need was generated
+    last_inspection_time: float = 0.0  # When player last inspected this aircraft
+    needs_check_count: int = 0  # How many times player has checked this aircraft
+    _next_need_interval: float = 0.0  # Randomized interval for next need generation
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -145,8 +153,63 @@ class Aircraft:
             'has_issue': self.has_issue,
             'issue_type': self.issue_type,
             'issue_start_time': self.issue_start_time,
-            'issue_resolved': self.issue_resolved
+            'issue_resolved': self.issue_resolved,
+            # Needs are HIDDEN until inspection - only track inspection stats
+            'last_inspection_time': self.last_inspection_time,
+            'needs_check_count': self.needs_check_count
         }
+
+
+# ===== MAINTENANCE NEEDS SYSTEM =====
+# Need types that aircraft can generate randomly for active monitoring gameplay
+NEED_TYPES = [
+    {"id": "descent_request", "label": "Descent Request", "priority": "medium",
+     "description": "Pilot requesting descent clearance"},
+    {"id": "speed_check", "label": "Speed Check", "priority": "low",
+     "description": "Confirm current speed assignment"},
+    {"id": "heading_confirmation", "label": "Heading Confirmation", "priority": "low",
+     "description": "Pilot requesting heading verification"},
+    {"id": "fuel_status_check", "label": "Fuel Status Check", "priority": "medium",
+     "description": "Check remaining fuel and update ETA"},
+    {"id": "altitude_request", "label": "Altitude Request", "priority": "medium",
+     "description": "Pilot requesting altitude change"},
+    {"id": "route_clarification", "label": "Route Clarification", "priority": "low",
+     "description": "Confirm next waypoint or routing"},
+]
+
+# Emergency resolution options - multiple choice for gameplay
+EMERGENCY_RESOLUTION_OPTIONS = {
+    "fuel_emergency": [
+        {"id": "divert_nearest", "label": "Divert to Nearest Airport", "correct": True, "points": 10},
+        {"id": "emergency_descent", "label": "Emergency Descent + Priority Landing", "correct": True, "points": 15},
+        {"id": "continue_destination", "label": "Continue to Destination", "correct": False, "points": -5},
+        {"id": "hold_pattern", "label": "Enter Holding Pattern", "correct": False, "points": -10}
+    ],
+    "medical_emergency": [
+        {"id": "priority_landing", "label": "Priority Landing Clearance", "correct": True, "points": 10},
+        {"id": "alert_medical_ground", "label": "Alert Ground Medical Services", "correct": True, "points": 5},
+        {"id": "continue_flight", "label": "Continue Normal Operations", "correct": False, "points": -10},
+        {"id": "divert_hospital", "label": "Divert to Airport with Hospital", "correct": True, "points": 12}
+    ],
+    "comm_loss": [
+        {"id": "contact_guard", "label": "Contact on Guard 121.5", "correct": True, "points": 10},
+        {"id": "squawk_ident", "label": "Request Squawk Ident", "correct": True, "points": 5},
+        {"id": "assume_glitch", "label": "Assume Temporary Glitch", "correct": False, "points": -5},
+        {"id": "relay_traffic", "label": "Relay via Other Traffic", "correct": True, "points": 8}
+    ],
+    "conflict": [
+        {"id": "vector_away", "label": "Vector Aircraft Away", "correct": True, "points": 10},
+        {"id": "altitude_change", "label": "Issue Altitude Change", "correct": True, "points": 10},
+        {"id": "monitor_only", "label": "Monitor Situation Only", "correct": False, "points": -10},
+        {"id": "both_separate", "label": "Separate Both Aircraft", "correct": True, "points": 15}
+    ],
+    "engine_failure": [
+        {"id": "declare_emergency", "label": "Declare Emergency + Clear Path", "correct": True, "points": 15},
+        {"id": "immediate_vectors", "label": "Immediate Vectors to Nearest", "correct": True, "points": 12},
+        {"id": "maintain_altitude", "label": "Maintain Current Altitude", "correct": False, "points": -5},
+        {"id": "standard_approach", "label": "Continue Standard Approach", "correct": False, "points": -8}
+    ]
+}
 
 
 @dataclass
@@ -262,20 +325,26 @@ class BaseScenario(ABC):
         self.pending_predictions: Dict[str, Dict[str, Any]] = {}  # prediction_id -> prediction data
 
         # ===== GAMIFICATION STATE =====
-        self.safety_score: int = 1000  # Starting score
+        self.safety_score: int = 100  # Starting score (0-100 scale, target 90+)
         self.score_changes: List[Dict[str, Any]] = []  # History of score changes
         self.pilot_complaints: List[Dict[str, Any]] = []  # Pilots who got angry
         self.active_conflicts: set = set()  # Track active conflict pairs for penalty
+        self.needs_resolved_count: int = 0  # Track resolved maintenance needs
 
-        # Mood thresholds (seconds since last contact)
+        # Mood thresholds (seconds since last contact or unmet need)
         self.MOOD_ANNOYED_THRESHOLD = 45.0  # Becomes annoyed after 45s
         self.MOOD_ANGRY_THRESHOLD = 90.0    # Becomes angry after 90s
 
-        # Score penalties and rewards
-        self.ANGRY_PENALTY_PER_SECOND = 2   # Points lost per second while angry
-        self.CONFLICT_PENALTY_PER_SECOND = 5  # Points lost per second during conflict
-        self.HAPPY_BONUS_PER_SECOND = 1     # Points gained per second when all happy
-        self.COMPLAINT_THRESHOLD = 90.0     # Seconds ignored to file complaint
+        # Score penalties and rewards (scaled for 0-100)
+        self.ANGRY_PENALTY_PER_SECOND = 0.2     # Points lost per second while angry
+        self.CONFLICT_PENALTY_PER_SECOND = 0.5  # Points lost per second during conflict
+        self.UNMET_NEED_PENALTY_PER_SECOND = 0.1  # Points lost per second per unmet need
+        self.HAPPY_BONUS_PER_SECOND = 0.05      # Points gained per second when all happy
+        self.COMPLAINT_THRESHOLD = 90.0         # Seconds ignored to file complaint
+
+        # Needs generation settings
+        self.MIN_NEED_INTERVAL = 30.0  # Minimum seconds between needs per aircraft
+        self.MAX_NEED_INTERVAL = 60.0  # Maximum seconds between needs per aircraft
 
         # Event handler registry
         self._event_handlers: Dict[str, Callable[[ScenarioEvent], None]] = {
@@ -501,7 +570,8 @@ class BaseScenario(ABC):
         # Detect conflicts using radar coordinates (matches frontend display)
         detected_conflicts = self.detect_conflicts()
 
-        # Update gamification state (moods, per-aircraft safety scores, and global safety score)
+        # Update gamification state (needs generation, moods, safety scores)
+        self._generate_aircraft_needs(dt)
         self._update_pilot_moods(dt)
         self._update_aircraft_safety_scores(dt)
         self._update_safety_score(dt)
@@ -1083,31 +1153,87 @@ class BaseScenario(ABC):
 
     # ==================== GAMIFICATION METHODS ====================
 
+    def _generate_aircraft_needs(self, dt: float) -> None:
+        """
+        Generate random maintenance needs for aircraft.
+
+        Each aircraft generates a need every 30-60 seconds (randomized per aircraft).
+        Needs are HIDDEN from the player until they explicitly inspect the aircraft.
+        This creates the "active monitoring" gameplay loop.
+
+        Need types: descent_request, speed_check, heading_confirmation, fuel_status_check,
+                    altitude_request, route_clarification
+        """
+        for callsign, aircraft in self.aircraft.items():
+            # Skip aircraft with active emergencies - they have bigger problems
+            if aircraft.has_issue or aircraft.emergency:
+                continue
+
+            # Initialize next need interval if not set
+            if aircraft._next_need_interval == 0.0:
+                aircraft._next_need_interval = random.uniform(
+                    self.MIN_NEED_INTERVAL, self.MAX_NEED_INTERVAL
+                )
+
+            time_since_last_need = self.elapsed_time - aircraft.last_need_generated
+
+            if time_since_last_need >= aircraft._next_need_interval:
+                # Generate a new need
+                need_type = random.choice(NEED_TYPES)
+                need = {
+                    "type": need_type["id"],
+                    "label": need_type["label"],
+                    "priority": need_type["priority"],
+                    "description": need_type["description"],
+                    "generated_at": self.elapsed_time,
+                    "resolved": False
+                }
+                aircraft.pending_needs.append(need)
+                aircraft.last_need_generated = self.elapsed_time
+
+                # Set next random interval
+                aircraft._next_need_interval = random.uniform(
+                    self.MIN_NEED_INTERVAL, self.MAX_NEED_INTERVAL
+                )
+
+                print(f"[NEED GENERATED] {callsign}: {need_type['label']} at {self.elapsed_time:.1f}s")
+
     def _update_pilot_moods(self, dt: float) -> None:
         """
-        Update pilot moods based on unresolved issues.
+        Update pilot moods based on unresolved issues AND unmet maintenance needs.
 
-        Mood transitions (issue-based):
-        - Happy (default): No active issue OR issue has been resolved
-        - Annoyed: Has unresolved issue for 45+ seconds
-        - Angry: Has unresolved issue for 90+ seconds (also triggers complaint)
+        Mood transitions:
+        - Happy (default): No active issue AND no old unmet needs
+        - Annoyed: Has unresolved issue for 45+ seconds OR oldest unmet need is 45+ seconds old
+        - Angry: Has unresolved issue for 90+ seconds OR oldest unmet need is 90+ seconds old
 
-        Pilots without issues are always happy.
+        Priority: Active emergencies/issues take precedence over maintenance needs.
         """
         for aircraft in self.aircraft.values():
             old_mood = aircraft.mood
+            time_for_mood = 0.0
+            mood_source = None
 
-            # No issue or issue resolved = always happy
-            if not aircraft.has_issue or aircraft.issue_resolved:
-                aircraft.mood = 'happy'
-                continue
+            # Priority 1: Check for active emergency/issue
+            if aircraft.has_issue and not aircraft.issue_resolved:
+                time_for_mood = self.elapsed_time - aircraft.issue_start_time
+                mood_source = 'issue'
+            else:
+                # Priority 2: Check for oldest unmet maintenance need
+                oldest_unmet_need = None
+                for need in aircraft.pending_needs:
+                    if not need.get('resolved'):
+                        if oldest_unmet_need is None or need['generated_at'] < oldest_unmet_need['generated_at']:
+                            oldest_unmet_need = need
 
-            # Has unresolved issue - mood degrades based on time since issue started
-            time_since_issue = self.elapsed_time - aircraft.issue_start_time
+                if oldest_unmet_need:
+                    time_for_mood = self.elapsed_time - oldest_unmet_need['generated_at']
+                    mood_source = 'need'
 
-            if time_since_issue >= self.MOOD_ANGRY_THRESHOLD:
+            # Determine mood based on time
+            if mood_source and time_for_mood >= self.MOOD_ANGRY_THRESHOLD:
                 aircraft.mood = 'angry'
-            elif time_since_issue >= self.MOOD_ANNOYED_THRESHOLD:
+            elif mood_source and time_for_mood >= self.MOOD_ANNOYED_THRESHOLD:
                 aircraft.mood = 'annoyed'
             else:
                 aircraft.mood = 'happy'
@@ -1115,20 +1241,23 @@ class BaseScenario(ABC):
             # Track angry time for metrics
             if aircraft.mood == 'angry':
                 aircraft.total_angry_time += dt
-                aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_since_issue)
+                aircraft.max_ignored_time = max(aircraft.max_ignored_time, time_for_mood)
 
                 # File complaint once when crossing threshold (not every update)
-                if old_mood != 'angry' and time_since_issue >= self.COMPLAINT_THRESHOLD:
-                    self._file_pilot_complaint(aircraft)
+                if old_mood != 'angry' and time_for_mood >= self.COMPLAINT_THRESHOLD:
+                    self._file_pilot_complaint(aircraft, mood_source)
 
     def _update_safety_score(self, dt: float) -> None:
         """
-        Update safety score based on current situation.
+        Update safety score based on current situation (0-100 scale).
 
         Scoring:
-        - -2 pts/sec per angry pilot
-        - -5 pts/sec per active conflict
-        - +1 pt/sec bonus when all is well (no conflicts, no angry pilots)
+        - -0.2 pts/sec per angry pilot
+        - -0.5 pts/sec per active conflict
+        - -0.1 pts/sec per unmet maintenance need
+        - +0.05 pt/sec bonus when all is well
+
+        Target: 90+ is excellent performance.
         """
         score_delta = 0.0
         reasons = []
@@ -1148,31 +1277,45 @@ class BaseScenario(ABC):
             score_delta -= penalty
             reasons.append(f"{conflict_count} conflict{'s' if conflict_count > 1 else ''}")
 
-        # Bonus for all clear
-        if angry_count == 0 and conflict_count == 0:
+        # Penalty for unmet maintenance needs
+        unmet_needs_count = sum(
+            len([n for n in ac.pending_needs if not n.get('resolved')])
+            for ac in self.aircraft.values()
+        )
+        if unmet_needs_count > 0:
+            penalty = unmet_needs_count * self.UNMET_NEED_PENALTY_PER_SECOND * dt
+            score_delta -= penalty
+            reasons.append(f"{unmet_needs_count} unmet need{'s' if unmet_needs_count > 1 else ''}")
+
+        # Bonus for all clear (no conflicts, no angry pilots, no unmet needs)
+        if angry_count == 0 and conflict_count == 0 and unmet_needs_count == 0:
             bonus = self.HAPPY_BONUS_PER_SECOND * dt
             score_delta += bonus
             if len(self.score_changes) == 0 or self.score_changes[-1].get('reasons') != ['all clear']:
                 reasons.append('all clear')
 
-        # Apply score change (floor at 0)
+        # Apply score change (clamp to 0-100)
         old_score = self.safety_score
-        self.safety_score = max(0, int(self.safety_score + score_delta))
+        self.safety_score = max(0, min(100, round(self.safety_score + score_delta, 1)))
 
-        # Track significant changes (at least 1 point difference)
-        if abs(self.safety_score - old_score) >= 1 and reasons:
+        # Track significant changes (at least 0.5 point difference for 0-100 scale)
+        if abs(self.safety_score - old_score) >= 0.5 and reasons:
             self.score_changes.append({
                 'time': round(self.elapsed_time, 1),
-                'delta': round(score_delta, 1),
+                'delta': round(score_delta, 2),
                 'new_score': self.safety_score,
                 'reasons': reasons
             })
 
-    def _file_pilot_complaint(self, aircraft: 'Aircraft') -> None:
+    def _file_pilot_complaint(self, aircraft: 'Aircraft', mood_source: str = 'issue') -> None:
         """
         Record a pilot complaint when they've been ignored too long.
 
         Only files one complaint per aircraft per angry period.
+
+        Args:
+            aircraft: The aircraft filing the complaint
+            mood_source: Either 'issue' (emergency/conflict) or 'need' (unmet maintenance need)
         """
         # Check if we already have a recent complaint from this aircraft
         recent_complaints = [
@@ -1182,15 +1325,31 @@ class BaseScenario(ABC):
         ]
 
         if not recent_complaints:
+            # Calculate ignored duration based on source
+            if mood_source == 'need':
+                oldest_unmet = None
+                for need in aircraft.pending_needs:
+                    if not need.get('resolved'):
+                        if oldest_unmet is None or need['generated_at'] < oldest_unmet['generated_at']:
+                            oldest_unmet = need
+                ignored_duration = round(self.elapsed_time - oldest_unmet['generated_at'], 1) if oldest_unmet else 0
+                issue_desc = oldest_unmet['label'] if oldest_unmet else 'maintenance need'
+                message = f"{aircraft.callsign}: '{issue_desc}' has been waiting too long!"
+            else:
+                ignored_duration = round(self.elapsed_time - aircraft.issue_start_time, 1) if aircraft.has_issue else 0
+                issue_desc = aircraft.issue_type
+                message = f"{aircraft.callsign} is requesting immediate attention!"
+
             complaint = {
                 'callsign': aircraft.callsign,
                 'time': round(self.elapsed_time, 1),
-                'ignored_duration': round(self.elapsed_time - aircraft.issue_start_time, 1) if aircraft.has_issue else 0,
-                'issue_type': aircraft.issue_type,
-                'message': f"{aircraft.callsign} is requesting immediate attention!"
+                'ignored_duration': ignored_duration,
+                'issue_type': issue_desc,
+                'source': mood_source,
+                'message': message
             }
             self.pilot_complaints.append(complaint)
-            print(f"[COMPLAINT] {complaint['message']} (unresolved issue for {complaint['ignored_duration']}s)")
+            print(f"[COMPLAINT] {complaint['message']} ({mood_source} unresolved for {ignored_duration}s)")
 
     def _update_aircraft_safety_scores(self, dt: float) -> None:
         """
@@ -1208,6 +1367,141 @@ class BaseScenario(ABC):
             elif aircraft.mood == 'happy' and not aircraft.has_issue:
                 # Slowly recover score when happy and no issues
                 aircraft.safety_score = min(100, aircraft.safety_score + 0.5 * dt)
+
+    # ==================== ACTIVE MONITORING METHODS ====================
+
+    def record_aircraft_inspection(self, callsign: str) -> Optional[Dict[str, Any]]:
+        """
+        Record that the player inspected/checked an aircraft.
+        This is the ONLY way for players to see pending maintenance needs.
+
+        Args:
+            callsign: Aircraft callsign to inspect
+
+        Returns:
+            Dictionary with aircraft status and pending needs, or None if not found
+        """
+        aircraft = self.aircraft.get(callsign)
+        if not aircraft:
+            return None
+
+        # Update inspection tracking
+        aircraft.last_inspection_time = self.elapsed_time
+        aircraft.needs_check_count = getattr(aircraft, 'needs_check_count', 0) + 1
+        aircraft.last_contact_time = self.elapsed_time
+
+        # Get unresolved needs
+        unresolved_needs = [n for n in aircraft.pending_needs if not n.get('resolved')]
+
+        # Get emergency resolution options if in emergency
+        emergency_options = None
+        if aircraft.emergency and aircraft.emergency_type:
+            emergency_options = EMERGENCY_RESOLUTION_OPTIONS.get(
+                aircraft.emergency_type,
+                EMERGENCY_RESOLUTION_OPTIONS.get('conflict', [])  # Default fallback
+            )
+
+        return {
+            "callsign": callsign,
+            "pending_needs": unresolved_needs,
+            "mood": aircraft.mood,
+            "safety_score": aircraft.safety_score,
+            "has_emergency": aircraft.emergency,
+            "emergency_type": aircraft.emergency_type if aircraft.emergency else None,
+            "emergency_options": emergency_options,
+            "altitude": aircraft.altitude,
+            "heading": aircraft.heading,
+            "speed": aircraft.speed,
+            "destination": aircraft.destination,
+            "fuel_remaining": aircraft.fuel_remaining,
+            "comm_status": aircraft.comm_status
+        }
+
+    def resolve_need(self, callsign: str, need_type: str) -> bool:
+        """
+        Resolve a pending maintenance need for an aircraft.
+
+        Args:
+            callsign: Aircraft callsign
+            need_type: Type of need to resolve (e.g., 'descent_request')
+
+        Returns:
+            True if need was found and resolved, False otherwise
+        """
+        aircraft = self.aircraft.get(callsign)
+        if not aircraft:
+            return False
+
+        for need in aircraft.pending_needs:
+            if need["type"] == need_type and not need.get("resolved"):
+                need["resolved"] = True
+                need["resolved_at"] = self.elapsed_time
+                self.needs_resolved_count += 1
+                print(f"[NEED RESOLVED] {callsign}: {need_type} at {self.elapsed_time:.1f}s")
+                return True
+
+        return False
+
+    def resolve_emergency_choice(self, callsign: str, action_id: str) -> Dict[str, Any]:
+        """
+        Process a player's emergency resolution choice (multiple choice answer).
+
+        Args:
+            callsign: Aircraft with emergency
+            action_id: The resolution option selected
+
+        Returns:
+            Result dict with correct/incorrect, points awarded, and updated score
+        """
+        aircraft = self.aircraft.get(callsign)
+        if not aircraft:
+            return {"status": "error", "message": f"Aircraft {callsign} not found"}
+
+        if not aircraft.emergency:
+            return {"status": "error", "message": "Aircraft has no active emergency"}
+
+        # Get options for this emergency type
+        emergency_type = aircraft.emergency_type or 'conflict'
+        options = EMERGENCY_RESOLUTION_OPTIONS.get(
+            emergency_type,
+            EMERGENCY_RESOLUTION_OPTIONS.get('conflict', [])
+        )
+
+        # Find selected option
+        selected_option = next((o for o in options if o["id"] == action_id), None)
+        if not selected_option:
+            return {"status": "error", "message": f"Unknown action: {action_id}"}
+
+        is_correct = selected_option.get("correct", False)
+        points = selected_option.get("points", 0)
+
+        # Apply score change (clamped to 0-100)
+        old_score = self.safety_score
+        self.safety_score = max(0, min(100, self.safety_score + points))
+
+        # Track score change
+        self.score_changes.append({
+            'time': round(self.elapsed_time, 1),
+            'delta': points,
+            'new_score': self.safety_score,
+            'reasons': [f"emergency resolution: {selected_option['label']}"]
+        })
+
+        # Resolve the emergency if correct
+        if is_correct:
+            self.resolve_issue(callsign)
+            print(f"[EMERGENCY RESOLVED] {callsign}: {action_id} (correct, +{points}pts)")
+        else:
+            print(f"[EMERGENCY WRONG] {callsign}: {action_id} (incorrect, {points}pts)")
+
+        return {
+            "status": "success",
+            "correct": is_correct,
+            "points": points,
+            "new_score": self.safety_score,
+            "emergency_resolved": is_correct,
+            "feedback": "Correct action!" if is_correct else "Not the best choice for this situation."
+        }
 
     def trigger_issue(self, callsign: str, issue_type: str) -> bool:
         """

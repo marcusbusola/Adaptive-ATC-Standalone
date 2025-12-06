@@ -204,6 +204,23 @@ Frontend scenario config is generated from the backend manifest:
 
 ## Important Implementation Notes
 
+### Coordinate Systems
+Two coordinate systems are used:
+- **Radar coordinates** (`backend/scenarios/base_scenario.py`): (x, y) in nautical miles from sector center, used in scenario Aircraft class
+- **Geographic coordinates** (`backend/simulation/aircraft.py`): lat/lon for BlueSky-style simulation engine
+
+Use `_convert_to_bluesky_coords()` in BaseScenario to convert between them.
+
+### Event Types for Alerts
+Events that generate visible alerts (defined in `Session.jsx`):
+`emergency`, `comm_loss`, `conflict`, `weather`, `altitude_deviation`, `vfr_intrusion`, `comm_failure`, `system_crash`, `conflict_threshold`, `false_alarm`, `delayed_alert`
+
+Internal events (`phase_transition`, `internal`, `aircraft_spawn`) do not generate alerts.
+
+### Timing Constants
+- Polling interval: 2000ms (`Session.jsx`)
+- Alert hide duration after acknowledgment: 15000ms
+
 ### Alert ID Format
 Alert IDs follow format: `alert_{event_type}_{aircraft_callsign}` (e.g., `alert_emergency_UAL238`). When acknowledging alerts, the callsign is extracted to resolve pilot mood state.
 

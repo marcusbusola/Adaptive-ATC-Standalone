@@ -19,6 +19,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import RadarHighlight from './RadarHighlight';
+import { playBannerNotification, playNudgeSound } from '../utils/alertAudio';
 import '../styles/mlPredictiveAlert.css';
 
 function MLPredictiveAlert({
@@ -39,17 +40,37 @@ function MLPredictiveAlert({
   onFeedback,
   alertId,
   timestamp = Date.now(),
-  suggestedActions = []
+  suggestedActions = [],
+  visualIntensity = 3, // Visual intensity (1-5 scale)
+  audioIntensity = 0, // Audio intensity (0-4 scale, 0=silent by default)
+  isNudge = false, // Whether this is an idle nudge
+  nudgeCount = 0 // Number of times nudged
 }) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'accept' | 'reject' | null
 
-  // Fade in on mount
+  // Fade in on mount and play audio
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 10);
-  }, []);
+
+    // Play audio based on intensity and nudge state
+    if (audioIntensity > 0) {
+      if (isNudge) {
+        playNudgeSound();
+      } else {
+        playBannerNotification(audioIntensity);
+      }
+    }
+  }, [audioIntensity, isNudge]);
+
+  // Play nudge sound when nudge count increases
+  useEffect(() => {
+    if (isNudge && nudgeCount > 0) {
+      playNudgeSound();
+    }
+  }, [nudgeCount, isNudge]);
 
   /**
    * Get confidence level category
@@ -174,7 +195,9 @@ function MLPredictiveAlert({
       <div
         className={`ml-predictive-banner ${
           isVisible ? 'visible' : ''
-        } ${isMinimized ? 'minimized' : ''}`}
+        } ${isMinimized ? 'minimized' : ''} ml-banner-intensity-${Math.max(1, Math.min(5, visualIntensity))} ${
+          isNudge ? (nudgeCount >= 3 ? 'ml-banner-nudge-urgent' : 'ml-banner-nudge-active') : ''
+        }`}
         role="alert"
         aria-live="polite"
         aria-atomic="true"

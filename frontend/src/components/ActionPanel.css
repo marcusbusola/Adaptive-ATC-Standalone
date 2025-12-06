@@ -1295,3 +1295,358 @@
     font-size: 24px;
   }
 }
+
+/* ===== ACTIVE MONITORING STYLES ===== */
+
+/* Selected Header with Mood */
+.selected-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mood-badge {
+  font-size: 1.2rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.mood-badge.mood-happy {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.mood-badge.mood-annoyed {
+  background: rgba(255, 152, 0, 0.2);
+}
+
+.mood-badge.mood-angry {
+  background: rgba(244, 67, 54, 0.2);
+  animation: pulse-angry 1s ease-in-out infinite;
+}
+
+@keyframes pulse-angry {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Inspect Section */
+.inspect-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.inspect-btn {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inspect-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+}
+
+.inspect-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inspect-btn.loading {
+  background: linear-gradient(135deg, #666 0%, #555 100%);
+}
+
+.last-inspected {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Pending Needs Section */
+.pending-needs-section {
+  margin-bottom: 15px;
+}
+
+.pending-needs-section h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #ff9800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.needs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.need-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border-left: 3px solid;
+}
+
+.need-item.priority-high {
+  border-left-color: #f44336;
+}
+
+.need-item.priority-medium {
+  border-left-color: #ff9800;
+}
+
+.need-item.priority-low {
+  border-left-color: #4caf50;
+}
+
+.need-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.need-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.need-description {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.resolve-need-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #4caf50;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.resolve-need-btn:hover:not(:disabled) {
+  background: #388e3c;
+}
+
+.resolve-need-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* No Needs Message */
+.no-needs-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(76, 175, 80, 0.1);
+  border-radius: 8px;
+  color: #4caf50;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+.no-needs-message .check-icon {
+  font-size: 16px;
+}
+
+/* No Selection Prompt */
+.no-selection-prompt {
+  text-align: center;
+  padding: 30px 20px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.no-selection-prompt .prompt-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.no-selection-prompt h4 {
+  margin: 0 0 10px;
+  color: #4a90e2;
+  font-size: 16px;
+}
+
+.no-selection-prompt p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.no-selection-prompt .hint-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* ===== EMERGENCY RESOLUTION PANEL ===== */
+
+.emergency-resolution-panel {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.2) 0%, rgba(183, 28, 28, 0.2) 100%);
+  border: 2px solid rgba(244, 67, 54, 0.5);
+  border-radius: 10px;
+  padding: 15px;
+  animation: emergencyPulse 2s ease-in-out infinite;
+}
+
+@keyframes emergencyPulse {
+  0%, 100% { border-color: rgba(244, 67, 54, 0.5); }
+  50% { border-color: rgba(244, 67, 54, 0.9); }
+}
+
+.emergency-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.emergency-icon {
+  font-size: 1.5rem;
+}
+
+.emergency-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f44336;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.emergency-prompt {
+  margin: 0 0 15px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Emergency Feedback */
+.emergency-feedback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  animation: feedbackSlide 0.3s ease-out;
+}
+
+@keyframes feedbackSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.emergency-feedback.correct {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid #4caf50;
+}
+
+.emergency-feedback.incorrect {
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid #f44336;
+}
+
+.emergency-feedback .feedback-icon {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.emergency-feedback.correct .feedback-icon {
+  color: #4caf50;
+}
+
+.emergency-feedback.incorrect .feedback-icon {
+  color: #f44336;
+}
+
+.emergency-feedback .feedback-text {
+  flex: 1;
+  font-size: 13px;
+  color: #fff;
+}
+
+.emergency-feedback .feedback-points {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.emergency-feedback.correct .feedback-points {
+  color: #4caf50;
+}
+
+.emergency-feedback.incorrect .feedback-points {
+  color: #f44336;
+}
+
+/* Emergency Options */
+.emergency-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emergency-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 15px;
+  font-size: 13px;
+  text-align: left;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.emergency-option-btn:hover:not(:disabled) {
+  background: rgba(74, 144, 226, 0.3);
+  border-color: #4a90e2;
+  transform: translateX(5px);
+}
+
+.emergency-option-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.option-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(74, 144, 226, 0.3);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.option-label {
+  flex: 1;
+}

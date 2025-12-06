@@ -427,3 +427,80 @@ body.has-adaptive-banners.banners-minimized {
     opacity: 0.9;
   }
 }
+
+/* ============================================================================
+   INTENSITY VARIANTS - Visual intensity levels (1-5)
+   ============================================================================ */
+
+/* Low intensity - subtle, reduced opacity */
+.adaptive-banner-intensity-1 {
+  opacity: 0.85;
+  border-bottom-width: 2px;
+}
+
+/* Medium-low intensity */
+.adaptive-banner-intensity-2 {
+  opacity: 0.9;
+}
+
+/* Normal intensity (default) */
+.adaptive-banner-intensity-3 {
+  opacity: 0.95;
+}
+
+/* High intensity - attention pulse */
+.adaptive-banner-intensity-4 {
+  animation: pulseAttention 1.5s infinite;
+}
+
+/* Maximum intensity - urgent pulse with enhanced shadow */
+.adaptive-banner-intensity-5 {
+  animation: pulseUrgent 0.8s infinite;
+  box-shadow: 0 8px 24px rgba(255, 87, 34, 0.6);
+}
+
+/* Nudge state - for idle nudging */
+.adaptive-banner-nudge {
+  animation: nudgePulse 2s infinite;
+  border-left: 4px solid #ff5722;
+}
+
+/* Keyframes for intensity animations */
+@keyframes pulseAttention {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    transform: translateY(1px);
+    box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+  }
+}
+
+@keyframes pulseUrgent {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 8px 24px rgba(255, 87, 34, 0.6);
+    border-bottom-color: #ff5722;
+  }
+  50% {
+    transform: translateY(2px);
+    box-shadow: 0 12px 32px rgba(255, 87, 34, 0.8);
+    border-bottom-color: #ff3d00;
+  }
+}
+
+@keyframes nudgePulse {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(2px);
+    opacity: 0.95;
+  }
+  75% {
+    transform: translateY(-1px);
+    opacity: 1;
+  }
+}

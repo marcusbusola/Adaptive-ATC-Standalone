@@ -388,6 +388,12 @@ class AlertCreateRequest(BaseModel):
     aircraft_id: Optional[str] = None
     presentation_data: Optional[Dict[str, Any]] = None
     additional_data: Optional[Dict[str, Any]] = None
+    # Enhanced logging fields for workload-aware alerts
+    workload_state: Optional[str] = None  # 'idle', 'busy', 'overwhelmed'
+    visual_intensity: Optional[int] = None  # 1-5 scale
+    audio_intensity: Optional[int] = None  # 0-4 scale
+    logic_mode: Optional[str] = None  # 'traditional', 'rule_based', 'ml_based'
+    current_focus_aircraft: Optional[str] = None
 
 class AlertAcknowledgeRequest(BaseModel):
     acknowledged_at: Optional[str] = None
@@ -1098,11 +1104,24 @@ async def issue_command(session_id: str, request: CommandRequest):
 
 @app.post("/api/sessions/{session_id}/alerts")
 async def create_alert(session_id: str, request: AlertCreateRequest):
-    """Log alert display."""
+    """Log alert display with workload context."""
     try:
         session = await db_manager.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Build enhanced additional_data with workload context
+        enhanced_additional_data = request.additional_data or {}
+        if request.workload_state:
+            enhanced_additional_data["workload_state"] = request.workload_state
+        if request.visual_intensity is not None:
+            enhanced_additional_data["visual_intensity"] = request.visual_intensity
+        if request.audio_intensity is not None:
+            enhanced_additional_data["audio_intensity"] = request.audio_intensity
+        if request.logic_mode:
+            enhanced_additional_data["logic_mode"] = request.logic_mode
+        if request.current_focus_aircraft:
+            enhanced_additional_data["current_focus_aircraft"] = request.current_focus_aircraft
 
         await db_manager.add_alert(
             session_id=session_id,
@@ -1113,7 +1132,7 @@ async def create_alert(session_id: str, request: AlertCreateRequest):
             message=request.message,
             aircraft_id=request.aircraft_id,
             presentation_data=request.presentation_data,
-            additional_data=request.additional_data
+            additional_data=enhanced_additional_data if enhanced_additional_data else None
         )
 
         return {
@@ -1211,6 +1230,111 @@ async def get_alerts(session_id: str):
 
     except Exception as e:
         logger.error(f"Error getting alerts: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ===== ACTIVE MONITORING ENDPOINTS =====
+
+@app.post("/api/sessions/{session_id}/aircraft/{callsign}/inspect")
+async def inspect_aircraft(session_id: str, callsign: str):
+    """
+    Inspect an aircraft to see its pending maintenance needs.
+    This is the ONLY way for players to discover hidden maintenance needs.
+
+    Returns aircraft status including pending needs and emergency options if applicable.
+    """
+    try:
+        if session_id not in active_scenarios:
+            raise HTTPException(status_code=404, detail="Session not found or not active")
+
+        scenario = active_scenarios[session_id]
+        result = scenario.record_aircraft_inspection(callsign)
+
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Aircraft {callsign} not found")
+
+        logger.info(f"[INSPECT] Session {session_id}: Player inspected {callsign}, found {len(result.get('pending_needs', []))} pending needs")
+
+        return {
+            "status": "success",
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error inspecting aircraft: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/sessions/{session_id}/aircraft/{callsign}/resolve-need")
+async def resolve_aircraft_need(session_id: str, callsign: str, request: dict):
+    """
+    Resolve a pending maintenance need for an aircraft.
+
+    Request body:
+        need_type: The type of need to resolve (e.g., 'descent_request')
+    """
+    try:
+        if session_id not in active_scenarios:
+            raise HTTPException(status_code=404, detail="Session not found or not active")
+
+        need_type = request.get("need_type")
+        if not need_type:
+            raise HTTPException(status_code=400, detail="need_type is required")
+
+        scenario = active_scenarios[session_id]
+        resolved = scenario.resolve_need(callsign, need_type)
+
+        if resolved:
+            logger.info(f"[RESOLVE] Session {session_id}: Resolved {need_type} for {callsign}")
+
+        return {
+            "status": "success" if resolved else "not_found",
+            "resolved": resolved,
+            "callsign": callsign,
+            "need_type": need_type
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving need: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/sessions/{session_id}/aircraft/{callsign}/emergency-resolution")
+async def resolve_emergency(session_id: str, callsign: str, request: dict):
+    """
+    Submit an emergency resolution choice (multiple choice answer).
+
+    Request body:
+        action_id: The ID of the resolution action selected
+
+    Returns whether the choice was correct, points awarded, and updated score.
+    """
+    try:
+        if session_id not in active_scenarios:
+            raise HTTPException(status_code=404, detail="Session not found or not active")
+
+        action_id = request.get("action_id")
+        if not action_id:
+            raise HTTPException(status_code=400, detail="action_id is required")
+
+        scenario = active_scenarios[session_id]
+        result = scenario.resolve_emergency_choice(callsign, action_id)
+
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("message"))
+
+        logger.info(f"[EMERGENCY] Session {session_id}: {callsign} resolution '{action_id}' - {'correct' if result.get('correct') else 'incorrect'}")
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving emergency: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

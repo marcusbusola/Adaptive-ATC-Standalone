@@ -26,6 +26,9 @@ const useBehavioralTracking = (sessionId) => {
   const currentHoverTargetRef = useRef(null);
   const batchIntervalRef = useRef(null);
 
+  // Recent events buffer for workload state computation
+  const recentEventsRef = useRef([]);
+
   // Configuration
   const BATCH_SIZE = 50; // Send events in batches
   const BATCH_INTERVAL = 5000; // Send every 5 seconds
@@ -72,6 +75,14 @@ const useBehavioralTracking = (sessionId) => {
     eventsBufferRef.current.push(event);
     setEventCount(prev => prev + 1);
     setLastEventTimestamp(event.timestamp);
+
+    // Add to recent events buffer for workload tracking
+    const now = Date.now();
+    recentEventsRef.current.push({ timestamp: now, type: eventType });
+    // Prune old events (keep last 10 seconds)
+    recentEventsRef.current = recentEventsRef.current.filter(
+      e => now - e.timestamp < 10000
+    );
 
     // Send batch if buffer is full
     if (eventsBufferRef.current.length >= BATCH_SIZE) {
@@ -322,6 +333,18 @@ const useBehavioralTracking = (sessionId) => {
   }, [addEvent]);
 
   /**
+   * Get count of recent events within a time window
+   * Used for workload state computation
+   *
+   * @param {number} windowMs - Time window in milliseconds (default 5000ms)
+   * @returns {number} Count of events in the window
+   */
+  const getRecentEventCount = useCallback((windowMs = 5000) => {
+    const cutoff = Date.now() - windowMs;
+    return recentEventsRef.current.filter(e => e.timestamp >= cutoff).length;
+  }, []);
+
+  /**
    * Cleanup on unmount
    */
   useEffect(() => {
@@ -339,7 +362,8 @@ const useBehavioralTracking = (sessionId) => {
     startTracking,
     stopTracking,
     trackEvent,
-    getTrackedEvents
+    getTrackedEvents,
+    getRecentEventCount
   };
 };
 

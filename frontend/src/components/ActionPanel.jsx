@@ -25,9 +25,12 @@ const ActionPanel = ({
   onAircraftSelect = null, // Callback to sync selection with RadarViewer
   conflicts = [], // Separation conflicts between aircraft
   // Gamification props
-  safetyScore = 1000,
+  safetyScore = 100,
   scoreChanges = [],
-  pilotComplaints = []
+  pilotComplaints = [],
+  // Active monitoring callbacks
+  onNeedResolved = null,
+  onAlertHandled = null
 }) => {
   // Use external selection if provided, otherwise maintain internal state
   const [internalSelectedAircraft, setInternalSelectedAircraft] = useState(null);
@@ -44,6 +47,13 @@ const ActionPanel = ({
   const [activeCommandInput, setActiveCommandInput] = useState(null); // 'altitude', 'heading', 'speed', or null
   const [commandValue, setCommandValue] = useState('');
   const [isExecutingCommand, setIsExecutingCommand] = useState(false);
+
+  // Active Monitoring state (needs inspection and emergency resolution)
+  const [inspectedNeeds, setInspectedNeeds] = useState({}); // callsign -> { pending_needs: [], emergency_options: [] }
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [isResolvingNeed, setIsResolvingNeed] = useState(false);
+  const [isResolvingEmergency, setIsResolvingEmergency] = useState(false);
+  const [emergencyFeedback, setEmergencyFeedback] = useState(null); // { correct, feedback, points }
 
   // Handle aircraft selection - notify parent if callback provided
   const handleAircraftSelect = useCallback((callsign) => {
@@ -320,6 +330,171 @@ const ActionPanel = ({
     return phaseConfig.expectedActions.filter(id => isActionCompleted(id)).length;
   }, [phaseConfig, isActionCompleted]);
 
+  // ===== ACTIVE MONITORING HANDLERS =====
+
+  // Inspect aircraft to reveal pending maintenance needs
+  const inspectAircraft = useCallback(async (callsign) => {
+    if (!sessionId || isInspecting) return;
+
+    setIsInspecting(true);
+    setActionError('');
+
+    try {
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/sessions/${sessionId}/aircraft/${callsign}/inspect`,
+        { method: 'POST' }
+      );
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        setInspectedNeeds(prev => ({
+          ...prev,
+          [callsign]: {
+            pending_needs: data.pending_needs || [],
+            emergency_options: data.emergency_options || null,
+            has_emergency: data.has_emergency,
+            emergency_type: data.emergency_type,
+            mood: data.mood,
+            safety_score: data.safety_score,
+            altitude: data.altitude,
+            heading: data.heading,
+            speed: data.speed,
+            destination: data.destination,
+            fuel_remaining: data.fuel_remaining,
+            comm_status: data.comm_status,
+            inspected_at: Date.now()
+          }
+        }));
+        setActionToast(`Inspected ${callsign}: ${data.pending_needs?.length || 0} pending needs`);
+      }
+    } catch (err) {
+      console.error('[ActionPanel] Failed to inspect aircraft:', err);
+      setActionError('Failed to inspect aircraft');
+    } finally {
+      setIsInspecting(false);
+    }
+  }, [sessionId, isInspecting]);
+
+  // Resolve a maintenance need
+  const resolveNeed = useCallback(async (callsign, needType) => {
+    if (!sessionId || isResolvingNeed) return;
+
+    setIsResolvingNeed(true);
+    setActionError('');
+
+    try {
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/sessions/${sessionId}/aircraft/${callsign}/resolve-need`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ need_type: needType })
+        }
+      );
+      const data = await response.json();
+
+      if (data.resolved) {
+        // Remove the resolved need from local state
+        setInspectedNeeds(prev => ({
+          ...prev,
+          [callsign]: {
+            ...prev[callsign],
+            pending_needs: (prev[callsign]?.pending_needs || []).filter(n => n.type !== needType)
+          }
+        }));
+        setActionToast(`Resolved: ${needType.replace(/_/g, ' ')}`);
+
+        // Log the action
+        logAction({
+          id: `resolve_${needType}_${callsign}`,
+          type: 'need_resolution',
+          label: `Resolved ${needType.replace(/_/g, ' ')}`,
+          target: callsign,
+          command: `Resolved maintenance need: ${needType}`
+        });
+
+        // Notify parent of resolution
+        onNeedResolved?.();
+      }
+    } catch (err) {
+      console.error('[ActionPanel] Failed to resolve need:', err);
+      setActionError('Failed to resolve need');
+    } finally {
+      setIsResolvingNeed(false);
+    }
+  }, [sessionId, isResolvingNeed, logAction, onNeedResolved]);
+
+  // Submit emergency resolution choice
+  const submitEmergencyResolution = useCallback(async (callsign, actionId, actionLabel) => {
+    if (!sessionId || isResolvingEmergency) return;
+
+    setIsResolvingEmergency(true);
+    setActionError('');
+    setEmergencyFeedback(null);
+
+    try {
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/sessions/${sessionId}/aircraft/${callsign}/emergency-resolution`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action_id: actionId })
+        }
+      );
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        setEmergencyFeedback({
+          correct: data.correct,
+          feedback: data.feedback,
+          points: data.points,
+          emergency_resolved: data.emergency_resolved
+        });
+
+        // If emergency was resolved, clear the inspected state for this aircraft
+        if (data.emergency_resolved) {
+          setInspectedNeeds(prev => ({
+            ...prev,
+            [callsign]: {
+              ...prev[callsign],
+              has_emergency: false,
+              emergency_options: null,
+              emergency_type: null
+            }
+          }));
+
+          // Notify parent of alert handled
+          onAlertHandled?.();
+        }
+
+        // Log the action
+        logAction({
+          id: `emergency_${actionId}_${callsign}`,
+          type: 'emergency_resolution',
+          label: actionLabel,
+          target: callsign,
+          command: `Emergency resolution: ${actionLabel}`,
+          correct: data.correct,
+          points: data.points
+        });
+
+        // Clear feedback after 3 seconds
+        setTimeout(() => setEmergencyFeedback(null), 3000);
+      }
+    } catch (err) {
+      console.error('[ActionPanel] Failed to submit emergency resolution:', err);
+      setActionError('Failed to submit resolution');
+    } finally {
+      setIsResolvingEmergency(false);
+    }
+  }, [sessionId, isResolvingEmergency, logAction, onAlertHandled]);
+
+  // Get inspected data for selected aircraft
+  const selectedAircraftInspection = useMemo(() => {
+    if (!selectedAircraftCallsign) return null;
+    return inspectedNeeds[selectedAircraftCallsign] || null;
+  }, [selectedAircraftCallsign, inspectedNeeds]);
+
   if (!scenarioConfig) {
     return (
       <div className="action-panel">
@@ -433,200 +608,201 @@ const ActionPanel = ({
         </div>
       </section>
 
-      {/* Dynamic Content Area - shows aircraft info, conflicts, and scenario commands */}
+      {/* Dynamic Content Area - Active Monitoring & Emergency Resolution */}
         <section className="panel-section dynamic-content">
         {selectedAircraftData ? (
-          // AIRCRAFT SELECTED: Show conflicts, commands, and full info
+          // AIRCRAFT SELECTED
           <>
-            <h3>Selected: {selectedAircraftData.callsign}</h3>
+            <h3 className="selected-header">
+              Selected: {selectedAircraftData.callsign}
+              <span className={`mood-badge mood-${selectedAircraftData.mood || 'happy'}`}>
+                {selectedAircraftData.mood === 'angry' ? '😠' : selectedAircraftData.mood === 'annoyed' ? '😐' : '😊'}
+              </span>
+            </h3>
 
-            {/* Conflict Warnings - shown first if aircraft is in conflict */}
-            {conflictsForSelectedAircraft.length > 0 && (
-              <div className="conflict-warning-box">
-                <div className="conflict-warning-header">
-                  <span className="conflict-icon">⚠</span>
-                  <span>SEPARATION WARNING</span>
+            {/* EMERGENCY RESOLUTION MODE */}
+            {selectedAircraftData.emergency && selectedAircraftInspection?.emergency_options ? (
+              <div className="emergency-resolution-panel">
+                <div className="emergency-header">
+                  <span className="emergency-icon">🚨</span>
+                  <span className="emergency-title">EMERGENCY: {selectedAircraftData.emergency_type?.replace(/_/g, ' ').toUpperCase()}</span>
                 </div>
-                {conflictsForSelectedAircraft.map((conflict, idx) => {
-                  const otherAircraft = conflict.aircraft_1 === selectedAircraftCallsign
-                    ? conflict.aircraft_2
-                    : conflict.aircraft_1;
-                  return (
-                    <div key={idx} className={`conflict-detail severity-${conflict.severity}`}>
-                      <div className="conflict-with">
-                        <span className="conflict-label">With:</span>
-                        <span className="conflict-callsign">{otherAircraft}</span>
-                      </div>
-                      <div className="conflict-separation">
-                        <span className="separation-item">
-                          <span className="sep-label">H:</span>
-                          <span className="sep-value">{conflict.horizontal_separation_nm} nm</span>
-                        </span>
-                        <span className="separation-item">
-                          <span className="sep-label">V:</span>
-                          <span className="sep-value">{conflict.vertical_separation_ft} ft</span>
-                        </span>
-                      </div>
-                      <span className={`severity-badge ${conflict.severity}`}>
-                        {conflict.severity.toUpperCase()}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                <p className="emergency-prompt">Select the best resolution:</p>
 
-            {/* Commands for this aircraft (shown if aircraft has alerts) */}
-            {commandsForSelectedAircraft.length > 0 && (
-              <div className="aircraft-commands">
-                <h4>Required Actions</h4>
-                <div className="command-list">
-                  {commandsForSelectedAircraft.map(action => {
-                    const isClicked = clickedActionId === action.id;
-                    const resolvableAlerts = getResolvableAlerts(action);
-                    const willResolveAlert = resolvableAlerts.length > 0;
-                    return (
-                      <button
-                        key={action.id}
-                        className={`command-btn scenario-cmd ${isClicked ? 'clicked' : ''} ${willResolveAlert ? 'resolves-alert' : ''}`}
-                        onClick={() => handleCommandClick(action)}
-                        disabled={isLogging}
-                        title={action.command}
-                      >
-                        <div className="command-main">
-                          <span className="command-label">{action.label}</span>
-                          {willResolveAlert && (
-                            <span className="resolves-badge">Resolves Alert</span>
-                          )}
-                        </div>
-                        <span className="command-target">{action.target}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Full Aircraft Information */}
-            <div className="aircraft-info-section">
-              <h4>Aircraft Information</h4>
-
-              {/* Individual Aircraft Safety Score */}
-              {selectedAircraftData.safety_score !== undefined && (
-                <div className="aircraft-safety-score">
-                  <span className="score-label">Safety</span>
-                  <div className="score-bar-container">
-                    <div
-                      className="score-bar-fill"
-                      style={{
-                        width: `${selectedAircraftData.safety_score}%`,
-                        backgroundColor: getScoreColor(selectedAircraftData.safety_score)
-                      }}
-                    />
-                  </div>
-                  <span className="score-percentage">{Math.round(selectedAircraftData.safety_score)}%</span>
-                </div>
-              )}
-
-              <div className="aircraft-telemetry">
-                {/* Flight Data */}
-                <div className="telemetry-row">
-                  <span className="telemetry-label">Altitude:</span>
-                  <span className="telemetry-value">{Math.floor(selectedAircraftData.altitude || 0).toLocaleString()} ft</span>
-                  {selectedAircraftData.target_altitude && selectedAircraftData.target_altitude !== selectedAircraftData.altitude && (
-                    <span className="telemetry-target">
-                      {selectedAircraftData.target_altitude > selectedAircraftData.altitude ? '↑' : '↓'} {Math.floor(selectedAircraftData.target_altitude).toLocaleString()} ft
-                    </span>
-                  )}
-                </div>
-                {selectedAircraftData.vertical_rate && Math.abs(selectedAircraftData.vertical_rate) > 50 && (
-                  <div className="telemetry-row sub">
-                    <span className="telemetry-label">V/S:</span>
-                    <span className="telemetry-value vs">{selectedAircraftData.vertical_rate > 0 ? '+' : ''}{Math.floor(selectedAircraftData.vertical_rate)} fpm</span>
-                  </div>
-                )}
-                <div className="telemetry-row">
-                  <span className="telemetry-label">Speed:</span>
-                  <span className="telemetry-value">{Math.floor(selectedAircraftData.speed || 0)} kts</span>
-                </div>
-                <div className="telemetry-row">
-                  <span className="telemetry-label">Heading:</span>
-                  <span className="telemetry-value">{Math.floor(selectedAircraftData.heading || 0)}°</span>
-                </div>
-
-                {/* Extended Info - Destination, Route, Fuel */}
-                {selectedAircraftData.destination && (
-                  <div className="telemetry-row">
-                    <span className="telemetry-label">Destination:</span>
-                    <span className="telemetry-value destination">{selectedAircraftData.destination}</span>
-                  </div>
-                )}
-                {selectedAircraftData.route && (
-                  <div className="telemetry-row">
-                    <span className="telemetry-label">Route:</span>
-                    <span className="telemetry-value route">{selectedAircraftData.route}</span>
-                  </div>
-                )}
-                {selectedAircraftData.fuel_remaining && (
-                  <div className="telemetry-row">
-                    <span className="telemetry-label">Fuel:</span>
-                    <span className={`telemetry-value ${selectedAircraftData.fuel_remaining < 30 ? 'fuel-low' : ''}`}>
-                      {selectedAircraftData.fuel_remaining} min
+                {emergencyFeedback && (
+                  <div className={`emergency-feedback ${emergencyFeedback.correct ? 'correct' : 'incorrect'}`}>
+                    <span className="feedback-icon">{emergencyFeedback.correct ? '✓' : '✗'}</span>
+                    <span className="feedback-text">{emergencyFeedback.feedback}</span>
+                    <span className="feedback-points">
+                      {emergencyFeedback.points > 0 ? '+' : ''}{emergencyFeedback.points} pts
                     </span>
                   </div>
                 )}
 
-                {/* Status */}
-                <div className="telemetry-row status">
-                  <span className="telemetry-label">Status:</span>
-                  {selectedAircraftData.emergency ? (
-                    <span className="telemetry-value emergency">
-                      EMERGENCY{selectedAircraftData.emergency_type ? ` (${selectedAircraftData.emergency_type})` : ''}
-                    </span>
-                  ) : selectedAircraftData.comm_status === 'lost' || selectedAircraftData.comm_loss ? (
-                    <span className="telemetry-value nordo">COMM LOSS</span>
-                  ) : (
-                    <span className="telemetry-value normal">NORMAL</span>
-                  )}
+                <div className="emergency-options">
+                  {selectedAircraftInspection.emergency_options.map((option, idx) => (
+                    <button
+                      key={option.id}
+                      className="emergency-option-btn"
+                      onClick={() => submitEmergencyResolution(selectedAircraftCallsign, option.id, option.label)}
+                      disabled={isResolvingEmergency}
+                    >
+                      <span className="option-number">{idx + 1}</span>
+                      <span className="option-label">{option.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
-          </>
-        ) : pendingAlerts.length > 0 ? (
-          // NO SELECTION + PENDING ALERTS: Show alert-related commands
-          <>
-            <h3>Pending Alerts ({pendingAlerts.length})</h3>
-            <p className="alert-hint">Select an aircraft or take action:</p>
-            <div className="command-list">
-              {alertRelatedCommands.map(action => {
-                const isClicked = clickedActionId === action.id;
-                const resolvableAlerts = getResolvableAlerts(action);
-                const willResolveAlert = resolvableAlerts.length > 0;
-                return (
+            ) : (
+              /* ACTIVE MONITORING MODE */
+              <>
+                {/* Inspect Button - for discovering needs */}
+                <div className="inspect-section">
                   <button
-                    key={action.id}
-                    className={`command-btn scenario-cmd ${isClicked ? 'clicked' : ''} ${willResolveAlert ? 'resolves-alert' : ''}`}
-                    onClick={() => handleCommandClick(action)}
-                    disabled={isLogging}
-                    title={action.command}
+                    className={`inspect-btn ${isInspecting ? 'loading' : ''}`}
+                    onClick={() => inspectAircraft(selectedAircraftCallsign)}
+                    disabled={isInspecting}
                   >
-                    <div className="command-main">
-                      <span className="command-label">{action.label}</span>
-                      {willResolveAlert && (
-                        <span className="resolves-badge">Resolves Alert</span>
+                    {isInspecting ? 'Checking...' : 'Check Status'}
+                  </button>
+                  {selectedAircraftInspection && (
+                    <span className="last-inspected">
+                      Last checked: {Math.round((Date.now() - selectedAircraftInspection.inspected_at) / 1000)}s ago
+                    </span>
+                  )}
+                </div>
+
+                {/* Pending Needs - shown after inspection */}
+                {selectedAircraftInspection?.pending_needs?.length > 0 && (
+                  <div className="pending-needs-section">
+                    <h4>Pending Requests ({selectedAircraftInspection.pending_needs.length})</h4>
+                    <div className="needs-list">
+                      {selectedAircraftInspection.pending_needs.map((need, idx) => (
+                        <div key={`${need.type}-${idx}`} className={`need-item priority-${need.priority}`}>
+                          <div className="need-info">
+                            <span className="need-label">{need.label}</span>
+                            <span className="need-description">{need.description}</span>
+                          </div>
+                          <button
+                            className="resolve-need-btn"
+                            onClick={() => resolveNeed(selectedAircraftCallsign, need.type)}
+                            disabled={isResolvingNeed}
+                          >
+                            Resolve
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No needs after inspection */}
+                {selectedAircraftInspection && selectedAircraftInspection.pending_needs?.length === 0 && (
+                  <div className="no-needs-message">
+                    <span className="check-icon">✓</span>
+                    <span>No pending requests</span>
+                  </div>
+                )}
+
+                {/* Conflict Warnings */}
+                {conflictsForSelectedAircraft.length > 0 && (
+                  <div className="conflict-warning-box">
+                    <div className="conflict-warning-header">
+                      <span className="conflict-icon">⚠</span>
+                      <span>SEPARATION WARNING</span>
+                    </div>
+                    {conflictsForSelectedAircraft.map((conflict, idx) => {
+                      const otherAircraft = conflict.aircraft_1 === selectedAircraftCallsign
+                        ? conflict.aircraft_2
+                        : conflict.aircraft_1;
+                      return (
+                        <div key={idx} className={`conflict-detail severity-${conflict.severity}`}>
+                          <div className="conflict-with">
+                            <span className="conflict-label">With:</span>
+                            <span className="conflict-callsign">{otherAircraft}</span>
+                          </div>
+                          <div className="conflict-separation">
+                            <span className="separation-item">
+                              <span className="sep-label">H:</span>
+                              <span className="sep-value">{conflict.horizontal_separation_nm} nm</span>
+                            </span>
+                            <span className="separation-item">
+                              <span className="sep-label">V:</span>
+                              <span className="sep-value">{conflict.vertical_separation_ft} ft</span>
+                            </span>
+                          </div>
+                          <span className={`severity-badge ${conflict.severity}`}>
+                            {conflict.severity.toUpperCase()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Aircraft Telemetry */}
+                <div className="aircraft-info-section">
+                  <h4>Aircraft Information</h4>
+
+                  {selectedAircraftData.safety_score !== undefined && (
+                    <div className="aircraft-safety-score">
+                      <span className="score-label">Safety</span>
+                      <div className="score-bar-container">
+                        <div
+                          className="score-bar-fill"
+                          style={{
+                            width: `${selectedAircraftData.safety_score}%`,
+                            backgroundColor: getScoreColor(selectedAircraftData.safety_score)
+                          }}
+                        />
+                      </div>
+                      <span className="score-percentage">{Math.round(selectedAircraftData.safety_score)}%</span>
+                    </div>
+                  )}
+
+                  <div className="aircraft-telemetry">
+                    <div className="telemetry-row">
+                      <span className="telemetry-label">Altitude:</span>
+                      <span className="telemetry-value">{Math.floor(selectedAircraftData.altitude || 0).toLocaleString()} ft</span>
+                    </div>
+                    <div className="telemetry-row">
+                      <span className="telemetry-label">Speed:</span>
+                      <span className="telemetry-value">{Math.floor(selectedAircraftData.speed || 0)} kts</span>
+                    </div>
+                    <div className="telemetry-row">
+                      <span className="telemetry-label">Heading:</span>
+                      <span className="telemetry-value">{Math.floor(selectedAircraftData.heading || 0)}°</span>
+                    </div>
+                    {selectedAircraftData.destination && (
+                      <div className="telemetry-row">
+                        <span className="telemetry-label">Destination:</span>
+                        <span className="telemetry-value destination">{selectedAircraftData.destination}</span>
+                      </div>
+                    )}
+                    <div className="telemetry-row status">
+                      <span className="telemetry-label">Status:</span>
+                      {selectedAircraftData.emergency ? (
+                        <span className="telemetry-value emergency">
+                          EMERGENCY{selectedAircraftData.emergency_type ? ` (${selectedAircraftData.emergency_type})` : ''}
+                        </span>
+                      ) : selectedAircraftData.comm_status === 'lost' || selectedAircraftData.comm_loss ? (
+                        <span className="telemetry-value nordo">COMM LOSS</span>
+                      ) : (
+                        <span className="telemetry-value normal">NORMAL</span>
                       )}
                     </div>
-                    <span className="command-target">{action.target}</span>
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         ) : (
-          // ALL CLEAR: No pending alerts, no selection
-          <div className="all-clear-status">
-            <span className="status-icon">✓</span>
-            <span>All situations resolved</span>
+          // NO SELECTION: Prompt to select aircraft for active monitoring
+          <div className="no-selection-prompt">
+            <div className="prompt-icon">✈</div>
+            <h4>Active Monitoring</h4>
+            <p>Select an aircraft to check its status and pending requests.</p>
+            <p className="hint-text">Aircraft may have needs that aren't visible until you check them.</p>
           </div>
         )}
       </section>

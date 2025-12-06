@@ -10,10 +10,15 @@ import SurveyManager from './Surveys/SurveyManager';
 import CommandPalette from './CommandPalette';
 import { SuccessToastContainer } from './SuccessToast';
 import ScenarioTransition from './ScenarioTransition';
+import ShiftOverScreen from './ShiftOverScreen';
 import { logBehavioralEvent, logAlertDisplay, logAlertAcknowledgment } from '../services/api';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { SCENARIO_ACTIONS } from '../config/scenarioActions';
 import { playSuccessSound } from '../utils/alertSounds';
+import useBehavioralTracking from '../hooks/useBehavioralTracking';
+import useWorkloadState from '../hooks/useWorkloadState';
+import { computePresentation } from '../utils/alertPresentationEngine';
+import { playNudgeSound, playAlertByIntensity } from '../utils/alertAudio';
 import '../styles/session.css';
 
 const API_URL = getApiBaseUrl();
@@ -71,12 +76,15 @@ function Session() {
     const [scenarioComplete, setScenarioComplete] = useState(false);
 
     // Gamification state
-    const [safetyScore, setSafetyScore] = useState(1000);
+    const [safetyScore, setSafetyScore] = useState(100); // 0-100 scale (target: 90+)
     const [scoreChanges, setScoreChanges] = useState([]);
     const [pilotComplaints, setPilotComplaints] = useState([]);
     const [showSurvey, setShowSurvey] = useState(false);
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
+    const [showShiftOver, setShowShiftOver] = useState(false); // End-of-shift summary screen
+    const [alertsHandledCount, setAlertsHandledCount] = useState(0); // Track alerts handled
+    const [needsResolvedCount, setNeedsResolvedCount] = useState(0); // Track needs resolved
 
     // Multi-scenario queue state
     const [queueScenarios, setQueueScenarios] = useState([]); // All scenarios in queue
@@ -89,6 +97,19 @@ function Session() {
     const scenarioStartedRef = useRef(false); // Ref to avoid stale closure in polling
     const startTimeRef = useRef(null);
     const pendingAlertTimers = useRef({}); // Timers for pending alerts
+    const nudgeIntervalRef = useRef(null); // Timer for idle nudging
+
+    // Behavioral tracking for workload computation
+    const behavioralTracking = useBehavioralTracking(sessionId);
+
+    // Workload state monitoring
+    const { workloadState, currentFocus, unresolvedCount, shouldNudge } = useWorkloadState({
+        getRecentEventCount: behavioralTracking.getRecentEventCount,
+        selectedAircraft: selectedAircraftCallsign,
+        activePanel: 'radar',
+        pendingAlerts,
+        conflicts
+    });
 
     const fetchSessionDetails = useCallback(async () => {
         setIsLoading(true);
@@ -186,10 +207,9 @@ function Session() {
                 setScenarioComplete(true);
                 setShowTransition(true);
             } else {
-                // Last scenario (or no queue) - show surveys
-                setShowSurveyIntro(true);
-                setTimeout(() => setShowSurvey(true), 1000);
+                // Last scenario (or no queue) - show shift over screen first
                 setScenarioComplete(true);
+                setShowShiftOver(true);
             }
         } catch (err) {
             setError(err.message);
@@ -210,6 +230,13 @@ function Session() {
             }
         }, 2000);
     }, [returnTo, navigate]);
+
+    // Handler for ShiftOverScreen continue button
+    const handleShiftOverContinue = useCallback(() => {
+        setShowShiftOver(false);
+        setShowSurveyIntro(true);
+        setTimeout(() => setShowSurvey(true), 1000);
+    }, []);
 
     // Handle transition countdown complete - start next scenario
     const handleTransitionComplete = useCallback(async () => {
@@ -413,7 +440,27 @@ function Session() {
                 }
             }
 
-            // New alert - create it
+            // Map priority to severity for presentation engine
+            const severityMap = {
+                'critical': 'critical',
+                'high': 'high',
+                'medium': 'medium',
+                'low': 'low'
+            };
+            const severity = severityMap[newPriority] || 'medium';
+
+            // Compute presentation based on condition, workload, and focus
+            const presentation = computePresentation({
+                eventType: event.event_type,
+                severity: severity,
+                condition: condition,
+                workloadState: workloadState,
+                currentFocus: currentFocus,
+                unresolvedItems: unresolvedCount,
+                affectedAircraft: event.target
+            });
+
+            // New alert - create it with presentation data
             const alertData = {
                 id: alertId,
                 type: event.event_type,
@@ -425,17 +472,30 @@ function Session() {
                 condition: condition,
                 acknowledged: false,
                 escalationLevel: 1,
-                reappearCount: 0
+                reappearCount: 0,
+                // Presentation data
+                visualIntensity: presentation.visual,
+                audioIntensity: presentation.audio,
+                logicMode: presentation.logicMode,
+                workloadStateAtPresentation: presentation.workloadStateAtPresentation,
+                shouldNudge: presentation.shouldNudge,
+                nudgeCount: 0
             };
 
-            // Log alert display
+            // Log alert display with workload context
             try {
                 await logAlertDisplay(sessionId, {
                     alert_id: alertId,
                     alert_type: event.event_type,
                     priority: alertData.priority,
                     message: alertData.message,
-                    aircraft_id: event.target
+                    aircraft_id: event.target,
+                    // Workload context for research logging
+                    workload_state: workloadState,
+                    visual_intensity: alertData.visualIntensity,
+                    audio_intensity: alertData.audioIntensity,
+                    logic_mode: alertData.logicMode,
+                    current_focus_aircraft: currentFocus?.selectedAircraft || null
                 });
             } catch (err) {
                 console.error('Failed to log alert display:', err);
@@ -676,6 +736,9 @@ function Session() {
             scenarioStartedRef.current = true; // Set ref immediately for polling
             startTimeRef.current = Date.now();
 
+            // Start behavioral tracking for workload computation
+            behavioralTracking.startTracking();
+
             // Start the local timer for display
             timerRef.current = setInterval(() => {
                 setElapsedTime(prevTime => prevTime + 1);
@@ -844,6 +907,54 @@ function Session() {
         }
     }, [scenarioStarted, scenarioComplete]);
 
+    // Idle Nudging for ML-Based Condition (Condition 3)
+    // When player is idle and there are unresolved alerts, increase alert salience
+    useEffect(() => {
+        // Only for Condition 3
+        if (sessionDetails?.condition !== 3) return;
+
+        // Clear any existing nudge interval
+        if (nudgeIntervalRef.current) {
+            clearInterval(nudgeIntervalRef.current);
+            nudgeIntervalRef.current = null;
+        }
+
+        // Only nudge when idle with unresolved items
+        if (workloadState !== 'idle' || unresolvedCount === 0) return;
+
+        console.log('[Nudge] Starting idle nudging - workload:', workloadState, 'unresolved:', unresolvedCount);
+
+        // Set up nudge interval (every 10 seconds)
+        nudgeIntervalRef.current = setInterval(() => {
+            // Increase visual intensity on pending alerts
+            setPendingAlerts(prev => prev.map(alert => ({
+                ...alert,
+                visualIntensity: Math.min((alert.visualIntensity || 3) + 1, 5),
+                nudgeCount: (alert.nudgeCount || 0) + 1,
+                isNudge: true
+            })));
+
+            // Also boost active alerts
+            setActiveAlerts(prev => prev.map(alert => ({
+                ...alert,
+                visualIntensity: Math.min((alert.visualIntensity || 3) + 1, 5),
+                nudgeCount: (alert.nudgeCount || 0) + 1,
+                isNudge: true
+            })));
+
+            // Play nudge sound
+            playNudgeSound();
+            console.log('[Nudge] Nudge triggered for idle player');
+        }, 10000); // Every 10 seconds
+
+        return () => {
+            if (nudgeIntervalRef.current) {
+                clearInterval(nudgeIntervalRef.current);
+                nudgeIntervalRef.current = null;
+            }
+        };
+    }, [sessionDetails?.condition, workloadState, unresolvedCount]);
+
     // Render alerts based on condition
     const renderAlerts = () => {
         if (activeAlerts.length === 0) return null;
@@ -875,6 +986,8 @@ function Session() {
                             isEscalated={alert.isEscalated || false}
                             reappearCount={alert.reappearCount || 0}
                             escalationLevel={alert.escalationLevel || 1}
+                            visualIntensity={alert.visualIntensity || 4}
+                            audioIntensity={alert.audioIntensity || 3}
                             onAcknowledge={(data) => handleAlertAcknowledge(alert, data?.action_taken)}
                         />
                     );
@@ -892,6 +1005,9 @@ function Session() {
                             recommendedActions={[
                                 { label: 'Acknowledge', description: 'Acknowledge this alert' }
                             ]}
+                            visualIntensity={alert.visualIntensity || 3}
+                            audioIntensity={alert.audioIntensity || 1}
+                            enableAudio={true}
                             onDismiss={() => handleAlertDismiss(alert)}
                             onActionClick={() => handleAlertAcknowledge(alert, 'acknowledged')}
                         />
@@ -907,6 +1023,10 @@ function Session() {
                             reasoning={alert.details?.explanation || 'ML model detected potential issue'}
                             highlightRegions={alert.details?.highlight_regions || []}
                             timestamp={alert.timestamp}
+                            visualIntensity={alert.visualIntensity || 3}
+                            audioIntensity={alert.audioIntensity || 1}
+                            isNudge={alert.isNudge || false}
+                            nudgeCount={alert.nudgeCount || 0}
                             onDismiss={() => handleAlertDismiss(alert)}
                             onAcceptSuggestion={() => handleAlertAcknowledge(alert, 'accepted')}
                             onRejectSuggestion={() => handleAlertAcknowledge(alert, 'rejected')}
@@ -953,6 +1073,21 @@ function Session() {
                 condition={nextScenario?.condition || sessionDetails?.condition}
                 countdownSeconds={5}
                 onCountdownComplete={handleTransitionComplete}
+            />
+        );
+    }
+
+    // Show shift over screen before surveys
+    if (showShiftOver) {
+        return (
+            <ShiftOverScreen
+                safetyScore={safetyScore}
+                elapsedTime={elapsedTime}
+                aircraft={aircraft}
+                needsResolved={needsResolvedCount}
+                alertsHandled={alertsHandledCount}
+                pilotComplaints={pilotComplaints}
+                onContinue={handleShiftOverContinue}
             />
         );
     }
@@ -1041,6 +1176,9 @@ function Session() {
                     safetyScore={safetyScore}
                     scoreChanges={scoreChanges}
                     pilotComplaints={pilotComplaints}
+                    // Active monitoring callbacks
+                    onNeedResolved={() => setNeedsResolvedCount(c => c + 1)}
+                    onAlertHandled={() => setAlertsHandledCount(c => c + 1)}
                 />
             </div>
 

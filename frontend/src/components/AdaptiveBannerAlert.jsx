@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { playBannerNotification } from '../utils/alertAudio';
 import '../styles/adaptiveBannerAlert.css';
 
 function AdaptiveBannerAlert({
@@ -30,7 +31,10 @@ function AdaptiveBannerAlert({
   autoDismissDelay = 10000, // 10 seconds default
   alertId,
   timestamp = Date.now(),
-  showProgress = true
+  showProgress = true,
+  visualIntensity = 3, // Visual intensity (1-5 scale)
+  audioIntensity = 0, // Audio intensity (0-4 scale, 0=silent by default for banners)
+  enableAudio = true // Whether audio is enabled for this banner
 }) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -38,10 +42,15 @@ function AdaptiveBannerAlert({
   const timerRef = useRef(null);
   const progressRef = useRef(null);
 
-  // Fade in on mount
+  // Fade in on mount and play audio if enabled
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 10);
-  }, []);
+
+    // Play audio notification if enabled and intensity > 0
+    if (enableAudio && audioIntensity > 0) {
+      playBannerNotification(audioIntensity);
+    }
+  }, [enableAudio, audioIntensity]);
 
   // Auto-dismiss timer
   useEffect(() => {
@@ -143,7 +152,7 @@ function AdaptiveBannerAlert({
     <div
       className={`adaptive-banner-container ${getSeverityClass()} ${
         isVisible ? 'visible' : ''
-      } ${isMinimized ? 'minimized' : ''}`}
+      } ${isMinimized ? 'minimized' : ''} adaptive-banner-intensity-${Math.max(1, Math.min(5, visualIntensity))}`}
       role="alert"
       aria-live="polite"
       aria-atomic="true"
