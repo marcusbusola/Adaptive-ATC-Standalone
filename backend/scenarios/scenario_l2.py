@@ -272,6 +272,17 @@ class ScenarioL2(BaseScenario):
         # Record failure time in measurements
         self.measurements['comm_failure_detection']['failure_time'] = self.elapsed_time
 
+        # For Condition 1 (Traditional): This is a SILENT failure - visual indicator only
+        # Add presentation flag so frontend knows not to show a modal alert
+        if self.condition == 1:
+            event.data['presentation'] = 'visual_only'
+            event.data['silent_failure'] = True
+            print(f"  Condition 1: Silent failure - visual indicator only (no alert)")
+        elif self.condition == 2:
+            # Rule-based: May show alert after delay if not detected
+            event.data['presentation'] = 'delayed_banner'
+        # Condition 3 (ML) would have predicted this earlier
+
     def _handle_vfr_intrusion_event(self, event: ScenarioEvent) -> None:
         """Handle VFR intrusion"""
         # Spawn VFR aircraft

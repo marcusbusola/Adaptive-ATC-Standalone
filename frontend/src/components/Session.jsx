@@ -89,6 +89,14 @@ function Session() {
     const [showCompletion, setShowCompletion] = useState(false); // Final completion/thank you screen
     const [alertsHandledCount, setAlertsHandledCount] = useState(0); // Track alerts handled
     const [needsResolvedCount, setNeedsResolvedCount] = useState(0); // Track needs resolved
+    const [showSurveyOutro, setShowSurveyOutro] = useState(false); // Loading screen after surveys
+
+    // System status for silent failures (L2 scenario)
+    const [systemStatus, setSystemStatus] = useState({
+        commSystem: 'operational', // 'operational', 'failed'
+        primaryFrequency: 119.5,
+        tcasSystem: 'operational' // 'operational', 'failed' (for L3)
+    });
 
     // Multi-scenario queue state
     const [queueScenarios, setQueueScenarios] = useState([]); // All scenarios in queue
@@ -223,9 +231,15 @@ function Session() {
     }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex]);
 
     const handleSurveyComplete = useCallback(() => {
-        // Show completion screen instead of immediately redirecting
+        // Show outro loading screen, then completion screen
         setShowSurvey(false);
-        setShowCompletion(true);
+        setShowSurveyOutro(true);
+
+        // Transition to completion screen after a brief delay
+        setTimeout(() => {
+            setShowSurveyOutro(false);
+            setShowCompletion(true);
+        }, 2000);
     }, []);
 
     // Handle continue from completion screen
@@ -243,7 +257,11 @@ function Session() {
     const handleShiftOverContinue = useCallback(() => {
         setShowShiftOver(false);
         setShowSurveyIntro(true);
-        setTimeout(() => setShowSurvey(true), 1000);
+        // Show intro screen for 2.5 seconds before surveys
+        setTimeout(() => {
+            setShowSurveyIntro(false);
+            setShowSurvey(true);
+        }, 2500);
     }, []);
 
     // Handle transition countdown complete - start next scenario
@@ -436,6 +454,28 @@ function Session() {
                     console.log(`[Alert] Skipping internal event: ${event.event_type}`);
                     continue;
                 }
+            }
+
+            // Handle SILENT FAILURES (L2/L3 scenarios) - visual indicator only, no modal
+            // These events have presentation: 'visual_only' and should update system status
+            // instead of showing an alert (testing controller vigilance)
+            if (event.data?.presentation === 'visual_only') {
+                console.log(`[Alert] Silent failure - updating system status only: ${event.event_type}`);
+
+                if (event.event_type === 'comm_failure') {
+                    setSystemStatus(prev => ({
+                        ...prev,
+                        commSystem: 'failed',
+                        failedAt: Date.now()
+                    }));
+                } else if (event.event_type === 'system_crash') {
+                    setSystemStatus(prev => ({
+                        ...prev,
+                        tcasSystem: 'failed',
+                        tcasFailedAt: Date.now()
+                    }));
+                }
+                continue; // Don't create an alert - this is a silent failure
             }
 
             // Stable alert ID based on event type + target (no timestamp)
@@ -1137,11 +1177,27 @@ function Session() {
         );
     }
 
-    // Show surveys after session ends
-    if (showSurveyIntro && !showSurvey) {
+    // Show survey intro screen (before surveys)
+    if (showSurveyIntro) {
         return (
-            <div className="session-loading">
-                Run complete. Loading survey…
+            <div className="survey-intro-screen">
+                <div className="loading-spinner"></div>
+                <h2>Preparing Surveys</h2>
+                <p>
+                    You'll now complete a brief questionnaire about your experience.
+                    This helps us understand how different alert systems affect controller performance.
+                </p>
+            </div>
+        );
+    }
+
+    // Show survey outro screen (after surveys complete, before thank you)
+    if (showSurveyOutro) {
+        return (
+            <div className="survey-outro-screen">
+                <div className="loading-spinner"></div>
+                <h2>Saving Your Responses</h2>
+                <p>Thank you for completing the surveys. Please wait while we save your data...</p>
             </div>
         );
     }
@@ -1209,6 +1265,23 @@ function Session() {
                     <span>Phase: {currentPhase + 1} - {phaseDescription}</span>
                     <span className={timeRemaining < 60 ? 'time-warning' : ''}>
                         Time: {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                    </span>
+                </div>
+                {/* System Status Indicators - subtle visual cues for silent failures */}
+                <div className="system-status-indicators">
+                    <span
+                        className={`system-indicator ${systemStatus.commSystem === 'operational' ? 'ok' : 'failed'}`}
+                        title={systemStatus.commSystem === 'operational' ? 'COMM OK' : 'COMM OFFLINE'}
+                    >
+                        <span className="indicator-dot"></span>
+                        <span className="indicator-label">COMM {systemStatus.primaryFrequency}</span>
+                    </span>
+                    <span
+                        className={`system-indicator ${systemStatus.tcasSystem === 'operational' ? 'ok' : 'failed'}`}
+                        title={systemStatus.tcasSystem === 'operational' ? 'TCAS OK' : 'TCAS OFFLINE'}
+                    >
+                        <span className="indicator-dot"></span>
+                        <span className="indicator-label">TCAS</span>
                     </span>
                 </div>
             </div>

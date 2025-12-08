@@ -194,7 +194,7 @@ class ScenarioH4(BaseScenario):
         self.add_event('phase_transition', 156.0, target='system', phase=3)
 
         # T+2:36 (156s): VFR aircraft N123AB enters controlled airspace
-        self.add_event('aircraft_spawn', 156.0, target='N123AB',
+        self.add_event('vfr_intrusion', 156.0, target='N123AB',
                        aircraft_type='VFR_intrusion',
                        callsign='N123AB',
                        position=(200.0, 50.0),
@@ -338,12 +338,12 @@ class ScenarioH4(BaseScenario):
             self.current_phase = 2  # Phase 3: Peripheral VFR Intrusion
 
     def _trigger_event(self, event: Any) -> None:
-        """Execute event actions (override to handle VFR spawn)"""
+        """Execute event actions (override to handle VFR intrusion)"""
         # Call parent trigger first
         super()._trigger_event(event)
 
-        # Handle VFR aircraft spawn
-        if event.event_type == 'aircraft_spawn' and event.target == 'N123AB':
+        # Handle VFR intrusion event
+        if event.event_type == 'vfr_intrusion' and event.target == 'N123AB':
             self._spawn_vfr_aircraft(event)
         elif event.event_type == 'internal' and event.data.get('action') == 'create_aircraft':
             aircraft_data = event.data['aircraft_data']

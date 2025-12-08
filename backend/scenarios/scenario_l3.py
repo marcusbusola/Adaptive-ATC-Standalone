@@ -345,6 +345,17 @@ class ScenarioL3(BaseScenario):
         # Record crash time
         self.measurements['system_monitoring']['crash_time'] = self.elapsed_time
 
+        # For Condition 1 (Traditional): This is a SILENT failure - visual indicator only
+        # Add presentation flag so frontend knows not to show a modal alert
+        if self.condition == 1:
+            event.data['presentation'] = 'visual_only'
+            event.data['silent_failure'] = True
+            print(f"  Condition 1: Silent failure - visual indicator only (no alert)")
+        elif self.condition == 2:
+            # Rule-based: May show vigilance prompts
+            event.data['presentation'] = 'delayed_banner'
+        # Condition 3 (ML) would have predicted this earlier
+
     def _handle_conflict_threshold_event(self, event: Any) -> None:
         """Handle conflict threshold being reached"""
         self.conflict_threshold_reached = True
