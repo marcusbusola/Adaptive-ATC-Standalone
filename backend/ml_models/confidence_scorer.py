@@ -419,20 +419,20 @@ class ConfidenceScorer:
             if feature_name in ['peripheral_neglect_duration', 'hover_stability', 'response_time_trend']:
                 # Higher = more complacent
                 if feature_value > thresholds['high']:
-                    strength = (feature_value - thresholds['high']) / thresholds['high']
+                    strength = (feature_value - thresholds['high']) / thresholds['high'] if thresholds['high'] != 0 else 1.0
                     indicates_complacency = True
                 elif feature_value < thresholds['low']:
-                    strength = (thresholds['low'] - feature_value) / thresholds['low']
+                    strength = (thresholds['low'] - feature_value) / thresholds['low'] if thresholds['low'] != 0 else 1.0
                     indicates_complacency = False
                 else:
                     continue
             else:
                 # Lower = more complacent
                 if feature_value < thresholds['low']:
-                    strength = (thresholds['low'] - feature_value) / thresholds['low']
+                    strength = (thresholds['low'] - feature_value) / thresholds['low'] if thresholds['low'] != 0 else 1.0
                     indicates_complacency = True
                 elif feature_value > thresholds['high']:
-                    strength = (feature_value - thresholds['high']) / thresholds['high']
+                    strength = (feature_value - thresholds['high']) / thresholds['high'] if thresholds['high'] != 0 else 1.0
                     indicates_complacency = False
                 else:
                     continue

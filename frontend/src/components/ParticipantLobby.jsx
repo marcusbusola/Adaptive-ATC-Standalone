@@ -9,6 +9,7 @@ function ParticipantLobby() {
     const [participantId, setParticipantId] = useState('');
     const [nextSession, setNextSession] = useState(null);
     const [activeSession, setActiveSession] = useState(null);
+    const [stuckSession, setStuckSession] = useState(null); // For sessions >30 min old
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');
@@ -34,7 +35,7 @@ function ParticipantLobby() {
         localStorage.setItem('participantId', value);
     };
 
-    const isResume = useMemo(() => !!(activeSession || (nextSession && nextSession.status === 'resume')), [activeSession, nextSession]);
+    const isResume = useMemo(() => !!(activeSession || stuckSession || (nextSession && nextSession.status === 'resume')), [activeSession, stuckSession, nextSession]);
 
     const handleFindSession = async () => {
         if (!participantId) {
@@ -45,6 +46,7 @@ function ParticipantLobby() {
         setError('');
         setNextSession(null);
         setActiveSession(null);
+        setStuckSession(null);
         setInfo('');
 
         try {
@@ -58,8 +60,19 @@ function ParticipantLobby() {
             } else {
                 const data = await response.json();
                 if (data.status === 'active_session') {
-                    setActiveSession(data.active_session);
-                    setInfo('You already have an active session. Resume to continue.');
+                    const session = data.active_session;
+
+                    // Check if session is potentially stuck (>30 min old)
+                    if (session.is_potentially_stuck || session.age_minutes > 30) {
+                        setStuckSession({
+                            ...session,
+                            ageMinutes: session.age_minutes || Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000 / 60)
+                        });
+                        setInfo('');
+                    } else {
+                        setActiveSession(session);
+                        setInfo('You already have an active session. Resume to continue.');
+                    }
                 } else {
                     setNextSession(data);
                     if (data.status === 'resume') {
@@ -137,6 +150,39 @@ function ParticipantLobby() {
         navigate(`/session/${sessionId}?${params.toString()}`);
     };
 
+    const handleForceComplete = async (sessionId) => {
+        if (!window.confirm('Force completing will mark this session as incomplete. Are you sure you want to continue?')) {
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            const response = await fetch(`${API_URL}/api/sessions/${sessionId}/force-complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'force_completed_by_participant' })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to force complete session');
+            }
+
+            // Clear state and re-fetch
+            setStuckSession(null);
+            setActiveSession(null);
+            setInfo('Session marked as complete. Searching for next session...');
+
+            // Re-trigger find session after a brief delay
+            setTimeout(() => handleFindSession(), 500);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const renderSkeleton = () => (
         <div className="session-panel skeleton">
             <div className="session-meta">
@@ -192,6 +238,35 @@ function ParticipantLobby() {
                         </button>
                     </div>
                 )}
+                {stuckSession && !error && (
+                    <div className="session-panel stuck">
+                        <div className="session-meta">
+                            <div className="pill warning">Possibly Stuck</div>
+                            <div className="pill">Scenario {stuckSession.scenario || '?'}</div>
+                            <div className="pill">Started {stuckSession.ageMinutes} min ago</div>
+                        </div>
+                        <p className="session-desc">
+                            This session appears to be stuck (started over 30 minutes ago).
+                            You can try to resume it, or force-complete it to start fresh.
+                        </p>
+                        <div className="button-group">
+                            <button
+                                className="primary-btn"
+                                onClick={() => handleResumeSession(stuckSession.session_id)}
+                                disabled={isLoading}
+                            >
+                                Try Resume
+                            </button>
+                            <button
+                                className="secondary-btn warning"
+                                onClick={() => handleForceComplete(stuckSession.session_id)}
+                                disabled={isLoading}
+                            >
+                                Force Complete
+                            </button>
+                        </div>
+                    </div>
+                )}
                 {nextSession && !error && nextSession.status === 'resume' && (
                     <div className="session-panel">
                         <div className="session-meta">
@@ -211,7 +286,7 @@ function ParticipantLobby() {
                             <div className="pill">Scenario {nextSession.next_session.scenario_id}</div>
                             <div className="pill">Condition {nextSession.next_session.condition}</div>
                         </div>
-                        <p className="session-desc">We’ll launch your 6-minute run with the assigned alert condition. Make sure audio is on.</p>
+                        <p className="session-desc">Your session will run for about 6 minutes. Make sure your audio is on for alert sounds.</p>
                         <button className="primary-btn accent" onClick={handleStartSession} disabled={isLoading}>
                             {isLoading ? 'Starting…' : 'Start Session'}
                         </button>

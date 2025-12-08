@@ -258,10 +258,10 @@ class IntegratedMLSystem:
                 # Higher = more complacent
                 if feature_value > thresh['high']:
                     status = 'complacent'
-                    severity = min((feature_value - thresh['high']) / thresh['high'], 1.0)
+                    severity = min((feature_value - thresh['high']) / thresh['high'], 1.0) if thresh['high'] != 0 else 1.0
                 elif feature_value < thresh['low']:
                     status = 'normal'
-                    severity = min((thresh['low'] - feature_value) / thresh['low'], 1.0)
+                    severity = min((thresh['low'] - feature_value) / thresh['low'], 1.0) if thresh['low'] != 0 else 1.0
                 else:
                     status = 'neutral'
                     severity = 0.0
@@ -269,10 +269,10 @@ class IntegratedMLSystem:
                 # Lower = more complacent
                 if feature_value < thresh['low']:
                     status = 'complacent'
-                    severity = min((thresh['low'] - feature_value) / thresh['low'], 1.0)
+                    severity = min((thresh['low'] - feature_value) / thresh['low'], 1.0) if thresh['low'] != 0 else 1.0
                 elif feature_value > thresh['high']:
                     status = 'normal'
-                    severity = min((feature_value - thresh['high']) / thresh['high'], 1.0)
+                    severity = min((feature_value - thresh['high']) / thresh['high'], 1.0) if thresh['high'] != 0 else 1.0
                 else:
                     status = 'neutral'
                     severity = 0.0

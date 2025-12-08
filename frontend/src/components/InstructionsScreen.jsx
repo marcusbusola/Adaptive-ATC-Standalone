@@ -47,13 +47,13 @@ const InstructionsScreen = ({ condition, scenario, onContinue }) => {
       case 2:
         return {
           title: 'Rule-Based Adaptive Alerts',
-          description: 'Alerts will adapt based on your current workload and scenario complexity',
+          description: 'Alerts appear as non-blocking banners that vary by priority level',
           features: [
             'Alerts appear as banner notifications at the top of the screen',
-            'Alert style changes based on your current workload',
-            'High workload = subtle banners; Low workload = prominent alerts',
-            'You can dismiss alerts by clicking the X button',
-            'Some alerts may auto-dismiss after being displayed'
+            'You can continue working while alerts are displayed',
+            'Critical alerts stay visible until you respond',
+            'Lower priority alerts may auto-dismiss after 10-15 seconds',
+            'You can dismiss alerts by clicking the X button'
           ],
           alertExample: 'adaptive'
         };
@@ -61,13 +61,13 @@ const InstructionsScreen = ({ condition, scenario, onContinue }) => {
       case 3:
         return {
           title: 'ML-Based Predictive Alerts',
-          description: 'Machine learning predicts when you might miss conflicts and adjusts alerts accordingly',
+          description: 'Machine learning monitors your attention and adjusts alert presentation',
           features: [
-            'The system monitors your attention patterns in real-time',
-            'Predictive alerts appear when the ML detects potential complacency',
-            'Visual highlighting shows high-risk aircraft and regions',
-            'Alerts include confidence levels and explanations',
-            'You can dismiss alerts by clicking anywhere on the alert'
+            'The system monitors your interaction patterns in real-time',
+            'Alerts appear as non-blocking banners with confidence scores',
+            'Visual highlighting may appear on the radar for high-risk aircraft',
+            'Alerts include explanations of why they were triggered',
+            'You can dismiss alerts or take suggested actions'
           ],
           alertExample: 'predictive'
         };
@@ -159,7 +159,7 @@ const InstructionsScreen = ({ condition, scenario, onContinue }) => {
             <div className="notes-box">
               <div className="note-item">
                 <span className="note-text">
-                  The scenario will run for approximately 15-20 minutes
+                  The scenario will run for approximately 6 minutes
                 </span>
               </div>
               <div className="note-item">

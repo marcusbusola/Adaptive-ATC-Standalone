@@ -50,16 +50,24 @@ except ImportError as e:
     def predict_presentation(events, scenario_state=None):
         """
         Fallback heuristic when ML stack is unavailable.
-        Returns a lightweight prediction structure so Condition 3 can still function.
+        Returns a prediction structure matching the real ML predictor so Condition 3 can still function.
         """
-        # Simple heuristic: more events -> higher workload -> prefer banner with highlight
+        # Simple heuristic: more events -> higher workload -> higher complacency risk
         event_count = len(events) if events else 0
         workload_score = min(event_count / 20, 1.0)
+        # Invert workload for complacency (low activity = high complacency)
+        complacency_score = max(0.0, 1.0 - workload_score)
+        confidence = round(0.5 + 0.3 * workload_score, 3)  # Low confidence for heuristic
+
         return {
-            "presentation": "banner",
-            "confidence": round(0.5 + 0.5 * workload_score, 2),
-            "workload_estimate": workload_score,
-            "notes": "Fallback prediction (ML dependencies not installed)"
+            "presentation_style": "banner_subtle",
+            "confidence": confidence,
+            "trigger": complacency_score > 0.7,
+            "explanation": "Heuristic prediction (ML dependencies not installed)",
+            "factors": {
+                "complacency_score": round(complacency_score, 3),
+                "confidence_level": "low",
+            }
         }
 
 # Import database utilities and schema setup
@@ -1107,6 +1115,76 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
         raise HTTPException(status_code=500, detail=f"Error ending session: {str(e)}")
 
 
+@app.post("/api/sessions/{session_id}/force-complete")
+async def force_complete_session(session_id: str, request: Optional[SessionEndRequest] = None):
+    """
+    Force completes a potentially stuck session.
+    Intended for sessions that may have been abandoned or encountered errors.
+    This endpoint does not require researcher authentication since participants
+    may need to force-complete their own stuck sessions.
+    """
+    try:
+        logger.warning(f"Force completing session {session_id}")
+
+        # Get session to verify it exists
+        session = await db_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Check if already completed
+        if session.get('status') == 'completed':
+            return {
+                "session_id": session_id,
+                "status": "already_completed",
+                "message": "Session was already completed"
+            }
+
+        reason = "force_completed"
+        if request and request.reason:
+            reason = f"force_completed:{request.reason}"
+
+        # Clean up active scenario if exists
+        if session_id in active_scenarios:
+            try:
+                del active_scenarios[session_id]
+                logger.info(f"Cleaned up active scenario for force-completed session {session_id}")
+            except Exception as e:
+                logger.warning(f"Error cleaning up scenario for {session_id}: {e}")
+
+        # Close WebSocket if connected
+        if session_id in websocket_connections:
+            try:
+                await websocket_connections[session_id].close()
+                del websocket_connections[session_id]
+            except Exception:
+                pass
+
+        # End in database with force_completed status
+        success = await db_manager.end_session(
+            session_id=session_id,
+            end_reason=reason,
+            final_state={"force_completed": True, "original_status": session.get('status')},
+            performance_score=None
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update session in database")
+
+        logger.info(f"Session {session_id} force completed successfully")
+
+        return {
+            "session_id": session_id,
+            "status": "force_completed",
+            "message": "Session has been force completed"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error force completing session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/sessions/{session_id}/export", dependencies=[Depends(require_researcher_token)])
 async def export_session(session_id: str):
     """Export complete session data."""
@@ -1914,12 +1992,36 @@ async def get_participant_next_session(participant_id: str):
         # If participant already has an active session, surface it so frontend can resume/redirect
         active_session = await db_manager.get_active_session_for_participant(participant_id)
         if active_session:
+            # Calculate session age to detect potentially stuck sessions
+            age_minutes = None
+            is_potentially_stuck = False
+
+            started_at = active_session.get('started_at')
+            if started_at:
+                try:
+                    if isinstance(started_at, str):
+                        # Parse ISO format datetime string
+                        started_at = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+                    elif hasattr(started_at, 'timestamp'):
+                        # Already a datetime object
+                        pass
+
+                    age_seconds = (datetime.utcnow() - started_at.replace(tzinfo=None)).total_seconds()
+                    age_minutes = round(age_seconds / 60)
+                    # Sessions older than 30 minutes are potentially stuck
+                    is_potentially_stuck = age_minutes > 30
+                except Exception as e:
+                    logger.warning(f"Could not calculate session age for {active_session['session_id']}: {e}")
+
             return {
                 "status": "active_session",
                 "active_session": {
                     "session_id": active_session["session_id"],
                     "scenario": active_session["scenario"],
-                    "condition": active_session["condition"]
+                    "condition": active_session["condition"],
+                    "started_at": str(active_session.get("started_at")) if active_session.get("started_at") else None,
+                    "age_minutes": age_minutes,
+                    "is_potentially_stuck": is_potentially_stuck
                 }
             }
 
