@@ -8,11 +8,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getApiBaseUrl } from '../utils/apiConfig';
 
+const isDev = process.env.NODE_ENV !== 'production';
+const debugLog = (...args) => {
+  if (isDev) console.log(...args);
+};
+
 /**
  * Hook to connect to the simulation SSE stream
  * @returns {Object} { connected, state, aircraft, conflicts, error, reconnect }
  */
-export default function useSimulation() {
+export default function useSimulation(enabled = true) {
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState(null);
   const [aircraft, setAircraft] = useState([]);
@@ -23,6 +28,10 @@ export default function useSimulation() {
   const reconnectTimeoutRef = useRef(null);
 
   const connect = useCallback(() => {
+    if (!enabled) {
+      return;
+    }
+
     // Clean up existing connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -31,14 +40,14 @@ export default function useSimulation() {
     const apiUrl = getApiBaseUrl();
     const sseUrl = `${apiUrl}/api/simulation/stream`;
 
-    console.log('[useSimulation] Connecting to SSE:', sseUrl);
+    debugLog('[useSimulation] Connecting to SSE:', sseUrl);
 
     try {
       const eventSource = new EventSource(sseUrl);
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log('[useSimulation] SSE connected');
+        debugLog('[useSimulation] SSE connected');
         setConnected(true);
         setError(null);
       };
@@ -62,7 +71,7 @@ export default function useSimulation() {
         // Reconnect after delay
         eventSource.close();
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('[useSimulation] Attempting reconnect...');
+          debugLog('[useSimulation] Attempting reconnect...');
           connect();
         }, 3000);
       };
@@ -71,7 +80,7 @@ export default function useSimulation() {
       console.error('[useSimulation] Failed to create EventSource:', e);
       setError(e.message);
     }
-  }, []);
+  }, [enabled]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -86,12 +95,18 @@ export default function useSimulation() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      disconnect();
+      setError(null);
+      return;
+    }
+
     connect();
 
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [enabled, connect, disconnect]);
 
   return {
     connected,

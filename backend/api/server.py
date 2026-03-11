@@ -21,7 +21,7 @@ from loguru import logger
 from dotenv import load_dotenv
 from sse_starlette.sse import EventSourceResponse
 
-# Import simulation engine (replaces BlueSky)
+# Import standalone simulation engine
 from simulation import SimulationEngine
 
 # Add parent directory to path to allow imports from data, scenarios, etc.
@@ -73,6 +73,25 @@ load_dotenv()
 log_dir = Path(__file__).parent.parent / "logs"
 log_dir.mkdir(exist_ok=True)
 logger.add(log_dir / "server_{time}.log", rotation="1 day", retention="30 days", level="INFO")
+
+def _redact_identifier(identifier: Optional[str]) -> str:
+    """Return a short redacted identifier for logs."""
+    if not identifier:
+        return "unknown"
+    if len(identifier) <= 6:
+        return f"{identifier[:1]}***"
+    return f"{identifier[:3]}***{identifier[-2:]}"
+
+
+def _summarize_command(command: str) -> str:
+    """Return a log-safe summary of a command without full payload."""
+    parts = command.split()
+    if not parts:
+        return "<empty>"
+    target = parts[0]
+    action = parts[1] if len(parts) > 1 else "<no-action>"
+    arg_count = max(len(parts) - 2, 0)
+    return f"{target} {action} (+{arg_count} args)"
 
 # Get DB Manager
 db_manager = get_db_manager()
@@ -471,6 +490,7 @@ class ScenarioUpdateResponse(BaseModel):
     aircraft: Dict[str, Any]
     triggered_events: List[Dict[str, Any]]
     triggered_probes: List[Dict[str, Any]]
+    detected_conflicts: List[Dict[str, Any]] = []
     scenario_complete: bool
     # Safety score and gamification data
     safety_score: float = 100.0
@@ -588,7 +608,7 @@ async def v1_end_session(body: V1SessionEndRequest):
     return await end_session(body.session_id, body)
 
 
-@app.get("/v1/session/{session_id}/status")
+@app.get("/v1/session/{session_id}/status", dependencies=[Depends(require_researcher_token)])
 async def v1_session_status(session_id: str):
     """Versioned session status endpoint."""
     return await get_session_details(session_id)
@@ -672,7 +692,9 @@ async def start_session(body: SessionStartRequest, request: Request):
                 )
 
         session_id = f"session_{uuid.uuid4().hex[:12]}"
-        logger.info(f"Starting session: {session_id} for participant {body.participant_id}")
+        logger.info(
+            f"Starting session: {session_id} for participant {_redact_identifier(body.participant_id)}"
+        )
 
         # Create session in the database
         await db_manager.create_session(
@@ -885,6 +907,7 @@ async def update_scenario(session_id: str, request: ScenarioUpdateRequest):
             aircraft=update_result.get('aircraft', {}),
             triggered_events=update_result.get('triggered_events', []),
             triggered_probes=update_result.get('triggered_probes', []),
+            detected_conflicts=update_result.get('detected_conflicts', []),
             scenario_complete=scenario_complete,
             safety_score=getattr(scenario, 'safety_score', 100.0),
             min_safety_score=getattr(scenario, 'min_safety_score', 100.0),
@@ -935,7 +958,7 @@ def convert_scenario_position_to_latlon(x: float, y: float) -> dict:
     return {"lat": lat, "lon": lon}
 
 
-@app.get("/api/sessions/{session_id}")
+@app.get("/api/sessions/{session_id}", dependencies=[Depends(require_researcher_token)])
 async def get_session_details(session_id: str):
     """Returns details for a specific session."""
     try:
@@ -950,7 +973,7 @@ async def get_session_details(session_id: str):
         except ValueError:
             session["scenario_duration"] = 360
 
-        # Include aircraft configuration for BlueSky
+        # Include aircraft configuration for the frontend radar/simulation view
         aircraft_config = []
         if scenario_type in SCENARIO_CLASSES:
             # Create a temporary scenario instance to get aircraft config
@@ -1101,9 +1124,7 @@ async def end_session(session_id: str, request: Optional[SessionEndRequest] = No
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logger.error(f"Unexpected error ending session {session_id}: {e}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.exception(f"Unexpected error ending session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Error ending session: {str(e)}")
 
 
@@ -1225,7 +1246,9 @@ async def issue_command(session_id: str, request: CommandRequest):
         data={'command': request.command}
     )
     
-    logger.info(f"Recorded command for session {session_id}: {request.command}")
+    logger.info(
+        f"Recorded command for session {session_id}: {_summarize_command(request.command)}"
+    )
     
     return {"status": "success", "command_recorded": request.command}
 
@@ -1612,7 +1635,7 @@ async def submit_survey(session_id: str, request: SurveyRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error submitting survey for session {session_id}: {e}", exc_info=True)
+        logger.exception(f"Error submitting survey for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
@@ -1881,7 +1904,10 @@ async def create_queue(request: CreateQueueRequest):
             randomize_order=request.randomize_order,
             metadata=request.metadata
         )
-        logger.info(f"Created queue {queue.queue_id} for participant {request.participant_id} with {len(queue.items)} sessions")
+        logger.info(
+            f"Created queue {queue.queue_id} for participant {_redact_identifier(request.participant_id)} "
+            f"with {len(queue.items)} sessions"
+        )
         return {"status": "success", "queue_id": queue.queue_id, "queue": queue.to_dict()}
     except Exception as e:
         logger.error(f"Error creating queue: {e}")

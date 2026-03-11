@@ -14,6 +14,7 @@ import math
 import json
 import os
 import random
+from loguru import logger
 
 
 # Load scenario manifest (single source of truth)
@@ -28,7 +29,7 @@ def load_scenario_manifest() -> Dict[str, Any]:
             with open(_MANIFEST_PATH, 'r') as f:
                 _SCENARIO_MANIFEST = json.load(f)
         except FileNotFoundError:
-            print(f"Warning: Scenario manifest not found at {_MANIFEST_PATH}")
+            logger.warning(f"Scenario manifest not found at {_MANIFEST_PATH}")
             _SCENARIO_MANIFEST = {}
     return _SCENARIO_MANIFEST
 
@@ -79,12 +80,12 @@ class Aircraft:
 
     NOTE: This class uses RADAR COORDINATES (x, y in nautical miles from sector center),
     NOT geographic lat/lon. This is distinct from simulation/aircraft.py which uses
-    geographic coordinates for the BlueSky-style simulation engine.
+    geographic coordinates for the standalone simulation engine.
 
     Coordinate System:
     - position: (x, y) where x increases East, y increases North
     - Values typically range 0-250 NM representing radar display
-    - Use _convert_to_bluesky_coords() in BaseScenario to convert to lat/lon if needed
+    - Use _convert_to_geo_coords() in BaseScenario to convert to lat/lon if needed
     """
     callsign: str
     position: Tuple[float, float]  # (x, y) in nautical miles from sector center
@@ -383,7 +384,7 @@ class BaseScenario(ABC):
         if self.start_time is None:
             self.initialize()
             self.start_time = datetime.now()
-            print(f"Scenario started at {self.start_time}")
+            logger.info(f"Scenario started at {self.start_time}")
 
     # ========== Builder Helpers ==========
     # These methods reduce duplication when creating scenarios
@@ -466,6 +467,8 @@ class BaseScenario(ABC):
             data=data
         )
         self.events.append(event)
+        # Keep events time-ordered so triggering and validation are deterministic.
+        self.events.sort(key=lambda scheduled_event: scheduled_event.time_offset)
         return event
 
     def add_sagat_probe(
@@ -2204,7 +2207,7 @@ class BaseScenario(ABC):
         else:
             return 'prominent'
 
-    # BlueSky coordinate conversion methods
+    # Geographic coordinate conversion methods
     @property
     @abstractmethod
     def scenario_id(self) -> str:
@@ -2224,11 +2227,11 @@ class BaseScenario(ABC):
         }
         return SCENARIO_CENTERS.get(self.scenario_id, (37.6213, -122.3790))
 
-    def _convert_to_bluesky_coords(
+    def _convert_to_geo_coords(
         self, relative_pos: Tuple[float, float], altitude_fl: int
     ) -> Tuple[float, float, int]:
         """
-        Convert relative NM position to absolute lat/lon for BlueSky
+        Convert relative NM position to absolute lat/lon for the standalone engine
 
         Args:
             relative_pos: (x, y) position in nautical miles from center
@@ -2253,14 +2256,14 @@ class BaseScenario(ABC):
 
     def get_aircraft_config(self) -> List[Dict[str, Any]]:
         """
-        Convert scenario aircraft to BlueSky spawn format
+        Convert scenario aircraft to standalone simulation spawn format
 
         Returns:
             List of aircraft configurations with absolute coordinates
         """
         config = []
         for callsign, aircraft in self.aircraft.items():
-            lat, lon, alt_ft = self._convert_to_bluesky_coords(
+            lat, lon, alt_ft = self._convert_to_geo_coords(
                 aircraft.position, aircraft.altitude
             )
             config.append({

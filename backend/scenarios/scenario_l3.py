@@ -101,6 +101,11 @@ class ScenarioL3(BaseScenario):
         self._initialize_aircraft()
         self._schedule_events()
         self._setup_sagat_probes()
+        self.phase_descriptions = [
+            'Phase 1: Reliable Automation',
+            'Phase 2: Silent System Crash',
+            'Phase 3: Unalerted Conflict'
+        ]
 
         # Initialize automation system state
         self.conflict_detection_active = True

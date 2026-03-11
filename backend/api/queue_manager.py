@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import Enum
 import json
 from pathlib import Path
+from loguru import logger
 
 
 class QueueItemStatus(Enum):
@@ -214,7 +215,7 @@ class QueueManager:
                     # Track file mtime for cache invalidation
                     self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
             except Exception as e:
-                print(f"Error loading queue {queue_file}: {e}")
+                logger.warning(f"Error loading queue {queue_file}: {e}")
 
     def _refresh_queue_if_stale(self, queue_id: str) -> None:
         """
@@ -242,7 +243,7 @@ class QueueManager:
                     self.queues[queue_id] = queue
                     self._file_mtimes[queue_id] = current_mtime
         except Exception as e:
-            print(f"Error refreshing queue {queue_id}: {e}")
+            logger.warning(f"Error refreshing queue {queue_id}: {e}")
 
     def _refresh_all_queues(self) -> None:
         """Refresh all queues and discover new queue files."""
@@ -260,7 +261,7 @@ class QueueManager:
                         self.queues[queue.queue_id] = queue
                         self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
                 except Exception as e:
-                    print(f"Error loading new queue {queue_file}: {e}")
+                    logger.warning(f"Error loading new queue {queue_file}: {e}")
             else:
                 # Existing file - check for updates
                 self._refresh_queue_if_stale(queue_id)
@@ -276,7 +277,7 @@ class QueueManager:
             # Update mtime tracking after successful save
             self._file_mtimes[queue.queue_id] = queue_file.stat().st_mtime
         except Exception as e:
-            print(f"Error saving queue {queue.queue_id}: {e}")
+            logger.error(f"Error saving queue {queue.queue_id}: {e}")
 
     def create_queue(
         self,

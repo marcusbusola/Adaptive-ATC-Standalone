@@ -2,7 +2,7 @@
  * Simulation API Service
  *
  * Provides methods to control the backend simulation engine.
- * Replaces bluesky-adapter.js for standalone simulation.
+ * API client for the standalone built-in simulation engine.
  */
 
 import { getApiBaseUrl } from '../utils/apiConfig';

@@ -118,7 +118,7 @@ function Session() {
         setIsLoading(true);
         setError('');
         try {
-            const response = await fetch(`${API_URL}/api/sessions/${sessionId}`);
+            const response = await fetch(`${API_URL}/api/sessions/${sessionId}/data`);
             if (!response.ok) {
                 throw new Error('Failed to fetch session details.');
             }
@@ -900,7 +900,7 @@ function Session() {
     // Log when aircraftConfig is available
     useEffect(() => {
         if (sessionDetails?.aircraft_config) {
-            console.log('[Session] ✓ aircraftConfig prop ready to pass to BlueSkyViewer:', {
+            console.log('[Session] ✓ aircraftConfig ready for RadarViewer:', {
                 count: sessionDetails.aircraft_config.length,
                 callsigns: sessionDetails.aircraft_config.map(ac => ac.callsign)
             });
@@ -1193,6 +1193,7 @@ function Session() {
                         showControls={false}
                         aircraftConfig={sessionDetails.aircraft_config}
                         liveAircraft={aircraft}
+                        conflicts={conflicts}
                         pendingAlerts={pendingAlerts}
                         selectedAircraft={selectedAircraft}
                         onAircraftSelect={handleAircraftSelect}

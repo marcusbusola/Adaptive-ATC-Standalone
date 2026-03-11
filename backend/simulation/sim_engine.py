@@ -12,7 +12,7 @@ scenarios/base_scenario.py uses its own Aircraft class with radar coordinates
 - sim_engine.py + simulation/aircraft.py: Geographic coordinates (lat/lon)
 - scenarios/*.py + base_scenario.Aircraft: Radar coordinates (x, y NM)
 
-If you need to convert between systems, use BaseScenario._convert_to_bluesky_coords()
+If you need to convert between systems, use BaseScenario._convert_to_geo_coords()
 """
 
 import asyncio

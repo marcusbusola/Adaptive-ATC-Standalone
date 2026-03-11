@@ -364,7 +364,6 @@
   height: calc(100vh - var(--header-height));
 }
 
-.session-bluesky-wrapper,
 .session-radar-wrapper {
   flex-grow: 1;
   border: 1px solid #ccc;
@@ -459,8 +458,7 @@
     overflow: visible;
   }
 
-  .session-radar-wrapper,
-  .session-bluesky-wrapper {
+  .session-radar-wrapper {
     flex-grow: 0;
     height: 55vh;
     min-height: 400px;
@@ -508,8 +506,7 @@
     font-size: 0.75em;
   }
 
-  .session-radar-wrapper,
-  .session-bluesky-wrapper {
+  .session-radar-wrapper {
     height: 50vh;
     min-height: 300px;
   }

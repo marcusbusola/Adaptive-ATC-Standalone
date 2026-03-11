@@ -77,7 +77,7 @@ const TechnicalDetails = styled.details`
 /**
  * ErrorNotification Component
  *
- * Displays a modal overlay when BlueSky simulator fails to connect.
+ * Displays a modal overlay when the built-in simulator fails to connect.
  * Instructs the user to contact the researcher for assistance.
  *
  * @param {Object} props

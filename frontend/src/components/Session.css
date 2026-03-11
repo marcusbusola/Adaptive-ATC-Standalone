@@ -63,8 +63,8 @@
     pointer-events: auto;
 }
 
-/* BlueSky Container - wrapper in Session.jsx */
-.session-bluesky-wrapper {
+/* Radar container wrapper in Session.jsx */
+.session-radar-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;

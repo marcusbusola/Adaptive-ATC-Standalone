@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+const isDev = process.env.NODE_ENV !== 'production';
+const debugLog = (...args) => {
+  if (isDev) console.log(...args);
+};
+
 /**
  * WebSocket Hook for Real-Time Session Communication
  *
@@ -47,17 +52,17 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
    */
   const connect = useCallback(() => {
     if (!sessionId) {
-      console.log('No session ID, skipping WebSocket connection');
+      debugLog('No session ID, skipping WebSocket connection');
       return;
     }
 
     if (ws.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
+      debugLog('WebSocket already connected');
       return;
     }
 
     const wsUrl = getWebSocketUrl();
-    console.log('Connecting to WebSocket:', wsUrl);
+    debugLog('Connecting to WebSocket:', wsUrl);
 
     setConnectionStatus('connecting');
 
@@ -81,7 +86,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
 
       // Connection opened
       ws.current.onopen = () => {
-        console.log('WebSocket connected');
+        debugLog('WebSocket connected');
 
         // Clear connection timeout
         if (connectionTimeoutRef.current) {
@@ -106,7 +111,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
+          debugLog('WebSocket message received');
           setLastMessage(data);
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
@@ -115,7 +120,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
 
       // Connection closed
       ws.current.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
+        debugLog('WebSocket closed:', event.code, event.reason);
         setConnected(false);
         setConnectionStatus('disconnected');
 
@@ -146,7 +151,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
     reconnectAttemptsRef.current += 1;
     const delay = baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1);
 
-    console.log(
+    debugLog(
       `Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
     );
 
@@ -169,7 +174,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
     try {
       const payload = JSON.stringify(message);
       ws.current.send(payload);
-      console.log('WebSocket message sent:', message);
+      debugLog('WebSocket message sent:', message?.type || 'unknown');
       return true;
     } catch (err) {
       console.error('Failed to send WebSocket message:', err);
@@ -192,7 +197,7 @@ const useWebSocket = (sessionId, websocketUrl = null) => {
     }
 
     if (ws.current) {
-      console.log('Closing WebSocket connection');
+      debugLog('Closing WebSocket connection');
       ws.current.close(1000, 'Client disconnect');
       ws.current = null;
     }

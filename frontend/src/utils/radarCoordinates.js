@@ -2,7 +2,7 @@
  * Radar Coordinate Utilities
  *
  * Provides coordinate conversion and distance calculation functions
- * for the BlueSky ATC radar display
+ * for the built-in ATC radar display
  */
 
 // Scenario center coordinates (KSFO for all scenarios)

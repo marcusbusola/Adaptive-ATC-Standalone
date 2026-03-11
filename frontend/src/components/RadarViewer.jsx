@@ -26,6 +26,7 @@ function RadarViewer({
   showControls = true,
   aircraftConfig = null,
   liveAircraft = null,
+  conflicts: liveConflicts = null,
   pendingAlerts = [],
   selectedAircraft: externalSelectedAircraft = null, // External selection control
   onAircraftSelect = null, // Callback when aircraft is selected
@@ -52,21 +53,42 @@ function RadarViewer({
     }
   }, [onAircraftSelect]);
 
-  // Simulation connection via SSE (fallback if no liveAircraft)
-  const { connected, state, aircraft: sseAircraft, conflicts, error: simError } = useSimulation();
+  // If liveAircraft prop is provided, this component is in participant-session mode.
+  // In that mode, session polling is the source of truth and SSE should stay disabled.
+  const hasExternalAircraft = liveAircraft !== null;
+
+  // Simulation connection via SSE (used only for standalone fallback/debug views)
+  const {
+    connected: sseConnected,
+    state,
+    aircraft: sseAircraft,
+    conflicts: sseConflicts,
+    error: simError
+  } = useSimulation(!hasExternalAircraft);
 
   // Convert liveAircraft object to array for rendering
   // Prefer liveAircraft from Session polling over SSE aircraft
   const aircraft = useMemo(() => {
-    if (liveAircraft && Object.keys(liveAircraft).length > 0) {
-      return Object.values(liveAircraft);
+    if (hasExternalAircraft) {
+      return Object.values(liveAircraft || {});
     }
+
     // Fallback to SSE aircraft if no liveAircraft
     if (sseAircraft && sseAircraft.length > 0) {
       return sseAircraft;
     }
     return [];
-  }, [liveAircraft, sseAircraft]);
+  }, [hasExternalAircraft, liveAircraft, sseAircraft]);
+
+  // Same precedence for conflicts: prefer live session conflicts over SSE fallback conflicts
+  const conflicts = useMemo(() => {
+    if (Array.isArray(liveConflicts)) {
+      return liveConflicts;
+    }
+    return sseConflicts || [];
+  }, [liveConflicts, sseConflicts]);
+
+  const connected = hasExternalAircraft ? true : sseConnected;
 
   // Radar settings
   const CANVAS_SIZE = 800;
@@ -129,6 +151,11 @@ function RadarViewer({
     }
 
     const render = () => {
+      const prevAngle = sweepAngleRef.current;
+      sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (2 * Math.PI);
+      if (prevAngle > sweepAngleRef.current) {
+        playRadarBeep();
+      }
       drawRadar();
       animationRef.current = requestAnimationFrame(render);
     };
@@ -141,7 +168,7 @@ function RadarViewer({
         animationRef.current = null;
       }
     };
-  }, [drawRadar]);
+  }, [drawRadar, playRadarBeep]);
 
   // Clean up audio context on unmount
   useEffect(() => {
@@ -177,10 +204,10 @@ function RadarViewer({
    * Load scenario when connected and config available
    */
   useEffect(() => {
-    if (connected && aircraftConfig && aircraftConfig.length > 0) {
+    if (!hasExternalAircraft && connected && aircraftConfig && aircraftConfig.length > 0) {
       loadScenario(aircraftConfig);
     }
-  }, [connected, aircraftConfig]);
+  }, [hasExternalAircraft, connected, aircraftConfig]);
 
   /**
    * Load scenario with aircraft
@@ -192,28 +219,6 @@ function RadarViewer({
       console.error('[RadarViewer] Failed to load scenario:', err);
       setLocalError(`Failed to load scenario: ${err.message}`);
     }
-  };
-
-  /**
-   * Start canvas render loop
-   */
-  const startRenderLoop = () => {
-    const render = () => {
-      // Track previous angle to detect north crossing
-      const prevAngle = sweepAngleRef.current;
-
-      // Update sweep angle
-      sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (2 * Math.PI);
-
-      // Play beep when sweep crosses north (angle wraps from ~2π back to ~0)
-      if (prevAngle > sweepAngleRef.current) {
-        playRadarBeep();
-      }
-
-      drawRadar();
-      animationRef.current = requestAnimationFrame(render);
-    };
-    render();
   };
 
   /**
@@ -440,9 +445,10 @@ function RadarViewer({
 
     // Color based on status
     let fillColor = '#00ff00'; // Green (normal)
+    const hasCommLoss = ac.comm_loss || ac.comm_status === 'lost';
     if (ac.emergency) {
       fillColor = '#ffff00'; // Yellow (emergency)
-    } else if (ac.comm_loss) {
+    } else if (hasCommLoss) {
       fillColor = '#808080'; // Gray (comm loss)
     } else if (isSelected) {
       fillColor = '#00ffff'; // Cyan (selected)
@@ -477,8 +483,13 @@ function RadarViewer({
     // Callsign
     ctx.fillText(ac.callsign, pos.x + offsetX, pos.y + offsetY);
 
-    // Altitude (in hundreds of feet) and speed
-    const altHundreds = Math.floor(ac.altitude / 100);
+    // Altitude and speed: scenario polling provides FL (e.g. 280), SSE provides feet
+    const isScenarioAircraft =
+      ac.position &&
+      typeof ac.position.x === 'number' &&
+      typeof ac.position.y === 'number';
+    const altitudeFeet = isScenarioAircraft ? ac.altitude * 100 : ac.altitude;
+    const altHundreds = Math.floor(altitudeFeet / 100);
     const speedKnots = Math.floor(ac.speed);
     ctx.fillText(`${altHundreds} ${speedKnots}`, pos.x + offsetX, pos.y + offsetY + 12);
 
@@ -486,7 +497,7 @@ function RadarViewer({
     if (ac.emergency) {
       ctx.fillStyle = '#ffff00';
       ctx.fillText('EMER', pos.x + offsetX, pos.y + offsetY + 24);
-    } else if (ac.comm_loss) {
+    } else if (ac.comm_loss || ac.comm_status === 'lost') {
       ctx.fillStyle = '#ff0000';
       ctx.fillText('NORDO', pos.x + offsetX, pos.y + offsetY + 24);
     }
@@ -518,7 +529,10 @@ function RadarViewer({
    * Draw conflict zone
    */
   const drawConflictZone = (ctx, conflict) => {
-    const callsigns = [conflict.callsign1, conflict.callsign2];
+    const callsigns = [
+      conflict.callsign1 || conflict.aircraft_1,
+      conflict.callsign2 || conflict.aircraft_2
+    ].filter(Boolean);
 
     callsigns.forEach(callsign => {
       const ac = aircraft.find(a => a.callsign === callsign);
@@ -599,7 +613,7 @@ function RadarViewer({
     }
   };
 
-  const error = localError || simError;
+  const error = localError || (!hasExternalAircraft ? simError : null);
 
   if (error) {
     return (
@@ -675,7 +689,15 @@ function RadarViewer({
             </div>
             <div className="detail-row">
               <span>Altitude:</span>
-              <span>{Math.floor(selectedAircraft.altitude)} ft</span>
+              <span>
+                {Math.floor(
+                  selectedAircraft.position &&
+                  typeof selectedAircraft.position.x === 'number' &&
+                  typeof selectedAircraft.position.y === 'number'
+                    ? selectedAircraft.altitude * 100
+                    : selectedAircraft.altitude
+                )} ft
+              </span>
             </div>
             <div className="detail-row">
               <span>Heading:</span>
@@ -691,7 +713,7 @@ function RadarViewer({
                 <span>EMERGENCY</span>
               </div>
             )}
-            {selectedAircraft.comm_loss && (
+            {(selectedAircraft.comm_loss || selectedAircraft.comm_status === 'lost') && (
               <div className="detail-row comm-loss">
                 <span>Status:</span>
                 <span>COMM LOSS</span>

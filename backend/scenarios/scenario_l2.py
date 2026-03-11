@@ -97,6 +97,11 @@ class ScenarioL2(BaseScenario):
         self._initialize_aircraft()
         self._schedule_events()
         self._setup_sagat_probes()
+        self.phase_descriptions = [
+            'Phase 1: Trust Building',
+            'Phase 2: Silent Communication Failure',
+            'Phase 3: VFR Intrusion'
+        ]
 
         # Initialize communication system state
         self.comm_system_status = 'operational'
