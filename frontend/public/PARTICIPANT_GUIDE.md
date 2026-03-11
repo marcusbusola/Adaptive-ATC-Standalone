@@ -31,11 +31,13 @@ AAL119        ← Aircraft name (callsign)
 - **Gray** = Communication lost (can't reach the pilot)
 
 ### Action Panel (Right Side)
-This is your control center. Here you'll see:
-- **Available actions** you can take
-- **Aircraft buttons** to select which plane to control
-- **Expected actions** checklist showing what needs to be done
-- **Action log** showing your recent commands
+This is your control center. Here you can:
+- **Select aircraft** to view details and available actions
+- **Check Status / Inspect** - actively monitor a selected aircraft
+- **Resolve needs** - address maintenance or pilot requests
+- **Issue commands** - change altitude, heading, or speed
+- **See expected actions** - a checklist of what needs attention
+- **View action history** - your recent commands
 
 ### Status Bar
 Shows how many aircraft you're managing, any active conflicts, and elapsed time.
@@ -62,6 +64,27 @@ Actions might include:
 - Issuing advisories
 
 *Note: You don't type commands - just click the buttons provided.*
+
+---
+
+## Your Safety Score
+
+You start with a **Safety Score of 100**. Your goal is to keep it at **90 or above**.
+
+**What lowers your score:**
+- Having aircraft too close together (conflicts)
+- Leaving emergencies unresolved
+- Making pilots wait too long (they get frustrated → angry)
+- Ignoring maintenance needs
+
+**What raises your score:**
+- Keeping all aircraft safely separated
+- Resolving emergencies quickly
+- Keeping pilots satisfied
+
+The score updates in real-time on your status bar.
+
+---
 
 ### 3. Handle Alerts
 The system will show you alerts when something needs attention.

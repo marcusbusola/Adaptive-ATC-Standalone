@@ -178,37 +178,61 @@ NEED_TYPES = [
      "description": "Confirm next waypoint or routing"},
 ]
 
-# Emergency resolution options - multiple choice for gameplay
+# Emergency resolution options - single correct answer per emergency type
 EMERGENCY_RESOLUTION_OPTIONS = {
     "fuel_emergency": [
-        {"id": "divert_nearest", "label": "Divert to Nearest Airport", "correct": True, "points": 10},
         {"id": "emergency_descent", "label": "Emergency Descent + Priority Landing", "correct": True, "points": 15},
+        {"id": "divert_nearest", "label": "Divert to Nearest Airport", "correct": False, "points": -3},
         {"id": "continue_destination", "label": "Continue to Destination", "correct": False, "points": -5},
         {"id": "hold_pattern", "label": "Enter Holding Pattern", "correct": False, "points": -10}
     ],
     "medical_emergency": [
-        {"id": "priority_landing", "label": "Priority Landing Clearance", "correct": True, "points": 10},
-        {"id": "alert_medical_ground", "label": "Alert Ground Medical Services", "correct": True, "points": 5},
-        {"id": "continue_flight", "label": "Continue Normal Operations", "correct": False, "points": -10},
-        {"id": "divert_hospital", "label": "Divert to Airport with Hospital", "correct": True, "points": 12}
+        {"id": "divert_hospital", "label": "Divert to Airport with Hospital", "correct": True, "points": 12},
+        {"id": "priority_landing", "label": "Priority Landing Clearance", "correct": False, "points": -3},
+        {"id": "alert_medical_ground", "label": "Alert Ground Medical Services", "correct": False, "points": -3},
+        {"id": "continue_flight", "label": "Continue Normal Operations", "correct": False, "points": -10}
     ],
     "comm_loss": [
         {"id": "contact_guard", "label": "Contact on Guard 121.5", "correct": True, "points": 10},
-        {"id": "squawk_ident", "label": "Request Squawk Ident", "correct": True, "points": 5},
+        {"id": "squawk_ident", "label": "Request Squawk Ident", "correct": False, "points": -3},
         {"id": "assume_glitch", "label": "Assume Temporary Glitch", "correct": False, "points": -5},
-        {"id": "relay_traffic", "label": "Relay via Other Traffic", "correct": True, "points": 8}
+        {"id": "relay_traffic", "label": "Relay via Other Traffic", "correct": False, "points": -3}
     ],
     "conflict": [
-        {"id": "vector_away", "label": "Vector Aircraft Away", "correct": True, "points": 10},
-        {"id": "altitude_change", "label": "Issue Altitude Change", "correct": True, "points": 10},
-        {"id": "monitor_only", "label": "Monitor Situation Only", "correct": False, "points": -10},
-        {"id": "both_separate", "label": "Separate Both Aircraft", "correct": True, "points": 15}
+        {"id": "both_separate", "label": "Separate Both Aircraft", "correct": True, "points": 15},
+        {"id": "vector_away", "label": "Vector Aircraft Away", "correct": False, "points": -3},
+        {"id": "altitude_change", "label": "Issue Altitude Change", "correct": False, "points": -3},
+        {"id": "monitor_only", "label": "Monitor Situation Only", "correct": False, "points": -10}
     ],
     "engine_failure": [
         {"id": "declare_emergency", "label": "Declare Emergency + Clear Path", "correct": True, "points": 15},
-        {"id": "immediate_vectors", "label": "Immediate Vectors to Nearest", "correct": True, "points": 12},
+        {"id": "immediate_vectors", "label": "Immediate Vectors to Nearest", "correct": False, "points": -3},
         {"id": "maintain_altitude", "label": "Maintain Current Altitude", "correct": False, "points": -5},
         {"id": "standard_approach", "label": "Continue Standard Approach", "correct": False, "points": -8}
+    ],
+    "vfr_intrusion": [
+        {"id": "intercept_contact", "label": "Establish Radio Contact", "correct": True, "points": 12},
+        {"id": "issue_squawk", "label": "Issue Squawk Code", "correct": False, "points": -3},
+        {"id": "vector_away", "label": "Vector Traffic Away", "correct": False, "points": -3},
+        {"id": "ignore", "label": "Continue Monitoring", "correct": False, "points": -8}
+    ],
+    "altitude_deviation": [
+        {"id": "query_intentions", "label": "Query Pilot Intentions", "correct": True, "points": 12},
+        {"id": "issue_altitude", "label": "Issue Altitude Correction", "correct": False, "points": -3},
+        {"id": "declare_emergency", "label": "Declare Emergency", "correct": False, "points": -5},
+        {"id": "ignore", "label": "Continue Monitoring", "correct": False, "points": -8}
+    ],
+    "false_alarm": [
+        {"id": "dismiss_verify", "label": "Dismiss & Verify Separation", "correct": True, "points": 10},
+        {"id": "issue_vectors", "label": "Issue Precautionary Vectors", "correct": False, "points": -3},
+        {"id": "declare_conflict", "label": "Treat as Real Conflict", "correct": False, "points": -5},
+        {"id": "ignore", "label": "Ignore Alert", "correct": False, "points": -8}
+    ],
+    "comm_failure": [
+        {"id": "switch_frequency", "label": "Switch to Backup Frequency", "correct": True, "points": 12},
+        {"id": "use_guard", "label": "Broadcast on Guard 121.5", "correct": False, "points": -3},
+        {"id": "relay_other", "label": "Relay via Other Aircraft", "correct": False, "points": -3},
+        {"id": "wait", "label": "Wait for Restoration", "correct": False, "points": -8}
     ]
 }
 
@@ -343,12 +367,12 @@ class BaseScenario(ABC):
         self.ANGRY_PENALTY_PER_SECOND = 0.2     # Points lost per second while angry
         self.CONFLICT_PENALTY_PER_SECOND = 0.5  # Points lost per second during conflict
         self.UNMET_NEED_PENALTY_PER_SECOND = 0.1  # Points lost per second per unmet need
-        self.HAPPY_BONUS_PER_SECOND = 0.05      # Points gained per second when all happy
+        self.HAPPY_BONUS_PER_SECOND = 0.15      # Points gained per second when all happy (3x faster recovery)
         self.COMPLAINT_THRESHOLD = 90.0         # Seconds ignored to file complaint
 
         # Needs generation settings (spaced out to reduce overwhelm in low workload scenarios)
-        self.MIN_NEED_INTERVAL = 45.0  # Minimum seconds between needs per aircraft
-        self.MAX_NEED_INTERVAL = 90.0  # Maximum seconds between needs per aircraft
+        self.MIN_NEED_INTERVAL = 75.0  # Minimum seconds between needs per aircraft
+        self.MAX_NEED_INTERVAL = 150.0  # Maximum seconds between needs per aircraft
 
         # Event handler registry
         self._event_handlers: Dict[str, Callable[[ScenarioEvent], None]] = {
@@ -656,6 +680,11 @@ class BaseScenario(ABC):
             aircraft.comm_status = event.data.get('comm_status', 'lost')
             aircraft.datalink_status = event.data.get('datalink_status', 'lost')
 
+            # Set emergency flags so resolution options appear
+            aircraft.emergency = True
+            aircraft.emergency_type = 'comm_loss'
+            aircraft.comm_loss = True
+
             measurement_key = f"{event.target}_comm_loss_detection"
             self.measurements[measurement_key] = {
                 'loss_time': self.elapsed_time,
@@ -733,6 +762,9 @@ class BaseScenario(ABC):
         aircraft = self.aircraft.get(target)
         if aircraft:
             aircraft.altitude = actual
+            # Set emergency flags so resolution options appear
+            aircraft.emergency = True
+            aircraft.emergency_type = 'altitude_deviation'
             # Trigger issue for mood/safety tracking
             self.trigger_issue(target, 'altitude_deviation')
 
@@ -761,10 +793,14 @@ class BaseScenario(ABC):
             'alert_delayed': data.get('alert_delayed', False)
         }
 
-        # Trigger issues for both aircraft involved in conflict
-        self.trigger_issue(aircraft1, 'conflict')
-        if aircraft2:
-            self.trigger_issue(aircraft2, 'conflict')
+        # Set emergency flags so resolution options appear
+        for callsign in [aircraft1, aircraft2]:
+            if callsign:
+                aircraft = self.aircraft.get(callsign)
+                if aircraft:
+                    aircraft.emergency = True
+                    aircraft.emergency_type = 'conflict'
+                self.trigger_issue(callsign, 'conflict')
 
     def _handle_aircraft_spawn_event(self, event: ScenarioEvent) -> None:
         """
@@ -812,6 +848,12 @@ class BaseScenario(ABC):
             'position': data.get('position'),
             'altitude': data.get('altitude')
         })
+
+        # Set emergency flags so resolution options appear
+        aircraft = self.aircraft.get(target)
+        if aircraft:
+            aircraft.emergency = True
+            aircraft.emergency_type = 'vfr_intrusion'
 
         # Trigger issue for the intruding aircraft
         self.trigger_issue(target, 'vfr_intrusion')
@@ -863,6 +905,15 @@ class BaseScenario(ABC):
 
         print(f"  Conflict threshold: {aircraft1}/{aircraft2}")
 
+        # Set emergency flags so resolution options appear (maps to conflict)
+        for callsign in [aircraft1, aircraft2]:
+            if callsign:
+                aircraft = self.aircraft.get(callsign)
+                if aircraft:
+                    aircraft.emergency = True
+                    aircraft.emergency_type = 'conflict_threshold'  # Maps to 'conflict' resolution
+                    self.trigger_issue(callsign, 'conflict')
+
         # Create measurement for manual conflict detection
         self.register_measurement('manual_conflict_detection', f"{aircraft1}_{aircraft2}", {
             'conflict_start': self.elapsed_time,
@@ -880,6 +931,13 @@ class BaseScenario(ABC):
         target = event.target
 
         print(f"  False alarm: {target} - {data.get('alert_type', 'unknown')}")
+
+        # Set emergency flags so resolution options appear
+        aircraft = self.aircraft.get(target)
+        if aircraft:
+            aircraft.emergency = True
+            aircraft.emergency_type = 'false_alarm'
+            self.trigger_issue(target, 'false_alarm')
 
         # Create measurement for false alarm recognition
         self.measurements[f"false_alarm_{target}"] = {
@@ -904,6 +962,13 @@ class BaseScenario(ABC):
         delay = data.get('delay_duration', data.get('delay_seconds', 0))
 
         print(f"  Delayed alert: {target} (delayed {delay}s)")
+
+        # Set emergency flags so resolution options appear (maps to conflict)
+        aircraft = self.aircraft.get(target)
+        if aircraft:
+            aircraft.emergency = True
+            aircraft.emergency_type = 'delayed_alert'  # Maps to 'conflict' resolution
+            self.trigger_issue(target, 'conflict')
 
         # Update any existing measurements with alert time
         for key, measurement in self.measurements.items():
@@ -1419,8 +1484,18 @@ class BaseScenario(ABC):
                 mapped_type = 'medical_emergency'
             elif 'engine' in raw_type:
                 mapped_type = 'engine_failure'
+            elif 'vfr' in raw_type or 'intrusion' in raw_type:
+                mapped_type = 'vfr_intrusion'
+            elif 'altitude' in raw_type or 'deviation' in raw_type:
+                mapped_type = 'altitude_deviation'
+            elif 'false' in raw_type:
+                mapped_type = 'false_alarm'
+            elif 'comm_failure' in raw_type or 'frequency' in raw_type:
+                mapped_type = 'comm_failure'
             elif 'comm' in raw_type:
                 mapped_type = 'comm_loss'
+            elif 'conflict_threshold' in raw_type or 'delayed' in raw_type:
+                mapped_type = 'conflict'
             else:
                 mapped_type = 'conflict'
 

@@ -34,36 +34,36 @@ function Instructions({ onContinue, condition = 1 }) {
             case 2:
                 return {
                     title: "Adaptive Alert System",
-                    description: "You will receive context-aware banner alerts that adapt to the situation.",
+                    description: "You will receive non-blocking banner alerts that vary by priority.",
                     characteristics: [
-                        "Alerts appear as non-blocking banners at the top of your screen",
-                        "You can continue working while alerts are displayed",
-                        "Alert presentation adapts based on current workload and context",
-                        "Critical alerts include audio; routine alerts are visual only",
+                        "Alerts appear as banners at the top of your screen",
+                        "You can continue monitoring traffic while alerts are displayed",
+                        "Critical alerts stay visible until acknowledged",
+                        "Lower priority alerts may auto-dismiss after 10-15 seconds",
                         "Alerts include recommended actions when appropriate"
                     ],
                     tips: [
-                        "Monitor the alert banners while managing traffic",
+                        "Keep monitoring the radar while reading alert banners",
                         "Use the recommended actions as guidance",
-                        "Alerts will auto-dismiss for non-critical issues, but stay aware"
+                        "Don't ignore auto-dismissed alerts - check if action is needed"
                     ]
                 };
             case 3:
                 return {
                     title: "ML Predictive Alert System",
-                    description: "You will receive AI-powered predictive alerts that anticipate issues before they occur.",
+                    description: "AI-powered alerts that adapt based on your attention patterns.",
                     characteristics: [
                         "Alerts appear as non-blocking banners with confidence scores",
-                        "The system predicts potential issues 30-60 seconds in advance",
-                        "Each prediction includes an explanation of why it was flagged",
-                        "Relevant areas on the radar will be highlighted",
-                        "You can accept or reject predictions to help improve the system"
+                        "The system monitors your mouse movement and interaction patterns",
+                        "Alerts may include explanations of why they were triggered",
+                        "Visual highlighting may appear on the radar for flagged aircraft",
+                        "Alert intensity increases if you appear to be idle"
                     ],
                     tips: [
-                        "Pay attention to the confidence percentage - higher means more certain",
-                        "Click 'Why is this flagged?' to understand the prediction reasoning",
-                        "If you act on a prediction early, the follow-up alert may be prevented",
-                        "Your feedback (accept/reject) helps the system learn"
+                        "Pay attention to the confidence percentage shown on alerts",
+                        "If you see radar highlighting, investigate that area",
+                        "The system may nudge you if it detects potential inattention",
+                        "Respond promptly to prevent alert escalation"
                     ]
                 };
             default:

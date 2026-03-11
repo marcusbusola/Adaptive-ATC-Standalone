@@ -360,40 +360,6 @@ class ScenarioH5(BaseScenario):
         else:
             self.current_phase = 2  # Phase 3: Unauthorized Altitude Deviation
 
-    def _trigger_event(self, event: Any) -> None:
-        """Execute event actions (override to handle altitude deviation)"""
-        # Call parent trigger first
-        super()._trigger_event(event)
-
-        # Handle altitude deviation
-        if event.event_type == 'altitude_deviation' and event.target == 'AAL300':
-            # Initialize measurement for altitude deviation detection
-            measurement_key = f"{event.target}_altitude_deviation_detection"
-            self.measurements[measurement_key] = {
-                'deviation_time': self.elapsed_time,
-                'assigned_altitude': event.data['assigned_altitude'],
-                'actual_altitude': event.data['actual_altitude'],
-                'target_altitude': event.data['target_altitude'],
-                'detected_time': None,
-                'corrected_time': None,
-                'detection_delay': None,
-                'correction_delay': None
-            }
-            print(f"  {event.target} altitude deviation: Assigned FL{event.data['assigned_altitude']}, "
-                  f"Actual climbing to FL{event.data['target_altitude']}")
-
-        elif event.event_type == 'internal' and event.data.get('action') == 'modify_altitude':
-            # Modify aircraft altitude
-            aircraft = self.aircraft.get(event.target)
-            if aircraft:
-                old_altitude = aircraft.altitude
-                aircraft.altitude = event.data['new_altitude']
-                print(f"  {event.target} altitude changed: FL{old_altitude} -> FL{aircraft.altitude}")
-
-        elif event.event_type == 'weather':
-            # Weather system is already stored in initialize()
-            print(f"  Severe weather system active at {event.data['center']}, radius {event.data['radius']}nm")
-
     def check_parallel_crisis_overload(self) -> bool:
         """
         Check if controller is experiencing parallel crisis overload
@@ -424,33 +390,28 @@ class ScenarioH5(BaseScenario):
             return False
 
         # If not yet detected, check neglect duration
-        if measurement['detected_time'] is None:
-            time_since_deviation = self.elapsed_time - measurement['deviation_time']
+        if measurement.get('detected_time') is None:
+            time_since_deviation = self.elapsed_time - measurement['event_time']
             return time_since_deviation > 20  # Neglected if > 20 seconds
 
         return False
 
     def _check_measurement_resolution(self, interaction_type: str, target: str) -> None:
         """Check if interaction resolves any measurements (override to handle altitude deviation)"""
-        # Call parent for comm loss handling
+        # Call parent for standard measurement handling
         super()._check_measurement_resolution(interaction_type, target)
 
-        # Handle altitude deviation detection
+        # Additional altitude deviation correction tracking
+        # Base class handles detection, but we track correction specifically for altitude commands
         measurement_key = f"{target}_altitude_deviation_detection"
         measurement = self.measurements.get(measurement_key)
 
         if measurement:
-            # First interaction with AAL300 = detection
-            if measurement['detected_time'] is None:
-                measurement['detected_time'] = self.elapsed_time
-                measurement['detection_delay'] = self.elapsed_time - measurement['deviation_time']
-                print(f"  Altitude deviation detected for {target} after {measurement['detection_delay']:.1f}s")
-
-            # Altitude command or clearance = correction
-            if measurement['corrected_time'] is None and interaction_type in ['altitude_command', 'command', 'clearance']:
-                measurement['corrected_time'] = self.elapsed_time
-                measurement['correction_delay'] = self.elapsed_time - measurement['deviation_time']
-                print(f"  Altitude deviation corrected for {target} after {measurement['correction_delay']:.1f}s")
+            # Altitude command or clearance = correction (resolution)
+            if measurement.get('resolved_time') is None and interaction_type in ['altitude_command', 'command', 'clearance']:
+                measurement['resolved_time'] = self.elapsed_time
+                measurement['resolution_delay'] = self.elapsed_time - measurement['event_time']
+                print(f"  Altitude deviation corrected for {target} after {measurement['resolution_delay']:.1f}s")
 
     def generate_condition_specific_alert(self, alert_type: str = 'multi_crisis') -> Dict[str, Any]:
         """
@@ -459,7 +420,7 @@ class ScenarioH5(BaseScenario):
         Called when alerts should be shown based on condition rules.
         """
         # Handle fuel emergency alert (Phase 2)
-        if alert_type == 'fuel_emergency' or self.current_phase == 1:
+        if alert_type == 'fuel_emergency' or (alert_type == 'multi_crisis' and self.current_phase == 1):
             is_overload = self.check_parallel_crisis_overload()
 
             if self.condition == 1:
@@ -511,7 +472,11 @@ class ScenarioH5(BaseScenario):
                     }
                 )
 
-        # Handle altitude deviation alert (Phase 3)
+        # Handle altitude deviation alert (Phase 3 only)
+        if alert_type != 'altitude_deviation' and self.current_phase != 2:
+            # Not in altitude deviation phase and not explicitly requested
+            return None
+
         is_neglected = self.check_altitude_deviation_neglect()
 
         if self.condition == 1:
@@ -536,7 +501,7 @@ class ScenarioH5(BaseScenario):
                         'message': 'ALTITUDE DEVIATION - AAL300 (FL310→FL330)',
                         'peripheral_cue': True,
                         'conflict_risk': True,
-                        'neglect_duration': self.elapsed_time - self.measurements['AAL300_altitude_deviation_detection']['deviation_time']
+                        'neglect_duration': self.elapsed_time - self.measurements['AAL300_altitude_deviation_detection']['event_time']
                     }
                 )
             else:
@@ -630,7 +595,7 @@ class ScenarioH5(BaseScenario):
         expected_detection = expected_times[condition_key]
 
         actual_detection = altitude_measurement.get('detection_delay')
-        actual_correction = altitude_measurement.get('correction_delay')
+        actual_correction = altitude_measurement.get('resolution_delay')
 
         analysis = {
             'condition': self.condition,

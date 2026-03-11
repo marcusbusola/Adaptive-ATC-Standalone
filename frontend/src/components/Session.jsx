@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import RadarViewer from './RadarViewer';
 import ActionPanel from './ActionPanel';
@@ -50,6 +50,31 @@ const CONDITION_SPECIFIC_EVENTS = {
 // Time in milliseconds before acknowledged alert reappears if not resolved
 const ALERT_HIDE_DURATION = 15000;
 
+// Connection Status Banner Component
+const ConnectionStatusBanner = ({ status, onRetry }) => {
+    if (status === 'connected') return null;
+
+    return (
+        <div className={`connection-banner ${status}`}>
+            {status === 'reconnecting' && (
+                <>
+                    <span className="connection-spinner"></span>
+                    <span>Reconnecting to server...</span>
+                </>
+            )}
+            {status === 'disconnected' && (
+                <>
+                    <span className="connection-warning-icon">⚠</span>
+                    <span>Connection lost. Your progress is saved locally.</span>
+                    <button onClick={onRetry} className="connection-retry-btn">
+                        Retry Connection
+                    </button>
+                </>
+            )}
+        </div>
+    );
+};
+
 function Session() {
     const { sessionId } = useParams();
     const navigate = useNavigate();
@@ -86,8 +111,22 @@ function Session() {
     const [showSurveyIntro, setShowSurveyIntro] = useState(false);
     const [selectedAircraftCallsign, setSelectedAircraftCallsign] = useState(null);
     const [showShiftOver, setShowShiftOver] = useState(false); // End-of-shift summary screen
+    const [showCompletion, setShowCompletion] = useState(false); // Final completion/thank you screen
     const [alertsHandledCount, setAlertsHandledCount] = useState(0); // Track alerts handled
     const [needsResolvedCount, setNeedsResolvedCount] = useState(0); // Track needs resolved
+    const [showSurveyOutro, setShowSurveyOutro] = useState(false); // Loading screen after surveys
+
+    // System status for silent failures (L2 scenario)
+    const [systemStatus, setSystemStatus] = useState({
+        commSystem: 'operational', // 'operational', 'failed'
+        primaryFrequency: 119.5,
+        tcasSystem: 'operational' // 'operational', 'failed' (for L3)
+    });
+
+    // Connection status tracking for polling loop
+    const [connectionStatus, setConnectionStatus] = useState('connected'); // 'connected', 'reconnecting', 'disconnected'
+    const consecutiveFailuresRef = useRef(0);
+    const MAX_CONSECUTIVE_FAILURES = 5;
 
     // Multi-scenario queue state
     const [queueScenarios, setQueueScenarios] = useState([]); // All scenarios in queue
@@ -150,8 +189,41 @@ function Session() {
         }
     }, [sessionDetails?.queue_items, sessionDetails?.queue_item_index, itemIndex, queueId]);
 
+    // Utility to clear stale session cache entries
+    const clearStaleSessionCache = useCallback(() => {
+        const ONE_HOUR = 60 * 60 * 1000;
+        const now = Date.now();
+
+        try {
+            const keysToRemove = [];
+            for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                const key = sessionStorage.key(i);
+                if (key && key.startsWith('session_')) {
+                    try {
+                        const cached = sessionStorage.getItem(key);
+                        if (cached) {
+                            const data = JSON.parse(cached);
+                            if (data.cached_at && (now - data.cached_at) > ONE_HOUR) {
+                                keysToRemove.push(key);
+                            }
+                        }
+                    } catch (parseErr) {
+                        // Remove corrupted entries
+                        keysToRemove.push(key);
+                    }
+                }
+            }
+            keysToRemove.forEach(key => sessionStorage.removeItem(key));
+            if (keysToRemove.length > 0) {
+                console.log(`[Session] Cleared ${keysToRemove.length} stale cache entries`);
+            }
+        } catch (e) {
+            console.warn('Error clearing stale cache:', e);
+        }
+    }, []);
+
     const handleEndSession = useCallback(async (reason = 'completed') => {
-        // Stop timers
+        // Stop timers FIRST to prevent any race conditions
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -161,32 +233,51 @@ function Session() {
             pollingRef.current = null;
         }
 
-        // Clear cached session state
-        try {
-            sessionStorage.removeItem(`session_${sessionId}`);
-        } catch (e) {
-            // Ignore storage errors
-        }
+        // Clear all pending alert timers
+        Object.values(pendingAlertTimers.current).forEach(timer => clearTimeout(timer));
+        pendingAlertTimers.current = {};
 
         setIsLoading(true);
         setError('');
+
         try {
-            // End session on backend
+            // End session on backend and WAIT for confirmation
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
             const response = await fetch(`${API_URL}/api/sessions/${sessionId}/end`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reason: reason }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
+
             if (!response.ok) {
-                throw new Error('Failed to end session.');
+                throw new Error('Failed to end session on server.');
             }
 
-            // If part of queue, mark item as complete (session-scoped endpoint to prevent spoofing)
+            const responseData = await response.json();
+
+            // Verify the response contains our session
+            if (responseData.session_id && responseData.session_id !== sessionId) {
+                console.warn('[Session] Session ID mismatch in response');
+            }
+
+            // NOW clear session storage AFTER backend confirms
+            try {
+                sessionStorage.removeItem(`session_${sessionId}`);
+                clearStaleSessionCache();
+            } catch (e) {
+                console.warn('Failed to clear session storage:', e);
+            }
+
+            // If part of queue, mark item as complete
             if (queueId && itemIndex !== null) {
                 const parsedItemIndex = Number(itemIndex);
                 if (!Number.isNaN(parsedItemIndex)) {
                     try {
-                        const responseData = await response.json();
                         await fetch(`${API_URL}/api/queues/${queueId}/items/${parsedItemIndex}/complete-from-session`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -202,7 +293,7 @@ function Session() {
                 }
             }
 
-            // Check if there are more scenarios in the queue
+            // Only NOW proceed with UI state updates after backend confirms
             const hasMoreScenarios = queueScenarios.length > 0 && currentScenarioIndex < queueScenarios.length - 1;
 
             if (hasMoreScenarios) {
@@ -215,30 +306,53 @@ function Session() {
                 setShowShiftOver(true);
             }
         } catch (err) {
-            setError(err.message);
+            console.error('[Session] Error ending session:', err);
+            if (err.name === 'AbortError') {
+                setError('Session end timed out. Please try again or refresh the page.');
+            } else {
+                setError(err.message);
+            }
+            // Re-enable polling if end failed so user can retry
+            if (scenarioStartedRef.current && !scenarioComplete) {
+                pollingRef.current = setInterval(pollScenarioUpdate, POLLING_INTERVAL);
+            }
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex]);
+    }, [sessionId, queueId, itemIndex, queueScenarios, currentScenarioIndex, clearStaleSessionCache, scenarioComplete, pollScenarioUpdate]);
 
-    const handleSurveyComplete = useCallback((data) => {
-        // Show brief completion message, then redirect
+    const handleSurveyComplete = useCallback(() => {
+        // Show outro loading screen, then completion screen
+        setShowSurvey(false);
+        setShowSurveyOutro(true);
+
+        // Transition to completion screen after a brief delay
         setTimeout(() => {
-            if (returnTo) {
-                // Return to queue if launched from queue
-                window.location.href = returnTo;
-            } else {
-                // Return to participant lobby
-                navigate('/participant');
-            }
+            setShowSurveyOutro(false);
+            setShowCompletion(true);
         }, 2000);
+    }, []);
+
+    // Handle continue from completion screen
+    const handleCompletionContinue = useCallback(() => {
+        if (returnTo) {
+            // Return to queue if launched from queue
+            window.location.href = returnTo;
+        } else {
+            // Return to participant lobby
+            navigate('/participant');
+        }
     }, [returnTo, navigate]);
 
     // Handler for ShiftOverScreen continue button
     const handleShiftOverContinue = useCallback(() => {
         setShowShiftOver(false);
         setShowSurveyIntro(true);
-        setTimeout(() => setShowSurvey(true), 1000);
+        // Show intro screen for 2.5 seconds before surveys
+        setTimeout(() => {
+            setShowSurveyIntro(false);
+            setShowSurvey(true);
+        }, 2500);
     }, []);
 
     // Handle transition countdown complete - start next scenario
@@ -304,18 +418,28 @@ function Session() {
             : elapsedTime;
 
         try {
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
             const response = await fetch(`${API_URL}/api/sessions/${sessionId}/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ elapsed_time: currentElapsedTime }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+
             if (!response.ok) {
-                console.error('[Polling] Failed to poll scenario update, status:', response.status);
-                return;
+                throw new Error(`Server responded with ${response.status}`);
             }
 
             const data = await response.json();
+
+            // Reset failure counter and connection status on success
+            consecutiveFailuresRef.current = 0;
+            setConnectionStatus('connected');
 
             // Update scenario state
             setElapsedTime(data.elapsed_time);
@@ -405,6 +529,16 @@ function Session() {
 
         } catch (err) {
             console.error('[Polling] Error:', err);
+
+            // Track consecutive failures for connection status
+            consecutiveFailuresRef.current += 1;
+            const failures = consecutiveFailuresRef.current;
+
+            if (failures >= MAX_CONSECUTIVE_FAILURES) {
+                setConnectionStatus('disconnected');
+            } else if (failures >= 2) {
+                setConnectionStatus('reconnecting');
+            }
         }
     }, [sessionId, scenarioComplete, elapsedTime, handleEndSession]); // Removed scenarioStarted, using ref instead
 
@@ -431,6 +565,28 @@ function Session() {
                     console.log(`[Alert] Skipping internal event: ${event.event_type}`);
                     continue;
                 }
+            }
+
+            // Handle SILENT FAILURES (L2/L3 scenarios) - visual indicator only, no modal
+            // These events have presentation: 'visual_only' and should update system status
+            // instead of showing an alert (testing controller vigilance)
+            if (event.data?.presentation === 'visual_only') {
+                console.log(`[Alert] Silent failure - updating system status only: ${event.event_type}`);
+
+                if (event.event_type === 'comm_failure') {
+                    setSystemStatus(prev => ({
+                        ...prev,
+                        commSystem: 'failed',
+                        failedAt: Date.now()
+                    }));
+                } else if (event.event_type === 'system_crash') {
+                    setSystemStatus(prev => ({
+                        ...prev,
+                        tcasSystem: 'failed',
+                        tcasFailedAt: Date.now()
+                    }));
+                }
+                continue; // Don't create an alert - this is a silent failure
             }
 
             // Stable alert ID based on event type + target (no timestamp)
@@ -992,6 +1148,20 @@ function Session() {
         };
     }, [sessionDetails?.condition, workloadState, unresolvedCount]);
 
+    // Validate aircraftConfig before passing to RadarViewer to prevent crashes
+    const validAircraftConfig = useMemo(() => {
+        if (!sessionDetails?.aircraft_config) return [];
+        if (!Array.isArray(sessionDetails.aircraft_config)) return [];
+        return sessionDetails.aircraft_config;
+    }, [sessionDetails?.aircraft_config]);
+
+    // Handler for connection retry
+    const handleConnectionRetry = useCallback(() => {
+        consecutiveFailuresRef.current = 0;
+        setConnectionStatus('reconnecting');
+        pollScenarioUpdate();
+    }, [pollScenarioUpdate]);
+
     // Render alerts based on condition
     const renderAlerts = () => {
         if (activeAlerts.length === 0) return null;
@@ -1132,11 +1302,27 @@ function Session() {
         );
     }
 
-    // Show surveys after session ends
-    if (showSurveyIntro && !showSurvey) {
+    // Show survey intro screen (before surveys)
+    if (showSurveyIntro) {
         return (
-            <div className="session-loading">
-                Run complete. Loading survey…
+            <div className="survey-intro-screen">
+                <div className="loading-spinner"></div>
+                <h2>Preparing Surveys</h2>
+                <p>
+                    You'll now complete a brief questionnaire about your experience.
+                    This helps us understand how different alert systems affect controller performance.
+                </p>
+            </div>
+        );
+    }
+
+    // Show survey outro screen (after surveys complete, before thank you)
+    if (showSurveyOutro) {
+        return (
+            <div className="survey-outro-screen">
+                <div className="loading-spinner"></div>
+                <h2>Saving Your Responses</h2>
+                <p>Thank you for completing the surveys. Please wait while we save your data...</p>
             </div>
         );
     }
@@ -1149,6 +1335,41 @@ function Session() {
                 phase="post-session"
                 onComplete={handleSurveyComplete}
             />
+        );
+    }
+
+    // Completion/Thank You screen after surveys
+    if (showCompletion) {
+        return (
+            <div className="completion-screen">
+                <div className="completion-content">
+                    <h1>Thank You!</h1>
+                    <p>You have successfully completed this session.</p>
+                    <p>Your responses have been recorded and will contribute to important research on air traffic control systems.</p>
+
+                    <div className="completion-stats">
+                        <div className="stat">
+                            <span className="stat-label">Alerts Handled</span>
+                            <span className="stat-value">{alertsHandledCount}</span>
+                        </div>
+                        <div className="stat">
+                            <span className="stat-label">Safety Score</span>
+                            <span className="stat-value">{safetyScore}%</span>
+                        </div>
+                        <div className="stat">
+                            <span className="stat-label">Issues Resolved</span>
+                            <span className="stat-value">{needsResolvedCount}</span>
+                        </div>
+                    </div>
+
+                    <button
+                        className="btn btn-primary btn-lg"
+                        onClick={handleCompletionContinue}
+                    >
+                        Continue
+                    </button>
+                </div>
+            </div>
         );
     }
 
@@ -1171,7 +1392,30 @@ function Session() {
                         Time: {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
                     </span>
                 </div>
+                {/* System Status Indicators - subtle visual cues for silent failures */}
+                <div className="system-status-indicators">
+                    <span
+                        className={`system-indicator ${systemStatus.commSystem === 'operational' ? 'ok' : 'failed'}`}
+                        title={systemStatus.commSystem === 'operational' ? 'COMM OK' : 'COMM OFFLINE'}
+                    >
+                        <span className="indicator-dot"></span>
+                        <span className="indicator-label">COMM {systemStatus.primaryFrequency}</span>
+                    </span>
+                    <span
+                        className={`system-indicator ${systemStatus.tcasSystem === 'operational' ? 'ok' : 'failed'}`}
+                        title={systemStatus.tcasSystem === 'operational' ? 'TCAS OK' : 'TCAS OFFLINE'}
+                    >
+                        <span className="indicator-dot"></span>
+                        <span className="indicator-label">TCAS</span>
+                    </span>
+                </div>
             </div>
+
+            {/* Connection Status Banner */}
+            <ConnectionStatusBanner
+                status={connectionStatus}
+                onRetry={handleConnectionRetry}
+            />
 
             {/* Alert Layer */}
             <div className="alert-layer">
@@ -1191,7 +1435,7 @@ function Session() {
                         scenario={sessionDetails.scenario}
                         condition={sessionDetails.condition}
                         showControls={false}
-                        aircraftConfig={sessionDetails.aircraft_config}
+                        aircraftConfig={validAircraftConfig}
                         liveAircraft={aircraft}
                         conflicts={conflicts}
                         pendingAlerts={pendingAlerts}

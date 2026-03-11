@@ -9,11 +9,62 @@ import { getAuthHeaders } from './tokenService';
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Timeout and retry configuration
+const DEFAULT_TIMEOUT = 10000; // 10 seconds
+const MAX_RETRIES = 3;
+const RETRY_DELAY_BASE = 1000; // 1 second, doubles each retry
+
 /**
- * Generic fetch wrapper with error handling
+ * Fetch with timeout using AbortController
  */
-async function apiFetch(endpoint, options = {}) {
+async function fetchWithTimeout(url, options = {}, timeout = DEFAULT_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeout}ms`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Check if an error is retryable
+ */
+function isRetryableError(error) {
+  const message = error.message || '';
+  return (
+    message.includes('timed out') ||
+    message.includes('Server error') ||
+    message.includes('Failed to fetch') ||
+    message.includes('NetworkError') ||
+    message.includes('Network request failed') ||
+    message.includes('fetch failed')
+  );
+}
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Generic fetch wrapper with error handling, timeout, and retry logic
+ */
+async function apiFetch(endpoint, options = {}, retries = 0) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const timeout = options.timeout || DEFAULT_TIMEOUT;
 
   const defaultOptions = {
     headers: {
@@ -23,19 +74,43 @@ async function apiFetch(endpoint, options = {}) {
     }
   };
 
-  const response = await fetch(url, { ...defaultOptions, ...options });
+  // Remove timeout from options since we handle it separately
+  const { timeout: _, ...fetchOptions } = options;
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('Authentication required. Please log in as researcher.');
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      { ...defaultOptions, ...fetchOptions },
+      timeout
+    );
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Authentication required. Please log in as researcher.');
+      }
+      // Don't retry 4xx client errors
+      if (response.status >= 400 && response.status < 500) {
+        const error = await response.json().catch(() => ({
+          message: `HTTP ${response.status}: ${response.statusText}`
+        }));
+        throw new Error(error.message || error.detail || 'API request failed');
+      }
+      // For 5xx server errors, throw to trigger retry
+      throw new Error(`Server error: ${response.status}`);
     }
-    const error = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw new Error(error.message || error.detail || 'API request failed');
-  }
 
-  return await response.json();
+    return await response.json();
+  } catch (error) {
+    // Check if we should retry
+    if (isRetryableError(error) && retries < MAX_RETRIES) {
+      const delay = RETRY_DELAY_BASE * Math.pow(2, retries);
+      console.warn(`[API] Retrying ${endpoint} in ${delay}ms (attempt ${retries + 1}/${MAX_RETRIES})`);
+      await sleep(delay);
+      return apiFetch(endpoint, options, retries + 1);
+    }
+
+    throw error;
+  }
 }
 
 // ============ SESSION MANAGEMENT ============

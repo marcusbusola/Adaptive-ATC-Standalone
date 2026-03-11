@@ -55,6 +55,9 @@ const ActionPanel = ({
   const [isResolvingEmergency, setIsResolvingEmergency] = useState(false);
   const [emergencyFeedback, setEmergencyFeedback] = useState(null); // { correct, feedback, points }
 
+  // UI state
+  const [situationCollapsed, setSituationCollapsed] = useState(true);
+
   // Handle aircraft selection - notify parent if callback provided
   const handleAircraftSelect = useCallback((callsign) => {
     const newCallsign = callsign === selectedAircraftCallsign ? null : callsign;
@@ -562,17 +565,28 @@ const ActionPanel = ({
         </div>
       )}
 
-      {/* Situation Context */}
-      <section className="panel-section situation-context">
-        <h3>Situation Context</h3>
-        <div className="scenario-name">{scenarioConfig.name}</div>
-        <div className="phase-info">
-          <span className="phase-label">Phase {currentPhase + 1}:</span>
-          <span className="phase-name">{phaseConfig?.name || phaseDescription || 'Loading...'}</span>
-        </div>
-        <p className="context-description">
-          {phaseConfig?.context || 'Monitor the situation and respond as needed.'}
-        </p>
+      {/* Situation Context - Collapsible */}
+      <section className={`panel-section situation-context ${situationCollapsed ? 'collapsed' : ''}`}>
+        <h3
+          className="collapsible-header"
+          onClick={() => setSituationCollapsed(!situationCollapsed)}
+          title={situationCollapsed ? 'Click to expand' : 'Click to collapse'}
+        >
+          Situation Context
+          <span className="collapse-icon">{situationCollapsed ? '▶' : '▼'}</span>
+        </h3>
+        {!situationCollapsed && (
+          <>
+            <div className="scenario-name">{scenarioConfig.name}</div>
+            <div className="phase-info">
+              <span className="phase-label">Phase {currentPhase + 1}:</span>
+              <span className="phase-name">{phaseConfig?.name || phaseDescription || 'Loading...'}</span>
+            </div>
+            <p className="context-description">
+              {phaseConfig?.context || 'Monitor the situation and respond as needed.'}
+            </p>
+          </>
+        )}
       </section>
 
       {/* Aircraft Selector */}
