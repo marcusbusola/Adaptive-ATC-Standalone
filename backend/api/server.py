@@ -37,38 +37,45 @@ from scenarios.scenario_h6 import ScenarioH6
 from scenarios.base_scenario import BaseScenario
 
 # Import ML models (optional - may fail if dependencies not installed)
+AlertPredictor = None
+train_from_db = None
+ML_AVAILABLE = False
+
+
+def predict_presentation(events, scenario_state=None):
+    """
+    Fallback heuristic when full ML stack is unavailable.
+    Returns a prediction structure matching the real ML predictor so Condition 3 can still function.
+    """
+    # Simple heuristic: more events -> higher workload -> higher complacency risk
+    event_count = len(events) if events else 0
+    workload_score = min(event_count / 20, 1.0)
+    # Invert workload for complacency (low activity = high complacency)
+    complacency_score = max(0.0, 1.0 - workload_score)
+    confidence = round(0.5 + 0.3 * workload_score, 3)  # Low confidence for heuristic
+
+    return {
+        "presentation_style": "banner_subtle",
+        "confidence": confidence,
+        "trigger": complacency_score > 0.7,
+        "explanation": "Heuristic prediction (ML dependencies not installed)",
+        "factors": {
+            "complacency_score": round(complacency_score, 3),
+            "confidence_level": "low",
+        }
+    }
+
+
 try:
-    from ml_models.predictor import AlertPredictor, predict_presentation
-    from ml_models.train_complacency_model import train_from_db
+    from ml_models.predictor import AlertPredictor
     ML_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"ML models not available: {e}")
-    AlertPredictor = None
-    train_from_db = None
-    ML_AVAILABLE = False
+    logger.warning(f"ML predictor not available: {e}")
 
-    def predict_presentation(events, scenario_state=None):
-        """
-        Fallback heuristic when ML stack is unavailable.
-        Returns a prediction structure matching the real ML predictor so Condition 3 can still function.
-        """
-        # Simple heuristic: more events -> higher workload -> higher complacency risk
-        event_count = len(events) if events else 0
-        workload_score = min(event_count / 20, 1.0)
-        # Invert workload for complacency (low activity = high complacency)
-        complacency_score = max(0.0, 1.0 - workload_score)
-        confidence = round(0.5 + 0.3 * workload_score, 3)  # Low confidence for heuristic
-
-        return {
-            "presentation_style": "banner_subtle",
-            "confidence": confidence,
-            "trigger": complacency_score > 0.7,
-            "explanation": "Heuristic prediction (ML dependencies not installed)",
-            "factors": {
-                "complacency_score": round(complacency_score, 3),
-                "confidence_level": "low",
-            }
-        }
+try:
+    from ml_models.train_complacency_model import train_from_db
+except ImportError as e:
+    logger.warning(f"ML training not available: {e}")
 
 # Import database utilities and schema setup
 from data.db_utils import get_db_manager, DatabaseManager
@@ -181,6 +188,33 @@ websocket_connections: Dict[str, WebSocket] = {}
 
 # ML Predictor instance
 ml_predictor: Optional[AlertPredictor] = None
+
+
+def _predict_ml_presentation(
+    events: List[Dict[str, Any]],
+    scenario_state: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Predict alert presentation using loaded predictor when available.
+    Falls back to heuristic predictor if model/predictor is unavailable.
+    """
+    if ml_predictor is not None:
+        try:
+            result = ml_predictor.predict(events, scenario_state=scenario_state)
+            return {
+                "presentation_style": result["presentation"]["style"],
+                "confidence": round(result["confidence"], 3),
+                "trigger": result["trigger"],
+                "explanation": result["explanation"],
+                "factors": {
+                    "complacency_score": result["complacency_score"],
+                    "confidence_level": result["confidence_level"],
+                },
+            }
+        except Exception as e:
+            logger.warning(f"ML predictor failed, using fallback heuristic: {e}")
+
+    return predict_presentation(events, scenario_state=scenario_state)
 
 # Continuous Learning Status Tracking
 learning_status: Dict[str, Any] = {
@@ -1816,11 +1850,6 @@ async def get_performance_summary(session_id: str):
 async def get_ml_prediction(session_id: str):
     """Get ML complacency prediction for current session state."""
     try:
-        if not predict_presentation:
-            return {
-                "status": "unavailable",
-                "message": "ML predictor not initialized"
-            }
         # If we have a predictor instance, use it; otherwise fall back to heuristic function.
         predictor_ready = ml_predictor is not None
 
@@ -1838,7 +1867,7 @@ async def get_ml_prediction(session_id: str):
             }
 
         # Get prediction
-        result = predict_presentation(events, scenario_state=scenario_state)
+        result = _predict_ml_presentation(events, scenario_state=scenario_state)
 
         return {
             "status": "success" if predictor_ready else "fallback",
@@ -1879,7 +1908,7 @@ async def get_learning_status():
     - total_samples: Total samples in the current model
     - error: Any error from the last training attempt
     """
-    with learning_lock:
+    async with learning_lock:
         return {
             "status": "success",
             "ml_available": ML_AVAILABLE,
@@ -1908,7 +1937,7 @@ async def trigger_manual_training():
             detail="ML models not available - cannot train"
         )
 
-    with learning_lock:
+    async with learning_lock:
         if learning_status["is_learning"]:
             return {
                 "status": "already_running",
@@ -2427,18 +2456,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             elif message_type == "get_ml_prediction":
                 # Get ML prediction
-                if ml_predictor and predict_presentation:
-                    events = await db_manager.get_behavioral_events(session_id, limit=50)
-                    prediction = predict_presentation(events)
-                    await websocket.send_json({
-                        "type": "ml_prediction",
-                        "payload": prediction
-                    })
-                else:
-                    await websocket.send_json({
-                        "type": "ml_prediction",
-                        "payload": {"status": "unavailable"}
-                    })
+                events = await db_manager.get_behavioral_events(session_id, limit=50)
+                prediction = _predict_ml_presentation(events)
+                await websocket.send_json({
+                    "type": "ml_prediction",
+                    "payload": prediction
+                })
 
             else:
                 await websocket.send_json({

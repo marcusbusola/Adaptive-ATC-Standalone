@@ -5,40 +5,33 @@
  * This file is auto-generated from backend/scenarios/scenario_manifest.json
  * Run: npm run generate-config (or it runs automatically on build)
  *
- * Generated at: 2025-12-06T17:51:19.020Z
+ * Generated at: 2026-03-12T22:35:48.003Z
  */
 
 export const scenarios = {
   "L1": {
     "id": "L1",
     "name": "Baseline Emergency / Non-Routine Event",
-    "description": "Low-density scenario with dual emergency and peripheral comm loss",
-    "complexity": "low",
-    "workload": "low",
+    "description": "Low-density scenario with dual emergency and peripheral comm loss.",
+    "complexity": "Low",
+    "workload": "Low",
     "aircraftCount": 5,
     "duration": 360,
-    "alertFrequency": 2.5,
     "phases": [
       {
         "phase": 1,
-        "name": "Low-Density Routine",
         "start": 0,
-        "end": 36,
-        "description": "Routine monitoring, 5 aircraft"
+        "end": 36
       },
       {
         "phase": 2,
-        "name": "Primary Emergency",
         "start": 36,
-        "end": 156,
-        "description": "UAL238 dual emergency (fuel + medical)"
+        "end": 156
       },
       {
         "phase": 3,
-        "name": "Peripheral Comm Loss",
         "start": 156,
-        "end": 360,
-        "description": "AAL119 silent comm/datalink failure"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -49,49 +42,33 @@ export const scenarios = {
     "eventTypes": [
       "phase_transition",
       "emergency",
-      "comm_loss"
-    ],
-    "keyMeasurements": [
-      "AAL119 comm loss detection time",
-      "AAL119 comm loss resolution time",
-      "SAGAT situation awareness scores"
-    ],
-    "expectedDetectionTimes": {
-      "condition_1_traditional": 42,
-      "condition_2_adaptive": 20,
-      "condition_3_ml": 14
-    }
+      "comm_loss",
+      "ml_prediction"
+    ]
   },
   "L2": {
     "id": "L2",
     "name": "System Failure Overload / Irony of Automation",
-    "description": "Silent automation failure followed by VFR intrusion",
-    "complexity": "low",
-    "workload": "low",
+    "description": "Silent communication failure followed by unauthorized VFR intrusion.",
+    "complexity": "Low",
+    "workload": "Low",
     "aircraftCount": 5,
     "duration": 360,
-    "alertFrequency": 7,
     "phases": [
       {
         "phase": 1,
-        "name": "Trust Building",
         "start": 0,
-        "end": 72,
-        "description": "Everything works perfectly to build trust"
+        "end": 72
       },
       {
         "phase": 2,
-        "name": "Silent Communication Failure",
         "start": 72,
-        "end": 120,
-        "description": "Frequency 119.5 goes offline (no alert)"
+        "end": 120
       },
       {
         "phase": 3,
-        "name": "VFR Intrusion",
         "start": 120,
-        "end": 360,
-        "description": "Unauthorized VFR aircraft enters airspace"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -102,56 +79,33 @@ export const scenarios = {
     "eventTypes": [
       "phase_transition",
       "comm_failure",
-      "vfr_intrusion"
-    ],
-    "keyMeasurements": [
-      "Comm failure detection time",
-      "VFR intrusion detection time",
-      "VFR intrusion action time"
-    ],
-    "expectedDetectionTimes": {
-      "comm_failure": {
-        "condition_1_traditional": 45,
-        "condition_2_rule_based": 0,
-        "condition_3_ml": -15
-      },
-      "vfr_intrusion": {
-        "condition_1_traditional": 20,
-        "condition_2_rule_based": 15,
-        "condition_3_ml": 10
-      }
-    }
+      "vfr_intrusion",
+      "ml_prediction"
+    ]
   },
   "L3": {
     "id": "L3",
     "name": "Automation Complacency / Vigilance",
-    "description": "Silent system crash followed by unalerted conflict",
-    "complexity": "low",
-    "workload": "low",
+    "description": "Automation crash with unalerted conflict requiring manual detection.",
+    "complexity": "Low",
+    "workload": "Low",
     "aircraftCount": 5,
     "duration": 360,
-    "alertFrequency": 3,
     "phases": [
       {
         "phase": 1,
-        "name": "Reliable Automation",
         "start": 0,
-        "end": 120,
-        "description": "Perfect conflict detection builds complacency"
+        "end": 120
       },
       {
         "phase": 2,
-        "name": "Silent System Crash",
         "start": 120,
-        "end": 156,
-        "description": "Conflict detection crashes silently"
+        "end": 156
       },
       {
         "phase": 3,
-        "name": "Unalerted Conflict",
         "start": 156,
-        "end": 360,
-        "description": "DAL456/JBU567 conflict without automatic alert"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -162,63 +116,33 @@ export const scenarios = {
     "eventTypes": [
       "phase_transition",
       "system_crash",
-      "conflict_threshold"
-    ],
-    "keyMeasurements": [
-      "Manual conflict detection rate",
-      "System crash detection time",
-      "Conflict response time",
-      "Manual check frequency",
-      "Scan thoroughness"
-    ],
-    "expectedDetectionRates": {
-      "manual_conflict_detection": {
-        "condition_1_traditional": 0.7,
-        "condition_2_rule_based": 0.95,
-        "condition_3_ml": 0.98
-      },
-      "system_crash_detection": {
-        "condition_1_traditional": 0.4,
-        "condition_2_rule_based": 0.75,
-        "condition_3_ml": 0.85
-      }
-    },
-    "expectedResponseTimes": {
-      "condition_1_traditional": 45,
-      "condition_2_rule_based": 20,
-      "condition_3_ml": 10
-    }
+      "conflict_threshold",
+      "ml_prediction"
+    ]
   },
   "H4": {
     "id": "H4",
     "name": "Conflict-Driven Tunneling / VFR Intrusion",
-    "description": "High-density scenario with critical conflict and peripheral VFR intrusion",
-    "complexity": "high",
-    "workload": "high",
+    "description": "High-density conflict resolution with peripheral VFR intrusion.",
+    "complexity": "High",
+    "workload": "High",
     "aircraftCount": 9,
     "duration": 360,
-    "alertFrequency": 6,
     "phases": [
       {
         "phase": 1,
-        "name": "High-Density Tactical Load",
         "start": 0,
-        "end": 120,
-        "description": "9 aircraft, active management, conflict develops"
+        "end": 120
       },
       {
         "phase": 2,
-        "name": "Imminent Separation Violation",
         "start": 120,
-        "end": 156,
-        "description": "DAL332/AAL908 collision course, immediate action required"
+        "end": 156
       },
       {
         "phase": 3,
-        "name": "Peripheral VFR Intrusion",
         "start": 156,
-        "end": 360,
-        "description": "N123AB VFR intrusion during conflict management"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -230,50 +154,33 @@ export const scenarios = {
       "phase_transition",
       "conflict",
       "aircraft_spawn",
-      "internal"
-    ],
-    "keyMeasurements": [
-      "N123AB VFR intrusion detection time",
-      "DAL332/AAL908 conflict resolution time",
-      "Fixation duration on primary conflict",
-      "SAGAT situation awareness scores"
-    ],
-    "expectedDetectionTimes": {
-      "condition_1_traditional": 35,
-      "condition_2_adaptive": 18,
-      "condition_3_ml": 12
-    }
+      "internal",
+      "ml_prediction"
+    ]
   },
   "H5": {
     "id": "H5",
     "name": "Compounded Stress / Multi-Crisis",
-    "description": "High-workload multi-crisis scenario with weather rerouting, fuel emergency, and altitude deviation",
-    "complexity": "high",
-    "workload": "high",
+    "description": "Weather rerouting, fuel emergency, and altitude deviation under heavy load.",
+    "complexity": "High",
+    "workload": "High",
     "aircraftCount": 9,
     "duration": 360,
-    "alertFrequency": 11,
     "phases": [
       {
         "phase": 1,
-        "name": "Weather Rerouting (Building Stress)",
         "start": 0,
-        "end": 72,
-        "description": "9 aircraft rerouting around severe thunderstorm"
+        "end": 72
       },
       {
         "phase": 2,
-        "name": "Fuel Emergency on Top of Weather",
         "start": 72,
-        "end": 156,
-        "description": "UAL345 fuel emergency while managing weather reroutes"
+        "end": 156
       },
       {
         "phase": 3,
-        "name": "Unauthorized Altitude Deviation",
         "start": 156,
-        "end": 360,
-        "description": "AAL300 altitude deviation during emergency + weather management"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -282,63 +189,37 @@ export const scenarios = {
       168
     ],
     "eventTypes": [
-      "phase_transition",
       "weather",
+      "phase_transition",
       "emergency",
       "altitude_deviation",
-      "internal"
-    ],
-    "keyMeasurements": [
-      "AAL300 altitude deviation detection time",
-      "Parallel crisis management quality",
-      "Attention distribution across crises",
-      "SAGAT situation awareness scores"
-    ],
-    "expectedDetectionTimes": {
-      "condition_1_traditional": 45,
-      "condition_2_adaptive": 22,
-      "condition_3_ml": 15
-    },
-    "weatherSystem": {
-      "center": [
-        175,
-        125
-      ],
-      "radius": 30,
-      "type": "Severe thunderstorms, embedded hail",
-      "effect": "Blocks all direct routes through center"
-    }
+      "internal",
+      "ml_prediction"
+    ]
   },
   "H6": {
     "id": "H6",
     "name": "Cry Wolf Effect / Alert Filtering",
-    "description": "High-workload scenario testing trust calibration after false alarm",
-    "complexity": "high",
-    "workload": "high",
+    "description": "False alarm followed by delayed real conflict to test trust calibration.",
+    "complexity": "High",
+    "workload": "High",
     "aircraftCount": 9,
     "duration": 360,
-    "alertFrequency": 8,
     "phases": [
       {
         "phase": 1,
-        "name": "Normal High-Workload Operations",
         "start": 0,
-        "end": 120,
-        "description": "9 aircraft, routine operations, establish baseline trust"
+        "end": 120
       },
       {
         "phase": 2,
-        "name": "FALSE ALARM - Conflict Alert",
         "start": 120,
-        "end": 156,
-        "description": "UAL600/SWA700 false conflict alert (6.8nm actual, 4.2nm predicted)"
+        "end": 156
       },
       {
         "phase": 3,
-        "name": "REAL Conflict (Delayed Alert)",
         "start": 156,
-        "end": 360,
-        "description": "DAL300/AAL900 real conflict, alert delayed 20 seconds"
+        "end": 360
       }
     ],
     "sagatProbeTimes": [
@@ -350,31 +231,9 @@ export const scenarios = {
       "phase_transition",
       "false_alarm",
       "conflict",
-      "delayed_alert"
-    ],
-    "keyMeasurements": [
-      "False alarm detection and dismissal time",
-      "Real conflict response time",
-      "Trust calibration (pre/post false alarm)",
-      "Alert dismissal time comparison",
-      "SAGAT situation awareness scores"
-    ],
-    "expectedDetectionTimes": {
-      "condition_1_traditional": 45,
-      "condition_2_adaptive": 28,
-      "condition_3_ml": 18
-    },
-    "trustCalibration": {
-      "false_alarm_pair": [
-        "UAL600",
-        "SWA700"
-      ],
-      "real_conflict_pair": [
-        "DAL300",
-        "AAL900"
-      ],
-      "alert_delay_seconds": 20
-    }
+      "delayed_alert",
+      "ml_prediction"
+    ]
   }
 };
 

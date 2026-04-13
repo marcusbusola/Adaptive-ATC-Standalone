@@ -155,7 +155,8 @@ class Aircraft:
             'issue_type': self.issue_type,
             'issue_start_time': self.issue_start_time,
             'issue_resolved': self.issue_resolved,
-            # Needs are HIDDEN until inspection - only track inspection stats
+            # Expose unresolved pending needs for clearance request display
+            'pending_needs': [n for n in self.pending_needs if not n.get('resolved')],
             'last_inspection_time': self.last_inspection_time,
             'needs_check_count': self.needs_check_count
         }

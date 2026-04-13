@@ -6,7 +6,7 @@
  * Now supports real simulation control via simulation API.
  */
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getApiBaseUrl } from '../utils/apiConfig';
 import { SCENARIO_ACTIONS, COMMON_COMMANDS } from '../config/scenarioActions';
 import simulationApi from '../services/simulation-api';
@@ -30,7 +30,9 @@ const ActionPanel = ({
   pilotComplaints = [],
   // Active monitoring callbacks
   onNeedResolved = null,
-  onAlertHandled = null
+  onAlertHandled = null,
+  // Pending needs from polling (visible without inspection)
+  pendingNeeds = {}
 }) => {
   // Use external selection if provided, otherwise maintain internal state
   const [internalSelectedAircraft, setInternalSelectedAircraft] = useState(null);
@@ -55,8 +57,44 @@ const ActionPanel = ({
   const [isResolvingEmergency, setIsResolvingEmergency] = useState(false);
   const [emergencyFeedback, setEmergencyFeedback] = useState(null); // { correct, feedback, points }
 
+  // Score change floating notifications
+  const [scoreNotifications, setScoreNotifications] = useState([]);
+  const lastSeenScoreChangesRef = useRef([]);
+  const notifIdRef = useRef(0);
+
+  // Track locally submitted need resolutions (to hide immediately before next poll)
+  const [resolvedNeedKeys, setResolvedNeedKeys] = useState(new Set());
+
   // UI state
   const [situationCollapsed, setSituationCollapsed] = useState(true);
+
+  // Detect new score changes and surface as floating notifications
+  useEffect(() => {
+    if (!scoreChanges || scoreChanges.length === 0) return;
+    const seen = lastSeenScoreChangesRef.current;
+    const newEntries = scoreChanges.filter(
+      entry => !seen.some(s => s.time === entry.time && s.delta === entry.delta)
+    );
+    if (newEntries.length === 0) return;
+    lastSeenScoreChangesRef.current = scoreChanges;
+    const now = Date.now();
+    const toAdd = newEntries
+      .filter(entry => Math.abs(entry.delta) >= 1)
+      .map(entry => ({
+        id: ++notifIdRef.current,
+        delta: entry.delta,
+        reasons: entry.reasons || [],
+        timestamp: now
+      }));
+    if (toAdd.length === 0) return;
+    setScoreNotifications(prev => [...prev, ...toAdd]);
+    // Auto-dismiss after 3s
+    toAdd.forEach(n => {
+      setTimeout(() => {
+        setScoreNotifications(prev => prev.filter(x => x.id !== n.id));
+      }, 3500);
+    });
+  }, [scoreChanges]);
 
   // Handle aircraft selection - notify parent if callback provided
   const handleAircraftSelect = useCallback((callsign) => {
@@ -530,6 +568,27 @@ const ActionPanel = ({
         <div className="elapsed-time">{formatTime(elapsedTime)}</div>
       </div>
 
+      {/* Score Change Floating Notifications */}
+      {scoreNotifications.length > 0 && (
+        <div className="score-notifications">
+          {scoreNotifications.map(n => (
+            <div
+              key={n.id}
+              className={`score-notif ${n.delta > 0 ? 'positive' : 'negative'}`}
+            >
+              <span className="notif-delta">
+                {n.delta > 0 ? '+' : ''}{n.delta.toFixed(1)}
+              </span>
+              {n.reasons.length > 0 && (
+                <span className="notif-reason">
+                  {n.reasons[0].toUpperCase()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Safety Score Display */}
         <section className="panel-section safety-score-section">
         <h3>Safety Score</h3>
@@ -821,6 +880,46 @@ const ActionPanel = ({
           </div>
         )}
       </section>
+
+      {/* Clearance Requests - needs surfaced automatically from polling */}
+      {Object.keys(pendingNeeds).length > 0 && (
+        <section className="panel-section clearance-requests">
+          <h3>
+            Clearance Requests
+            <span className="requests-badge">
+              {Object.values(pendingNeeds).reduce((sum, needs) => {
+                const filtered = needs.filter(n => !resolvedNeedKeys.has(`${n.callsign || ''}_${n.type}`));
+                return sum + filtered.length;
+              }, 0)}
+            </span>
+          </h3>
+          <div className="clearance-requests-list">
+            {Object.entries(pendingNeeds).map(([callsign, needs]) =>
+              needs
+                .filter(need => !resolvedNeedKeys.has(`${callsign}_${need.type}`))
+                .map((need, idx) => (
+                  <div key={`${callsign}-${need.type}-${idx}`} className={`clearance-card priority-${need.priority}`}>
+                    <div className="clearance-card-info">
+                      <span className="clearance-callsign">{callsign}</span>
+                      <span className="clearance-label">{need.label}</span>
+                      <span className="clearance-description">{need.description}</span>
+                    </div>
+                    <button
+                      className="clearance-resolve-btn"
+                      onClick={() => {
+                        setResolvedNeedKeys(prev => new Set([...prev, `${callsign}_${need.type}`]));
+                        resolveNeed(callsign, need.type);
+                      }}
+                      disabled={isResolvingNeed}
+                    >
+                      Resolve
+                    </button>
+                  </div>
+                ))
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Common ATC Commands */}
         <section className="panel-section common-commands">

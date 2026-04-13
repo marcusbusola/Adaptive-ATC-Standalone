@@ -23,7 +23,12 @@ from typing import List, Dict, Any, Optional, Tuple
 import json
 import asyncio
 from datetime import datetime
-from complacency_detector import ComplacencyDetector, BehavioralFeatureExtractor
+try:
+    # Package import path (used by backend server runtime)
+    from .complacency_detector import ComplacencyDetector, BehavioralFeatureExtractor
+except ImportError:
+    # Script execution path: `python train_complacency_model.py`
+    from complacency_detector import ComplacencyDetector, BehavioralFeatureExtractor
 
 # Import for database training
 import sys

@@ -114,6 +114,7 @@ function Session() {
     const [showCompletion, setShowCompletion] = useState(false); // Final completion/thank you screen
     const [alertsHandledCount, setAlertsHandledCount] = useState(0); // Track alerts handled
     const [needsResolvedCount, setNeedsResolvedCount] = useState(0); // Track needs resolved
+    const [pendingNeeds, setPendingNeeds] = useState({}); // Aircraft callsign -> pending needs array
     const [showSurveyOutro, setShowSurveyOutro] = useState(false); // Loading screen after surveys
 
     // System status for silent failures (L2 scenario)
@@ -447,6 +448,15 @@ function Session() {
             setPhaseDescription(data.phase_description);
             const updatedAircraft = data.aircraft || {};
             setAircraft(updatedAircraft);
+
+            // Extract pending needs from aircraft state for clearance request display
+            const newPendingNeeds = {};
+            Object.entries(updatedAircraft).forEach(([callsign, ac]) => {
+                if (ac.pending_needs && ac.pending_needs.length > 0) {
+                    newPendingNeeds[callsign] = ac.pending_needs;
+                }
+            });
+            setPendingNeeds(newPendingNeeds);
 
             // If an aircraft no longer has an issue/emergency, drop any lingering alerts/pulses for it
             const clearedTargets = new Set(
@@ -1439,6 +1449,7 @@ function Session() {
                         liveAircraft={aircraft}
                         conflicts={conflicts}
                         pendingAlerts={pendingAlerts}
+                        pendingNeeds={pendingNeeds}
                         selectedAircraft={selectedAircraft}
                         onAircraftSelect={handleAircraftSelect}
                     />
@@ -1453,6 +1464,7 @@ function Session() {
                     aircraft={aircraft}
                     elapsedTime={elapsedTime}
                     pendingAlerts={pendingAlerts}
+                    pendingNeeds={pendingNeeds}
                     onActionLogged={handleActionLogged}
                     selectedAircraft={selectedAircraft}
                     onAircraftSelect={handleAircraftSelect}

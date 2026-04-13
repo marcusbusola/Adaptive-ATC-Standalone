@@ -28,6 +28,7 @@ function RadarViewer({
   liveAircraft = null,
   conflicts: liveConflicts = null,
   pendingAlerts = [],
+  pendingNeeds = {}, // Aircraft with pending clearance requests
   selectedAircraft: externalSelectedAircraft = null, // External selection control
   onAircraftSelect = null, // Callback when aircraft is selected
 }) {
@@ -36,6 +37,8 @@ function RadarViewer({
   const animationRef = useRef(null);
   const sweepAngleRef = useRef(0);
   const audioContextRef = useRef(null);
+  const positionHistoryRef = useRef({});
+  const HISTORY_LENGTH = 5;
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -137,6 +140,11 @@ function RadarViewer({
     }
   }, []);
 
+  // Set loading false once actually connected/data available
+  useEffect(() => {
+    if (connected) setIsLoading(false);
+  }, [connected]);
+
   // Clean up audio context on unmount
   useEffect(() => {
     return () => {
@@ -210,9 +218,21 @@ function RadarViewer({
     // Draw radar sweep
     drawRadarSweep(ctx);
 
+    // Draw destination direction indicators
+    drawDestinationMarkers(ctx);
+
     // Draw aircraft from simulation state
     if (aircraft && aircraft.length > 0) {
       aircraft.forEach(ac => {
+        // Update position history for trails
+        const pos = getAircraftScreenPos(ac);
+        if (pos && pos.x >= 0 && pos.x <= CANVAS_SIZE && pos.y >= 0 && pos.y <= CANVAS_SIZE) {
+          const history = positionHistoryRef.current[ac.callsign] || [];
+          const last = history[history.length - 1];
+          if (!last || Math.hypot(last.x - pos.x, last.y - pos.y) > 2) {
+            positionHistoryRef.current[ac.callsign] = [...history.slice(-(HISTORY_LENGTH - 1)), pos];
+          }
+        }
         drawAircraft(ctx, ac, ac.callsign === selectedAircraft?.callsign);
       });
     }
@@ -223,7 +243,7 @@ function RadarViewer({
         drawConflictZone(ctx, conflict);
       });
     }
-  }, [aircraft, conflicts, selectedAircraft, scenarioCenter]);
+  }, [aircraft, conflicts, selectedAircraft, scenarioCenter, pendingNeeds]);
 
   /**
    * Initialize and start render loop.
@@ -231,8 +251,6 @@ function RadarViewer({
    * instead of capturing the initial empty state.
    */
   useEffect(() => {
-    setIsLoading(false);
-
     // Cancel any existing loop before starting a new one (e.g., after dependency changes)
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -631,6 +649,16 @@ function RadarViewer({
       return;
     }
 
+    // Draw position history trail
+    const history = positionHistoryRef.current[ac.callsign] || [];
+    history.forEach((hpos, i) => {
+      const opacity = 0.1 + (i / HISTORY_LENGTH) * 0.3;
+      ctx.fillStyle = `rgba(0, 255, 0, ${opacity})`;
+      ctx.beginPath();
+      ctx.arc(hpos.x, hpos.y, 2, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+
     // Aircraft symbol (triangle) - mood ring removed as redundant
     ctx.save();
     ctx.translate(pos.x, pos.y);
@@ -675,8 +703,18 @@ function RadarViewer({
    * Draw aircraft data block
    */
   const drawDataBlock = (ctx, ac, pos, isSelected) => {
-    const offsetX = 12;
-    const offsetY = 0;
+    // Place label away from direction of travel to reduce overlap
+    const heading = ac.heading || 0;
+    let offsetX, offsetY;
+    if (heading >= 315 || heading < 45) {
+      offsetX = 12; offsetY = 18;   // moving N → label below-right
+    } else if (heading >= 45 && heading < 135) {
+      offsetX = -54; offsetY = 0;   // moving E → label to left
+    } else if (heading >= 135 && heading < 225) {
+      offsetX = 12; offsetY = -28;  // moving S → label above-right
+    } else {
+      offsetX = 12; offsetY = 0;    // moving W → label to right
+    }
 
     ctx.font = '10px monospace';
     ctx.fillStyle = isSelected ? '#00ffff' : '#ffffff';
@@ -701,6 +739,14 @@ function RadarViewer({
     } else if (ac.comm_loss || ac.comm_status === 'lost') {
       ctx.fillStyle = '#ff0000';
       ctx.fillText('NORDO', pos.x + offsetX, pos.y + offsetY + 24);
+    }
+
+    // Clearance request badge (R) for aircraft with pending needs
+    const acNeeds = pendingNeeds[ac.callsign];
+    if (acNeeds && acNeeds.length > 0) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px monospace';
+      ctx.fillText('R', pos.x + offsetX + 38, pos.y + offsetY);
     }
   };
 
@@ -727,7 +773,59 @@ function RadarViewer({
   };
 
   /**
-   * Draw conflict zone
+   * Draw destination direction indicators for all aircraft
+   * Uses heading as direction proxy since destination coords are unavailable
+   */
+  const drawDestinationMarkers = (ctx) => {
+    if (!aircraft || aircraft.length === 0) return;
+    const scale = CANVAS_SIZE / (2 * RADAR_RANGE_NM);
+    const projectionNM = 50; // 50NM extension in heading direction
+
+    aircraft.forEach(ac => {
+      if (!ac.destination) return;
+      const pos = getAircraftScreenPos(ac);
+      if (!pos || pos.x < 0 || pos.x > CANVAS_SIZE || pos.y < 0 || pos.y > CANVAS_SIZE) return;
+
+      const heading = ac.heading || 0;
+      const projPx = projectionNM * scale;
+      const destX = pos.x + projPx * Math.sin(heading * Math.PI / 180);
+      const destY = pos.y - projPx * Math.cos(heading * Math.PI / 180);
+
+      ctx.save();
+
+      // Faint dashed line toward destination direction
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      ctx.lineTo(destX, destY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Small × cross at projected endpoint
+      const crossSize = 4;
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(destX - crossSize, destY - crossSize);
+      ctx.lineTo(destX + crossSize, destY + crossSize);
+      ctx.moveTo(destX + crossSize, destY - crossSize);
+      ctx.lineTo(destX - crossSize, destY + crossSize);
+      ctx.stroke();
+
+      // Destination label
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.35)';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(ac.destination, destX, destY - 7);
+
+      ctx.restore();
+    });
+  };
+
+  /**
+   * Draw conflict zone with severity-differentiated visuals
    */
   const drawConflictZone = (ctx, conflict) => {
     const callsigns = [
@@ -735,6 +833,30 @@ function RadarViewer({
       conflict.callsign2 || conflict.aircraft_2
     ].filter(Boolean);
 
+    const severity = conflict.severity || 'warning';
+
+    // Severity-based styling
+    let circleRadius, lineWidth, circleColor, lineColor;
+    if (severity === 'critical') {
+      // Pulsing radius using sweep angle as clock
+      circleRadius = 20 + 3 * Math.sin(sweepAngleRef.current * 4);
+      lineWidth = 3;
+      circleColor = '#ff0000';
+      lineColor = 'rgba(255, 0, 0, 0.8)';
+    } else if (severity === 'alert') {
+      circleRadius = 18;
+      lineWidth = 2;
+      circleColor = '#ff6600';
+      lineColor = 'rgba(255, 165, 0, 0.5)';
+    } else {
+      // warning (default)
+      circleRadius = 15;
+      lineWidth = 1;
+      circleColor = '#ff0000';
+      lineColor = 'rgba(255, 0, 0, 0.5)';
+    }
+
+    const positions = [];
     callsigns.forEach(callsign => {
       const ac = aircraft.find(a => a.callsign === callsign);
       if (!ac) return;
@@ -742,13 +864,26 @@ function RadarViewer({
       const pos = getAircraftScreenPos(ac);
       if (!pos) return;
 
-      // Draw red circle around conflicting aircraft
-      ctx.strokeStyle = '#ff0000';
-      ctx.lineWidth = 2;
+      positions.push(pos);
+
+      ctx.strokeStyle = circleColor;
+      ctx.lineWidth = lineWidth;
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 15, 0, 2 * Math.PI);
+      ctx.arc(pos.x, pos.y, circleRadius, 0, 2 * Math.PI);
       ctx.stroke();
     });
+
+    // Draw connecting line between conflicting pair
+    if (positions.length === 2) {
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = severity === 'critical' ? 2 : 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(positions[0].x, positions[0].y);
+      ctx.lineTo(positions[1].x, positions[1].y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   };
 
   /**
